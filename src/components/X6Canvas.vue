@@ -6,13 +6,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { Graph, Dnd, Selection, Clipboard, Keyboard } from '@antv/x6'
+import {nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {Clipboard, Dnd, Graph, Keyboard, Scroller, Selection} from '@antv/x6'
 import {getTeleport} from '@antv/x6-vue-shape';
+import type {GraphData} from '@/stores/editor'
+import {useEditorStore} from '@/stores/editor'
 
-const emit = defineEmits<{
-  (e: 'ready', payload: { graph: Graph; dnd: Dnd }): void
-}>()
+import {MockDataService} from '@/services/MockDataService'
+import type {DataBindingConfig, IDataService} from '@/services/DataService'
+
+import {AnimationService} from '@/services/AnimationService'
+
+let animationService: AnimationService | null = null
+
+
+// 数据服务实例
+let dataService: IDataService | null = null
+// 存储节点 ID → 数据点 ID 的映射，用于清理
+const nodeDataSubscriptions = new Map<string, string>()
+
 
 // ===================== 1. 获取 Teleport 容器组件 =====================
 // getTeleport() 返回一个 Vue 组件，用于承载所有 Vue 节点。
@@ -28,6 +40,20 @@ let graph: Graph | null = null
 // Dnd 拖拽实例（用于侧边栏拖拽）
 let dnd: Dnd | null = null
 
+// ResizeObserver 实例（用于画布自适应）
+let resizeObserver: ResizeObserver | null = null
+
+// 标记是否正在通过 store 更新画布（防止循环）
+let isUpdatingFromStore = false
+
+// ===================== 3. 使用 Store =====================
+const editorStore = useEditorStore()
+
+// 定义事件：画布初始化完成
+const emit = defineEmits<{
+  (e: 'ready', payload: { graph: Graph; dnd: Dnd }): void
+}>()
+
 // ===================== 3. 暴露实例给父组件 =====================
 // 父组件（App.vue）可以通过 ref 获取到这些实例，用于侧边栏交互。
 defineExpose({
@@ -36,20 +62,36 @@ defineExpose({
 })
 
 
-
-
 // ===================== 4. 组件挂载后初始化画布 =====================
 onMounted(() => {
   // 4.1 确保容器存在
   if (!containerRef.value) return
 
+  // 读取容器实际尺寸
+  const containerWidth = containerRef.value.clientWidth || 800
+  const containerHeight = containerRef.value.clientHeight || 600
+
   // 4.2 创建 Graph 实例
   graph = new Graph({
     container: containerRef.value, // DOM 容器
-    width: 800,                    // 宽度（后续可以自适应）
-    height: 600,                   // 高度
+    width: containerWidth,
+    height: containerHeight,
     grid: true,                    // 显示网格，便于对齐
-    background: { color: '#f5f5f5' }, // 浅灰背景
+    background: {color: '#f5f5f5'}, // 浅灰背景
+
+    // ===== 性能优化配置 =====
+    // 启用虚拟渲染：只渲染可视区域内的节点和边[reference:4][reference:5]
+    virtual: {
+      enabled: true,
+      margin: 150, // 缓冲区边距（像素），防止快速滚动时出现空白[reference:6]
+    },
+    // 滚轮缩放
+    mousewheel: {
+      enabled: true,
+      zoomAtMousePosition: true,
+      minScale: 0.2,
+      maxScale: 3,
+    },
 
     // ---------- 连线配置（Connecting） ----------
     connecting: {
@@ -81,7 +123,7 @@ onMounted(() => {
         })
       },
       // 校验连线是否合法（防止自连、重复连接）
-      validateConnection: ({ sourceCell, targetCell }) => {
+      validateConnection: ({sourceCell, targetCell}) => {
         // 不能连接自己
         if (sourceCell === targetCell) return false
         // 不允许重复连接（两个节点之间只能有一条边）
@@ -99,7 +141,23 @@ onMounted(() => {
     },
   })
 
+
   // 4.3 注册核心插件（功能增强）
+
+  // ===== 注册 Scroller 插件（可滚动无限画布） =====
+  // Scroller 与虚拟渲染配合使用，提供最佳的大规模图渲染性能
+  graph.use(
+      new Scroller({
+        enabled: true,
+        pannable: true,        // 允许拖拽平移画布
+        autoResize: true,      // 自动调整画布大小
+        pageVisible: true,     // 显示分页标记
+        pageBreak: false,
+        minVisibleWidth: 800,
+        minVisibleHeight: 600,
+      })
+  )
+
   // Selection: 框选 + 多选
   graph.use(
       new Selection({
@@ -128,6 +186,8 @@ onMounted(() => {
       })
   )
 
+
+
   // 4.4 注册快捷键
   // Ctrl+C: 复制选中的节点/边
   graph.bindKey('ctrl+c', () => {
@@ -140,7 +200,7 @@ onMounted(() => {
   // Ctrl+V: 粘贴，偏移 20px 防止重叠
   graph.bindKey('ctrl+v', () => {
     if (!graph!.isClipboardEmpty()) {
-      graph!.paste({ offset: { dx: 20, dy: 20 } })
+      graph!.paste({offset: {dx: 20, dy: 20}})
     }
   })
 
@@ -164,6 +224,14 @@ onMounted(() => {
     graph!.select(allCells)
   })
 
+  // 撤销/重做快捷键（Ctrl+Z / Ctrl+Shift+Z）
+  graph.bindKey('ctrl+z', () => {
+    editorStore.undo()
+  })
+  graph.bindKey('ctrl+shift+z', () => {
+    editorStore.redo()
+  })
+
   // 4.5 创建 Dnd 实例（用于侧边栏拖拽）
   dnd = new Dnd({
     target: graph, // 拖拽的目标画布
@@ -182,156 +250,209 @@ onMounted(() => {
     },
     // 节点放置到画布后的回调（可在此调整位置或属性）
     getDropNode: (node) => {
-      const { width, height } = node.size()
+      const {width, height} = node.size()
       // 返回一个新的节点作为实际放置到画布上的节点
       return node.clone().size(width * 1.2, height * 1.2)
     },
   })
 
   // 4.6 加载初始示例数据（展示 Hello World 和自定义节点）
-  const data = {
-    nodes: [
-      {
-        id: 'node1',
-        shape: 'rect',
-        x: 40,
-        y: 40,
-        width: 100,
-        height: 40,
-        label: 'Hello',
-        attrs: {
-          body: {
-            stroke: '#8f8f8f',
-            strokeWidth: 1,
-            fill: '#fff',
-            rx: 6,
-            ry: 6,
+  // 如果 store 中有数据，则加载，否则使用默认示例数据
+  if (editorStore.graphData.nodes.length > 0) {
+    loadGraphData(editorStore.graphData)
+  } else {
+    const defaultData = {
+      nodes: [
+        {
+          id: 'node1',
+          shape: 'rect',
+          x: 40,
+          y: 40,
+          width: 100,
+          height: 40,
+          label: 'Hello',
+          attrs: {
+            body: {
+              stroke: '#8f8f8f',
+              strokeWidth: 1,
+              fill: '#fff',
+              rx: 6,
+              ry: 6,
+            },
           },
-        },
-        // 为节点添加连接桩（Port），使其可连线
-        ports: {
-          groups: {
-            top: {
-              position: 'top',
-              attrs: {
-                circle: {
-                  r: 4,
-                  magnet: true,     // 关键：允许连线
-                  stroke: '#31d0c6',
-                  strokeWidth: 2,
-                  fill: '#fff',
+          // 为节点添加连接桩（Port），使其可连线
+          ports: {
+            groups: {
+              top: {
+                position: 'top',
+                attrs: {
+                  circle: {
+                    r: 4,
+                    magnet: true,     // 关键：允许连线
+                    stroke: '#31d0c6',
+                    strokeWidth: 2,
+                    fill: '#fff',
+                  },
+                },
+              },
+              bottom: {
+                position: 'bottom',
+                attrs: {
+                  circle: {
+                    r: 4,
+                    magnet: true,
+                    stroke: '#31d0c6',
+                    strokeWidth: 2,
+                    fill: '#fff',
+                  },
                 },
               },
             },
-            bottom: {
-              position: 'bottom',
-              attrs: {
-                circle: {
-                  r: 4,
-                  magnet: true,
-                  stroke: '#31d0c6',
-                  strokeWidth: 2,
-                  fill: '#fff',
+            items: [
+              {id: 'top1', group: 'top'},
+              {id: 'bottom1', group: 'bottom'},
+            ],
+          },
+        },
+        {
+          id: 'node2',
+          shape: 'rect',
+          x: 200,
+          y: 180,
+          width: 100,
+          height: 40,
+          label: 'World',
+          attrs: {
+            body: {
+              stroke: '#8f8f8f',
+              strokeWidth: 1,
+              fill: '#fff',
+              rx: 6,
+              ry: 6,
+            },
+          },
+          ports: {
+            groups: {
+              top: {
+                position: 'top',
+                attrs: {
+                  circle: {
+                    r: 4,
+                    magnet: true,
+                    stroke: '#31d0c6',
+                    strokeWidth: 2,
+                    fill: '#fff',
+                  },
+                },
+              },
+              bottom: {
+                position: 'bottom',
+                attrs: {
+                  circle: {
+                    r: 4,
+                    magnet: true,
+                    stroke: '#31d0c6',
+                    strokeWidth: 2,
+                    fill: '#fff',
+                  },
                 },
               },
             },
-          },
-          items: [
-            { id: 'top1', group: 'top' },
-            { id: 'bottom1', group: 'bottom' },
-          ],
-        },
-      },
-      {
-        id: 'node2',
-        shape: 'rect',
-        x: 200,
-        y: 180,
-        width: 100,
-        height: 40,
-        label: 'World',
-        attrs: {
-          body: {
-            stroke: '#8f8f8f',
-            strokeWidth: 1,
-            fill: '#fff',
-            rx: 6,
-            ry: 6,
+            items: [
+              {id: 'top2', group: 'top'},
+              {id: 'bottom2', group: 'bottom'},
+            ],
           },
         },
-        ports: {
-          groups: {
-            top: {
-              position: 'top',
-              attrs: {
-                circle: {
-                  r: 4,
-                  magnet: true,
-                  stroke: '#31d0c6',
-                  strokeWidth: 2,
-                  fill: '#fff',
-                },
-              },
-            },
-            bottom: {
-              position: 'bottom',
-              attrs: {
-                circle: {
-                  r: 4,
-                  magnet: true,
-                  stroke: '#31d0c6',
-                  strokeWidth: 2,
-                  fill: '#fff',
-                },
-              },
+        {
+          id: 'node3',
+          shape: 'custom-card', // 使用我们注册的自定义形状
+          x: 160,
+          y: 120,
+          data: {
+            title: '温度传感器',
+            icon: '🌡️',
+            status: '正常',
+          },
+          // 自定义节点也可以添加连接桩（需要在 Vue 组件中体现，这里省略）
+        },
+      ],
+      edges: [
+        {
+          shape: 'edge',
+          source: 'node1',
+          target: 'node2',
+          label: 'X6',
+          attrs: {
+            line: {
+              stroke: '#8f8f8f',
+              strokeWidth: 1,
             },
           },
-          items: [
-            { id: 'top2', group: 'top' },
-            { id: 'bottom2', group: 'bottom' },
-          ],
         },
-      },
-      {
-        id: 'node3',
-        shape: 'custom-card', // 使用我们注册的自定义形状
-        x: 160,
-        y: 120,
-        data: {
-          title: '温度传感器',
-          icon: '🌡️',
-          status: '正常',
-        },
-        // 自定义节点也可以添加连接桩（需要在 Vue 组件中体现，这里省略）
-      },
-    ],
-    edges: [
-      {
-        shape: 'edge',
-        source: 'node1',
-        target: 'node2',
-        label: 'X6',
-        attrs: {
-          line: {
-            stroke: '#8f8f8f',
-            strokeWidth: 1,
-          },
-        },
-      },
-    ],
+      ],
+    }
+    // 存入 store 并加载到画布
+    editorStore.setGraphData(defaultData)
+    loadGraphData(defaultData)
+    // 初始化历史（初始状态）
+    editorStore.pushHistory()
   }
 
-  graph.fromJSON(data)
-  graph.centerContent() // 居中显示所有内容
 
+  // ---------- 4.6 监听画布事件，同步到 Store ----------
+  // 注意：所有修改画布的操作都会触发这些事件，我们需要更新 store，
+  // 但同时要避免 store 更新触发重新加载导致循环。
+  // 我们通过 isUpdatingFromStore 标志来区分。
 
+  // 当单元格（节点/边）发生变化（位置、属性等）
+  // 确保 graph 存在
+  if (!graph) {
+    console.error('graph 未初始化，无法绑定事件')
+    return
+  }
+  graph.on('node:moved', () => {
+    if (isUpdatingFromStore) return
+    // 保存当前画布数据到 store
+    syncGraphToStore()
+    // 记录历史（每次变更都保存快照）
+    editorStore.pushHistory()
+  })
+  graph.on('cell:change', () => {
+    if (isUpdatingFromStore) return
+    // 保存当前画布数据到 store
+    syncGraphToStore()
+    // 记录历史（每次变更都保存快照）
+    editorStore.pushHistory()
+  })
+  // 当添加或删除单元格时
+  graph.on('cell:added', () => {
+    if (isUpdatingFromStore) return
+    syncGraphToStore()
+    editorStore.pushHistory()
+  })
+  graph.on('cell:removed', () => {
+    if (isUpdatingFromStore) return
+    syncGraphToStore()
+    editorStore.pushHistory()
+  })
+  // 当选中变化时
+  graph.on('selection:changed', ({selected}) => {
+    // 如果有选中的单元格，更新 store 的 selectedId
+    if (selected && selected.length > 0) {
+      const cell = selected[0]
+      editorStore.setSelected(cell.id)
+    } else {
+      editorStore.setSelected(null)
+    }
+  })
   // 4.7 可选：监听画布事件，便于调试
-  graph.on('cell:click', ({ cell }) => {
+  graph.on('cell:click', ({cell}) => {
     console.log('点击了元素:', cell.id)
   })
 
   // 监听连线完成事件
-  graph.on('edge:connected', ({ edge }) => {
+  graph.on('edge:connected', ({edge}) => {
     console.log(
         '连线完成:',
         edge.getSourceCellId(),
@@ -340,14 +461,229 @@ onMounted(() => {
     )
   })
 
+  // 派发 ready 事件
   emit('ready', {
     graph: graph as Graph,
     dnd: dnd as Dnd,
   })
+
+  // 监听容器尺寸变化，自适应画布
+  resizeObserver = new ResizeObserver((entries) => {
+    if (!graph) return
+    for (const entry of entries) {
+      const {width, height} = entry.contentRect
+      if (width > 0 && height > 0) {
+        graph.resize(width, height)
+      }
+    }
+  })
+  resizeObserver.observe(containerRef.value)
+
+  // ---------- 4.7 监听 store 的 graphData 变化，重新加载画布 ----------
+  // 注意：当 store 数据变化（如撤销、重做、加载）时，更新画布
+  watch(
+      () => editorStore.graphData,
+      (newData) => {
+        // 如果新数据与当前画布数据相同，则跳过（避免循环）
+        // 我们通过比较 JSON 字符串来判断
+        const currentData = graph!.toJSON()
+        const newDataStr = JSON.stringify(newData)
+        const currentDataStr = JSON.stringify(currentData)
+        if (newDataStr === currentDataStr) return
+
+        // 标记正在从 store 更新
+        isUpdatingFromStore = true
+        // 加载新数据
+        loadGraphData(newData)
+        // 恢复选中状态
+        if (editorStore.selectedId) {
+          const cell = graph!.getCellById(editorStore.selectedId)
+          if (cell) {
+            graph!.select(cell)
+          }
+        }
+        // 重置标志
+        nextTick(() => {
+          isUpdatingFromStore = false
+        })
+      },
+      {deep: true}
+  )
+
+// 初始化数据服务（使用模拟服务，可替换为 WebSocketService）
+  dataService = new MockDataService()
+  // 或使用 WebSocket: dataService = new WebSocketService('ws://localhost:8080/ws')
+// 绑定所有节点的数据
+  bindAllNodes()
+// 监听新增节点，自动绑定数据
+  graph.on('cell:added', ({cell}) => {
+    if (cell.isNode()) {
+      console.log('绑定节点:', cell.id)
+      bindNodeData(cell)
+    }
+  })
+
+  // 监听节点数据变化（当 binding 配置变化时重新绑定）
+  graph.on('cell:change:data', ({cell}) => {
+    if (cell.isNode()) {
+      // 检查 binding 是否变化
+      const data = cell.getData()
+      const currentPointId = nodeDataSubscriptions.get(cell.id)
+      const newPointId = data?.binding?.pointId
+      if (currentPointId !== newPointId) {
+        bindNodeData(cell)
+      }
+    }
+  })
+
+
+  animationService = new AnimationService(graph)
+// 监听新增节点，自动应用动画
+  graph.on('cell:added', ({cell}) => {
+    if (cell.isNode()) {
+      applyNodeAnimation(cell)
+    }
+  })
+
 });
+
+// ===================== 5. 辅助函数 =====================
+
+
+// 为节点设置动画（示例：在节点数据中配置 animation）
+function applyNodeAnimation(node: any) {
+  const data = node.getData()
+  if (data?.animation) {
+    animationService?.setAnimation(node.id, data.animation)
+  }
+}
+
+/**
+ * 为节点绑定数据源
+ * 从节点的 data 中读取 binding 配置
+ */
+function bindNodeData(node: any) {
+  const nodeData = node.getData()
+  const binding = nodeData?.binding as DataBindingConfig | undefined
+  if (!binding?.pointId) return
+
+  // 如果已有订阅，先取消
+  if (nodeDataSubscriptions.has(node.id)) {
+    dataService?.unsubscribe(nodeDataSubscriptions.get(node.id)!)
+    nodeDataSubscriptions.delete(node.id)
+  }
+
+  // 订阅数据
+  dataService?.subscribe(binding.pointId, (point) => {
+    // 更新节点数据
+    const currentData = node.getData()
+    let newValue = point.value
+    if (binding.transform) {
+      newValue = binding.transform(point.value)
+    }
+    node.setData({
+      ...currentData,
+      value: newValue,
+      _timestamp: point.timestamp,
+      _quality: point.quality,
+    })
+    // 触发 Vue 组件更新（通过 change:data 事件）
+    node.trigger('change:data', {current: node})
+  })
+
+  nodeDataSubscriptions.set(node.id, binding.pointId)
+}
+
+/**
+ * 为所有节点绑定数据
+ */
+function bindAllNodes() {
+  if (!graph) return
+  const nodes = graph.getNodes()
+  for (const node of nodes) {
+    bindNodeData(node)
+  }
+}
+
+/**
+ * 清理所有数据订阅
+ */
+function unbindAllNodes() {
+  for (const [_nodeId, pointId] of nodeDataSubscriptions) {
+    dataService?.unsubscribe(pointId)
+  }
+  nodeDataSubscriptions.clear()
+}
+
+/**
+ * 将当前画布数据同步到 store
+ */
+function syncGraphToStore() {
+  if (!graph) return
+  const data = graph.toJSON()
+  const nodes = data.cells.filter(
+      (cell: any) => !('source' in cell && 'target' in cell)
+  )
+  const edges = data.cells.filter(
+      (cell: any) => 'source' in cell && 'target' in cell
+  )
+  editorStore.setGraphData({nodes, edges})
+}
+
+/**
+ * 加载数据到画布
+ */
+function loadGraphData(data: GraphData) {
+  if (!graph) return
+
+  // TypeScript 无法在 batchUpdate 的回调闭包中保证它不为 null（因为理论上闭包执行时 graph 可能被外部改为 null）
+  // 解决方法是在函数开头将 graph 赋值给一个 const 局部变量，这样 TypeScript 可以进行类型收窄
+  const g = graph
+
+  g.batchUpdate(() => {
+    g.clearCells()
+    g.fromJSON(data)
+  })
+
+  g.centerContent()
+}
+
+// 在 X6Canvas.vue 中添加批量操作方法
+function batchAddNodes(nodes: any[]) {
+  if (!graph) return
+
+  const g = graph
+  g.batchUpdate(() => {
+    for (const nodeConfig of nodes) {
+      g.addNode(nodeConfig)
+    }
+  })
+
+}
+
+// 批量添加边的示例
+function batchAddEdges(edges: any[]) {
+  if (!graph) return
+
+  const g = graph
+  g.batchUpdate(() => {
+    for (const edgeConfig of edges) {
+      g.addEdge(edgeConfig)
+    }
+  })
+}
 
 // ===================== 5. 组件卸载前清理 =====================
 onBeforeUnmount(() => {
+
+  resizeObserver?.disconnect()
+  resizeObserver = null
+
+  unbindAllNodes()
+  dataService?.disconnect()
+
+  animationService?.dispose()
+
   if (graph) {
     graph.dispose() // 释放 X6 资源
     graph = null
@@ -355,9 +691,7 @@ onBeforeUnmount(() => {
 })
 
 
-
 </script>
-
 
 
 <style scoped>

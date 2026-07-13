@@ -1,10 +1,21 @@
 <template>
   <div class="app-container">
-    <!-- 侧边栏：传入 graph 和 dnd 实例 -->
+    <!-- 左侧：组件库侧边栏：传入 graph 和 dnd 实例 -->
     <!-- 只有实例就绪后才渲染侧边栏 -->
     <Sidebar v-if="graphInstance && dndInstance" :graph="graphInstance" :dnd="dndInstance" />
-    <!-- 画布组件：通过 ref 获取实例 -->
-    <X6Canvas ref="canvasRef" @ready="onCanvasReady" />
+    <!-- 右侧区域 -->
+    <div class="right-area">
+      <!-- 顶部：工具栏 -->
+      <WorkflowToolbar :graph="graphInstance" />
+      <!-- 底部：画布 + 属性面板 -->
+      <div class="bottom-area">
+        <div class="canvas-wrapper">
+          <!-- 画布组件：通过 ref 获取实例 -->
+          <X6Canvas ref="canvasRef" @ready="onCanvasReady" />
+        </div>
+        <PropertyPanel />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -13,6 +24,8 @@
 import { ref } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import X6Canvas from './components/X6Canvas.vue'
+import PropertyPanel from './components/PropertyPanel.vue'
+import WorkflowToolbar from './components/WorkflowToolbar.vue'
 
 // 引用画布组件
 const canvasRef = ref<InstanceType<typeof X6Canvas>>()
@@ -30,7 +43,6 @@ const onCanvasReady = (payload: { graph: any; dnd: any }) => {
 
 
 <style>
-/* 全局样式重置 */
 html,
 body,
 #app {
@@ -48,5 +60,25 @@ body,
   height: 100vh;
 }
 
-/* X6Canvas 将占据剩余宽度 */
+.right-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+
+.bottom-area {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-wrapper {
+  flex: 1 1 0%;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
 </style>

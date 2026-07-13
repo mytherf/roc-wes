@@ -37,6 +37,12 @@ const nodeTemplates = [
   { type: 'rect', label: '矩形', icon: '▭' },
   { type: 'circle', label: '圆形', icon: '◯' },
   { type: 'custom-card', label: '卡片节点', icon: '📋' },
+  { type: 'gauge-node', label: '仪表盘', icon: '📊' },
+  { type: 'chart-node', label: '折线图', icon: '📈' },
+  { type: 'indicator-node', label: '指示灯', icon: '💡' },
+  { type: 'workflow-start', label: '开始节点', icon: '▶' },
+  { type: 'workflow-end', label: '结束节点', icon: '■' },
+  { type: 'custom-code-node', label: '自定义代码', icon: '{ }' },
   // 可以继续添加更多模板，如椭圆、菱形等
 ]
 
@@ -131,6 +137,43 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
     // 自定义节点大小由 Vue 组件决定，这里设置一个宽高占位
     nodeConfig.width = 160
     nodeConfig.height = 80
+  } else if (item.type === 'gauge-node') {
+    nodeConfig.data = {
+      title: '温度',
+      unit: '°C',
+      min: 0,
+      max: 100,
+      value: 50,
+      binding: {
+        pointId: 'sensor.temp.001',
+        sourceType: 'websocket',
+        transform: (raw: any) => Math.round(raw * 10) / 10,
+      },
+    }
+    nodeConfig.width = 200
+    nodeConfig.height = 180
+  } else if (item.type === 'chart-node') {
+    nodeConfig.data = {
+      title: '实时曲线',
+      history: Array(20).fill(0), // 20个初始数据点
+    }
+    nodeConfig.width = 260
+    nodeConfig.height = 160
+  } else if (item.type === 'indicator-node') {
+    nodeConfig.data = {
+      label: '设备状态',
+      status: 'off', // 默认停止
+    }
+    nodeConfig.width = 130
+    nodeConfig.height = 70
+  } else if (item.type === 'workflow-start') {
+    nodeConfig.data = { label: '开始' }
+    nodeConfig.width = 120
+    nodeConfig.height = 50
+  } else if (item.type === 'workflow-end') {
+    nodeConfig.data = { label: '结束' }
+    nodeConfig.width = 120
+    nodeConfig.height = 50
   }
 
   // 使用 Graph 的 createNode 方法创建节点实例
@@ -144,6 +187,8 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
 <style scoped>
 .sidebar {
   width: 180px;
+  min-width: 140px;
+  flex-shrink: 0;
   height: 100%;
   background: #f0f2f5;
   padding: 16px;
@@ -183,6 +228,7 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
   gap: 8px;
   transition: all 0.2s;
   user-select: none;
+  min-width: 0;
 }
 
 .node-item:hover {
@@ -201,5 +247,48 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
 .label {
   font-size: 14px;
   color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 140px;
+    padding: 12px;
+  }
+  .title {
+    font-size: 14px;
+  }
+  .node-item {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .icon {
+    font-size: 16px;
+  }
+  .label {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar {
+    width: 56px;
+    min-width: 56px;
+    padding: 8px;
+    align-items: center;
+  }
+  .title,
+  .hint {
+    display: none;
+  }
+  .label {
+    display: none;
+  }
+  .node-item {
+    justify-content: center;
+    padding: 10px 8px;
+  }
 }
 </style>
