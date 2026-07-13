@@ -1,5 +1,6 @@
 <template>
   <div class="app-container">
+
     <!-- 左侧：组件库侧边栏：传入 graph 和 dnd 实例 -->
     <!-- 只有实例就绪后才渲染侧边栏 -->
     <Sidebar v-if="graphInstance && dndInstance" :graph="graphInstance" :dnd="dndInstance" />
@@ -15,6 +16,8 @@
         </div>
         <PropertyPanel />
       </div>
+      <!-- 底部：状态栏 -->
+      <StatusBar :graph="graphInstance" ref="statusBarRef" />
     </div>
   </div>
 </template>
@@ -26,9 +29,11 @@ import Sidebar from './components/Sidebar.vue'
 import X6Canvas from './components/X6Canvas.vue'
 import PropertyPanel from './components/PropertyPanel.vue'
 import WorkflowToolbar from './components/WorkflowToolbar.vue'
+import StatusBar from './components/StatusBar.vue'
 
 // 引用画布组件
 const canvasRef = ref<InstanceType<typeof X6Canvas>>()
+const statusBarRef = ref<InstanceType<typeof StatusBar>>()
 
 // 存储 graph 和 dnd 实例（用于传递给侧边栏）
 const graphInstance = ref(null)
