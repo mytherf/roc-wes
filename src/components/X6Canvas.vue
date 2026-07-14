@@ -68,17 +68,13 @@ onMounted(() => {
   // 4.1 确保容器存在
   if (!containerRef.value) return
 
-  // 读取容器实际尺寸
-  const containerWidth = containerRef.value.clientWidth || 800
-  const containerHeight = containerRef.value.clientHeight || 600
-
   // 4.2 创建 Graph 实例
   graph = new Graph({
     container: containerRef.value, // DOM 容器
-    width: containerWidth,
-    height: containerHeight,
+    autoResize: true,
     grid: true,                    // 显示网格，便于对齐
     background: {color: '#f5f5f5'}, // 浅灰背景
+    panning: true,
 
     // ===== 性能优化配置 =====
     // 启用虚拟渲染：只渲染可视区域内的节点和边[reference:4][reference:5]
@@ -147,17 +143,17 @@ onMounted(() => {
 
   // ===== 注册 Scroller 插件（可滚动无限画布） =====
   // Scroller 与虚拟渲染配合使用，提供最佳的大规模图渲染性能
-  graph.use(
-      new Scroller({
-        enabled: true,
-        pannable: true,        // 允许拖拽平移画布
-        autoResize: true,      // 自动调整画布大小
-        pageVisible: true,     // 显示分页标记
-        pageBreak: false,
-        minVisibleWidth: 800,
-        minVisibleHeight: 600,
-      })
-  )
+  // graph.use(
+  //     new Scroller({
+  //       enabled: true,
+  //       pannable: true,        // 允许拖拽平移画布
+  //       autoResize: true,      // 自动调整画布大小
+  //       pageVisible: false,     // 显示分页标记
+  //       pageBreak: false,
+  //       minVisibleWidth: 800,
+  //       minVisibleHeight: 600,
+  //     })
+  // )
 
   // Selection: 框选 + 多选
   graph.use(
@@ -168,6 +164,7 @@ onMounted(() => {
         movable: true,        // 选中后可拖动移动
         strict: false,        // 非严格模式（部分包含即选中）
         showNodeSelectionBox: true, // 显示选中框
+        modifiers: ['shift'],
       })
   )
 
@@ -251,9 +248,8 @@ onMounted(() => {
     },
     // 节点放置到画布后的回调（可在此调整位置或属性）
     getDropNode: (node) => {
-      const {width, height} = node.size()
       // 返回一个新的节点作为实际放置到画布上的节点
-      return node.clone().size(width * 1.2, height * 1.2)
+      return node.clone()
     },
   })
 
@@ -476,6 +472,9 @@ onMounted(() => {
       const {width, height} = entry.contentRect
       if (width > 0 && height > 0) {
         graph.resize(width, height)
+        if ((graph as any).scroller) {
+          (graph as any).scroller.resize()
+        }
       }
     }
   })
@@ -647,7 +646,7 @@ function loadGraphData(data: GraphData) {
     g.fromJSON(data)
   })
 
-  g.centerContent()
+  // g.centerContent()
 }
 
 // 在 X6Canvas.vue 中添加批量操作方法
@@ -700,5 +699,30 @@ onBeforeUnmount(() => {
 #x6-container {
   width: 100%;
   height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+#x6-container :deep(::-webkit-scrollbar) {
+  width: 8px;
+  height: 8px;
+}
+
+#x6-container :deep(::-webkit-scrollbar-track) {
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+#x6-container :deep(::-webkit-scrollbar-thumb) {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+#x6-container :deep(::-webkit-scrollbar-thumb:hover) {
+  background: #a8a8a8;
+}
+
+#x6-container :deep(::-webkit-scrollbar-corner) {
+  background: #f0f0f0;
 }
 </style>

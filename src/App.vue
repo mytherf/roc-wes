@@ -83,7 +83,9 @@ body,
 .canvas-wrapper {
   flex: 1 1 0%;
   min-width: 0;
+  min-height: 0;
   height: 100%;
   overflow: hidden;
+  position: relative;
 }
 </style>
