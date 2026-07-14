@@ -138,14 +138,12 @@ npm run preview
 - 验证通过后，根据许可证中的 `features` 和 `maxNodes` 控制功能。
 
 ### 生成授权码（开发/测试用）
-```typescript
-import { ECDSAService } from '@/services/ECDSAService'
-import { LicenseService } from '@/services/LicenseService'
+```bash
+npm run generate-license
 
-const keyPair = ECDSAService.generateKeyPair()
-const activationCode = LicenseService.generateDemoLicense(keyPair.privateKey)
-console.log('🔑 授权码:', activationCode)
-console.log('🔐 公钥:', keyPair.publicKey)
+🔐 私钥: 7778e5f93fecd02f6df97faa809f34e4ccb320c9c94ca37cec74e3f611009b1c
+🔑 公钥: 027796c31bd640c40cec9278881a22c3b16e233c2761f15ac45c6322664ad6efea
+📜 授权码: eyJpZCI6ImRlbW8tbGljZW5zZS0wMDEiLCJzdWJqZWN0IjoiU0NBREEgRW5naW5lIERlbW8iLCJ2ZXJzaW9uIjoiMS4wLjAiLCJpc3N1ZWRBdCI6IjIwMjYtMDctMTRUMDE6MjU6MjQuMDc3WiIsImV4cGlyZXNBdCI6IjIwMzYtMDctMTFUMDE6MjU6MjQuMDc4WiIsImZlYXR1cmVzIjpbImJhc2ljIiwiYWR2YW5jZWQiLCJ3b3JrZmxvdyIsInJlYWx0aW1lIl0sIm1heE5vZGVzIjoxMDAsInNpZ25hdHVyZSI6IjA3YzA2Mzg4NDdiNDM1ZTE2M2E2OWE0NmQ0ZGViZDA1Y2Q0ODhlZjRlYzVmYjRhYmIyZTAwYTA2NTk4MjRmNzM2OWU3M2U0OTZkMDA5NmRkZDkyNWZhMmYzZDc4ZTUzOTE1YzRjOTZiZmFmNmM0ODNlNjJkZjIwMzIxYzUwNTFjIn0=
 ```
 
 ### 激活授权
@@ -181,8 +179,6 @@ roc-mes/
 │   │   ├── WorkflowToolbar.vue # 工作流工具栏
 │   │   └── StatusBar.vue      # 状态栏（含授权管理）
 │   ├── services/              # 服务层
-│   │   ├── ECDSAService.ts    # ECDSA 加密
-│   │   ├── LicenseService.ts  # 授权服务
 │   │   ├── DataService.ts     # 数据服务接口
 │   │   ├── WebSocketService.ts
 │   │   ├── MockDataService.ts
@@ -243,7 +239,7 @@ roc-mes/
 
 4. **启用 HTTPS**（推荐使用 Let's Encrypt）：
    ```bash
-   certbot --nginx -d scada.yourdomain.com
+   certbot --nginx -d roc-wes.yourdomain.com
    ```
 
 ### 方式二：Docker 容器化

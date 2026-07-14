@@ -165,7 +165,7 @@ export const useEditorStore = defineStore(
     {
         // 持久化选项（仅存储 graphData 和 selectedId）
         persist: {
-            key: 'scada-editor',
+            key: 'roc-wes-editor',
             pick: ['graphData', 'selectedId'],
         },
     }

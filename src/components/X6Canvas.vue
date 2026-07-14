@@ -17,7 +17,6 @@ import type {DataBindingConfig, IDataService} from '@/services/DataService'
 
 import {AnimationService} from '@/services/AnimationService'
 
-import { LicenseService } from '@/services/ecc/LicenseService'
 
 let animationService: AnimationService | null = null
 
@@ -463,25 +462,6 @@ onMounted(() => {
     )
   })
 
-  graph.on('cell:added', ({ cell }) => {
-    if (cell.isNode()) {
-      // 检查节点数量是否超限
-      const nodeCount = graph!.getNodes().length
-      const result = LicenseService.checkNodeLimit(nodeCount)
-      if (!result.allowed) {
-        // 移除刚添加的节点
-        graph!.removeCells([cell])
-        // 提示用户
-        nextTick(() => {
-          alert(`⚠️ 节点数量已达上限（${result.maxNodes}个），请升级授权以添加更多节点`)
-        })
-        return
-      }
-      // 如果未超限，继续其他业务逻辑（如数据绑定、动画等）
-      // 可以在这里调用之前已定义的 handleDataChange 等
-      // 注意避免重复触发 save
-    }
-  })
 
   // 派发 ready 事件
   emit('ready', {
