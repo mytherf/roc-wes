@@ -113,12 +113,17 @@ import { useEditorStore } from '@/stores/editor'
 // ===================== 依赖注入 =====================
 const editorStore = useEditorStore()
 
-/**
- * 父组件传入的 X6Canvas 实例引用
- */
 const props = defineProps<{
   canvasRef: any
 }>()
+
+// ===================== 辅助方法：获取 Graph 实例 =====================
+// canvasRef.graph 现在是一个 ref（来自 X6Canvas 的 defineExpose），需要读取 .value
+function getGraph(): any {
+  const g = props.canvasRef?.graph
+  // 如果是 ref，取 .value；否则直接返回（兼容旧写法）
+  return g?.value !== undefined ? g.value : g
+}
 
 // ===================== 当前选中元素 =====================
 const element = computed(() => editorStore.selectedElement)
@@ -129,7 +134,6 @@ const bindingSourceType = ref('websocket')
 const bindingPointId = ref('')
 const bindingTransform = ref('')
 
-// 防止在 watch 中循环更新
 let isUpdatingFromWatch = false
 
 // ===================== 监听选中元素变化，加载绑定配置 =====================
@@ -141,12 +145,15 @@ watch(
         let binding = data?.binding || {}
 
         // 如果 store 中没有 binding 数据，尝试从 X6 节点实例直接读取
-        if (!binding.pointId && props.canvasRef?.graph) {
-          const node = props.canvasRef.graph.getCellById(newElement.data.id)
-          if (node && node.isNode()) {
-            const nodeData = node.getData()
-            if (nodeData?.binding?.pointId) {
-              binding = nodeData.binding
+        if (!binding.pointId) {
+          const graph = getGraph()
+          if (graph) {
+            const node = graph.getCellById(newElement.data.id)
+            if (node && node.isNode()) {
+              const nodeData = node.getData()
+              if (nodeData?.binding?.pointId) {
+                binding = nodeData.binding
+              }
             }
           }
         }
@@ -155,7 +162,6 @@ watch(
         bindingPointId.value = binding.pointId || ''
         bindingTransform.value = binding.transform ? binding.transform.toString() : ''
       } else {
-        // 非节点重置
         bindingPointId.value = ''
       }
     },
@@ -164,28 +170,23 @@ watch(
 
 // ===================== 核心方法：更新绑定配置 =====================
 function updateBinding() {
-  // 防御性检查
   if (!element.value || element.value.type !== 'node') {
     console.warn('[PropertyPanel] 未选中节点，跳过绑定更新')
     return
   }
 
-  // 防止 watch 触发循环
   if (isUpdatingFromWatch) return
 
   const nodeId = element.value.data.id
   const pointId = bindingPointId.value.trim()
 
-  // 构建 binding 对象
   let binding: any = null
 
   if (pointId) {
-    // 有点ID → 启用绑定
     binding = {
       pointId,
       sourceType: bindingSourceType.value,
     }
-    // 如果有转换函数，尝试解析
     if (bindingTransform.value.trim()) {
       try {
         binding.transform = new Function('raw', `return (${bindingTransform.value})(raw)`)
@@ -194,7 +195,6 @@ function updateBinding() {
       }
     }
   } else {
-    // 点ID为空 → 禁用绑定（保存 null 或 undefined）
     binding = undefined
   }
 
@@ -203,7 +203,7 @@ function updateBinding() {
 
   // 触发画布重新绑定
   try {
-    const graph = props.canvasRef?.graph
+    const graph = getGraph()
     if (!graph) {
       console.warn('[PropertyPanel] canvasRef.graph 未就绪')
       return
