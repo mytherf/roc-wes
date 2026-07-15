@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import {nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
-import {Clipboard, Dnd, Graph, Keyboard, Scroller, Selection} from '@antv/x6'
+import {Clipboard, Dnd, Graph, Keyboard, Selection} from '@antv/x6'
 import {getTeleport} from '@antv/x6-vue-shape';
 import type {GraphData} from '@/stores/editor'
 import {useEditorStore} from '@/stores/editor'
@@ -17,6 +17,7 @@ import type {DataBindingConfig, IDataService} from '@/services/DataService'
 
 import {AnimationService} from '@/services/AnimationService'
 
+import { PointIdGenerator } from '@/services/PointIdGenerator'
 
 let animationService: AnimationService | null = null
 
@@ -139,7 +140,13 @@ onMounted(() => {
       },
     },
   })
+  if (!graph) {
+    console.error('graph 未初始化')
+    return
+  }
 
+  // 创建AnimationService
+  animationService = new AnimationService(graph)
 
   // 4.3 注册核心插件（功能增强）
 
@@ -257,143 +264,6 @@ onMounted(() => {
   // 如果 store 中有数据，则加载，否则使用默认示例数据
   if (editorStore.graphData.nodes.length > 0) {
     loadGraphData(editorStore.graphData)
-  } else {
-    const defaultData = {
-      nodes: [
-        {
-          id: 'node1',
-          shape: 'rect',
-          x: 40,
-          y: 40,
-          width: 100,
-          height: 40,
-          label: 'Hello',
-          attrs: {
-            body: {
-              stroke: '#8f8f8f',
-              strokeWidth: 1,
-              fill: '#fff',
-              rx: 6,
-              ry: 6,
-            },
-          },
-          // 为节点添加连接桩（Port），使其可连线
-          ports: {
-            groups: {
-              top: {
-                position: 'top',
-                attrs: {
-                  circle: {
-                    r: 4,
-                    magnet: true,     // 关键：允许连线
-                    stroke: '#31d0c6',
-                    strokeWidth: 2,
-                    fill: '#fff',
-                  },
-                },
-              },
-              bottom: {
-                position: 'bottom',
-                attrs: {
-                  circle: {
-                    r: 4,
-                    magnet: true,
-                    stroke: '#31d0c6',
-                    strokeWidth: 2,
-                    fill: '#fff',
-                  },
-                },
-              },
-            },
-            items: [
-              {id: 'top1', group: 'top'},
-              {id: 'bottom1', group: 'bottom'},
-            ],
-          },
-        },
-        {
-          id: 'node2',
-          shape: 'rect',
-          x: 200,
-          y: 180,
-          width: 100,
-          height: 40,
-          label: 'World',
-          attrs: {
-            body: {
-              stroke: '#8f8f8f',
-              strokeWidth: 1,
-              fill: '#fff',
-              rx: 6,
-              ry: 6,
-            },
-          },
-          ports: {
-            groups: {
-              top: {
-                position: 'top',
-                attrs: {
-                  circle: {
-                    r: 4,
-                    magnet: true,
-                    stroke: '#31d0c6',
-                    strokeWidth: 2,
-                    fill: '#fff',
-                  },
-                },
-              },
-              bottom: {
-                position: 'bottom',
-                attrs: {
-                  circle: {
-                    r: 4,
-                    magnet: true,
-                    stroke: '#31d0c6',
-                    strokeWidth: 2,
-                    fill: '#fff',
-                  },
-                },
-              },
-            },
-            items: [
-              {id: 'top2', group: 'top'},
-              {id: 'bottom2', group: 'bottom'},
-            ],
-          },
-        },
-        {
-          id: 'node3',
-          shape: 'custom-card', // 使用我们注册的自定义形状
-          x: 160,
-          y: 120,
-          data: {
-            title: '温度传感器',
-            icon: '🌡️',
-            status: '正常',
-          },
-          // 自定义节点也可以添加连接桩（需要在 Vue 组件中体现，这里省略）
-        },
-      ],
-      edges: [
-        {
-          shape: 'edge',
-          source: 'node1',
-          target: 'node2',
-          label: 'X6',
-          attrs: {
-            line: {
-              stroke: '#8f8f8f',
-              strokeWidth: 1,
-            },
-          },
-        },
-      ],
-    }
-    // 存入 store 并加载到画布
-    editorStore.setGraphData(defaultData)
-    loadGraphData(defaultData)
-    // 初始化历史（初始状态）
-    editorStore.pushHistory()
   }
 
 
@@ -402,12 +272,7 @@ onMounted(() => {
   // 但同时要避免 store 更新触发重新加载导致循环。
   // 我们通过 isUpdatingFromStore 标志来区分。
 
-  // 当单元格（节点/边）发生变化（位置、属性等）
-  // 确保 graph 存在
-  if (!graph) {
-    console.error('graph 未初始化，无法绑定事件')
-    return
-  }
+
   graph.on('node:moved', () => {
     if (isUpdatingFromStore) return
     // 保存当前画布数据到 store
@@ -423,16 +288,44 @@ onMounted(() => {
     editorStore.pushHistory()
   })
   // 当添加或删除单元格时
-  graph.on('cell:added', () => {
+  graph.on('cell:added', ({cell}) => {
     if (isUpdatingFromStore) return
+
+    if (cell.isNode()) {
+      const data = cell.getData()
+      // 监听新增节点，自动绑定数据（仅当节点已有 binding 配置时）
+      if (data?.binding?.pointId) {
+        bindNodeData(cell)
+      }
+      applyNodeAnimation(cell)
+    }
+
     syncGraphToStore()
     editorStore.pushHistory()
   })
+
   graph.on('cell:removed', () => {
     if (isUpdatingFromStore) return
     syncGraphToStore()
     editorStore.pushHistory()
   })
+  // 监听节点删除，释放点ID
+  graph.on('cell:removed', ({ cell }) => {
+    if (cell.isNode()) {
+      const data = cell.getData()
+      const generator = PointIdGenerator.getInstance()
+
+      // 释放主 pointId
+      if (data?.pointId) {
+        generator.release(data.pointId)
+      }
+      // 释放 binding 中的 pointId
+      if (data?.binding?.pointId) {
+        generator.release(data.binding.pointId)
+      }
+    }
+  })
+
   // 当选中变化时
   graph.on('selection:changed', ({selected}) => {
     // 如果有选中的单元格，更新 store 的 selectedId
@@ -515,18 +408,6 @@ onMounted(() => {
   dataService = new MockDataService()
   // 或使用 WebSocket: dataService = new WebSocketService('ws://localhost:8080/ws')
 
-  // 监听新增节点，自动绑定数据（仅当节点已有 binding 配置时）
-  graph.on('cell:added', ({cell}) => {
-    if (cell.isNode()) {
-      const data = cell.getData()
-      if (data?.binding?.pointId) {
-        bindNodeData(cell)
-      }
-      // 应用动画（可选）
-      applyNodeAnimation(cell)
-    }
-  })
-
   // 监听节点数据变化（当 binding 配置变化时重新绑定）
   graph.on('cell:change:data', ({cell}) => {
     if (cell.isNode()) {
@@ -540,13 +421,7 @@ onMounted(() => {
     }
   })
 
-  animationService = new AnimationService(graph)
-// 监听新增节点，自动应用动画
-  graph.on('cell:added', ({cell}) => {
-    if (cell.isNode()) {
-      applyNodeAnimation(cell)
-    }
-  })
+
 
 });
 
@@ -649,6 +524,11 @@ function loadGraphData(data: GraphData) {
   })
 
   // g.centerContent()
+  // 初始化点ID生成器
+  const generator = PointIdGenerator.getInstance()
+  if (graph) {
+    generator.initFromNodes(graph.getNodes())
+  }
 }
 
 // 在 X6Canvas.vue 中添加批量操作方法

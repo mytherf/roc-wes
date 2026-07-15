@@ -19,6 +19,49 @@
 
 <script setup lang="ts">
 
+import { PointIdGenerator } from '@/services/PointIdGenerator'
+
+/**
+ * 节点模板定义
+ * type: X6 节点形状名称（需已在 main.ts 中注册）
+ * label: 显示名称
+ * icon: 图标
+ * pointIdTemplate: 预设点ID模板（null 表示不预设）
+ */
+const nodeTemplates = [
+  // ===== 基础节点（无预设点ID） =====
+  { type: 'rect', label: '矩形', icon: '▭', pointIdTemplate: null },
+  { type: 'circle', label: '圆形', icon: '◯', pointIdTemplate: null },
+  { type: 'custom-card', label: '卡片节点', icon: '📋', pointIdTemplate: null },
+
+  // ===== IoT 节点（预设点ID） =====
+  {
+    type: 'gauge-node',
+    label: '仪表盘',
+    icon: '📊',
+    pointIdTemplate: 'sensor.temp'
+  },
+  {
+    type: 'chart-node',
+    label: '折线图',
+    icon: '📈',
+    pointIdTemplate: 'sensor.chart'
+  },
+  {
+    type: 'indicator-node',
+    label: '指示灯',
+    icon: '💡',
+    pointIdTemplate: 'device.status'
+  },
+
+  // ===== 工作流节点（无预设点ID） =====
+  { type: 'workflow-start', label: '开始节点', icon: '▶', pointIdTemplate: null },
+  { type: 'workflow-end', label: '结束节点', icon: '■', pointIdTemplate: null },
+  { type: 'condition-node', label: '条件判断', icon: '◇', pointIdTemplate: null },
+  { type: 'timer-node', label: '定时器', icon: '⏱', pointIdTemplate: null },
+  { type: 'http-request-node', label: 'HTTP 请求', icon: '🌐', pointIdTemplate: null },
+  { type: 'custom-code-node', label: '自定义代码', icon: '{ }', pointIdTemplate: null },
+]
 
 // 从父组件接收 graph 和 dnd 实例
 const props = defineProps<{
@@ -27,24 +70,6 @@ const props = defineProps<{
 }>()
 
 
-/**
- * 节点模板定义
- * type  : 对应 X6 的 shape 名称（内置或已注册的）
- * label : 显示名称
- * icon  : 图标（可替换为真实图标）
- */
-const nodeTemplates = [
-  { type: 'rect', label: '矩形', icon: '▭' },
-  { type: 'circle', label: '圆形', icon: '◯' },
-  { type: 'custom-card', label: '卡片节点', icon: '📋' },
-  { type: 'gauge-node', label: '仪表盘', icon: '📊' },
-  { type: 'chart-node', label: '折线图', icon: '📈' },
-  { type: 'indicator-node', label: '指示灯', icon: '💡' },
-  { type: 'workflow-start', label: '开始节点', icon: '▶' },
-  { type: 'workflow-end', label: '结束节点', icon: '■' },
-  { type: 'custom-code-node', label: '自定义代码', icon: '{ }' },
-  // 可以继续添加更多模板，如椭圆、菱形等
-]
 
 /**
  * 处理鼠标按下事件，启动 Dnd 拖拽
@@ -114,7 +139,9 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
         { id: 'bottom', group: 'bottom' },
       ],
     }
-  } else if (item.type === 'circle') {
+  }
+  // 圆形节点
+  else if (item.type === 'circle') {
     nodeConfig.attrs = {
       body: {
         fill: '#fff',
@@ -127,42 +154,91 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
         fontSize: 14,
       },
     }
-  } else if (item.type === 'custom-card') {
+  }
+  // 自定义卡片节点
+  else if (item.type === 'custom-card') {
+    const generator = PointIdGenerator.getInstance()
+    // 从画布初始化已用点ID
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'device.card')
+
     // 自定义节点通过 data 传递数据
     nodeConfig.data = {
       title: item.label,
       icon: item.icon,
       status: '正常',
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+      }
     }
     // 自定义节点大小由 Vue 组件决定，这里设置一个宽高占位
     nodeConfig.width = 160
     nodeConfig.height = 80
-  } else if (item.type === 'gauge-node') {
+  }
+  // 仪表盘节点
+  else if (item.type === 'gauge-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'sensor.temp')
+
     nodeConfig.data = {
       title: '温度',
       unit: '°C',
       min: 0,
       max: 100,
       value: 50,
+      pointId,
       binding: {
-        pointId: 'sensor.temp.001',
+        pointId,
         sourceType: 'websocket',
         transform: (raw: any) => Math.round(raw * 10) / 10,
       },
     }
     nodeConfig.width = 200
     nodeConfig.height = 180
-  } else if (item.type === 'chart-node') {
+  }
+  // 折线图节点
+  else if (item.type === 'chart-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'sensor.chart')
+
     nodeConfig.data = {
       title: '实时曲线',
       history: Array(20).fill(0), // 20个初始数据点
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+        transform: (raw: any) => Math.round(raw * 10) / 10,
+      }
     }
     nodeConfig.width = 260
     nodeConfig.height = 160
-  } else if (item.type === 'indicator-node') {
+  }
+  // 指示灯节点
+  else if (item.type === 'indicator-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'device.status')
+
     nodeConfig.data = {
       label: '设备状态',
-      status: 'off', // 默认停止
+      status: 'off',
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+        transform: (raw: any) => {
+          // 将数值映射为状态字符串
+          if (raw > 80) return 'on'
+          if (raw > 50) return 'warning'
+          if (raw > 20) return 'off'
+          return 'error'
+        }
+      }
     }
     nodeConfig.width = 130
     nodeConfig.height = 70
@@ -174,14 +250,51 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
     nodeConfig.data = { label: '结束' }
     nodeConfig.width = 120
     nodeConfig.height = 50
+  } else if (item.type === 'condition-node') {
+    nodeConfig.data = {
+      label: '条件判断',
+      branches: [
+        { id: 'branch-1', label: '分支 1', expression: '${amount} > 10000' },
+        { id: 'branch-2', label: '分支 2', expression: '${amount} <= 10000' },
+      ]
+    }
+    nodeConfig.width = 200
+    nodeConfig.height = 120
+  } else if (item.type === 'timer-node') {
+    nodeConfig.data = {
+      label: '定时器',
+      duration: 5,
+      unit: 'seconds',
+    }
+    nodeConfig.width = 180
+    nodeConfig.height = 100
+  } else if (item.type === 'http-request-node') {
+    nodeConfig.data = {
+      label: 'HTTP 请求',
+      method: 'GET',
+      url: '',
+      body: '',
+      timeout: 30,
+    }
+    nodeConfig.width = 280
+    nodeConfig.height = 150
+  } else if (item.type === 'custom-code-node') {
+    nodeConfig.data = {
+      label: '自定义代码',
+      code: '// 编写你的代码\nreturn { next: null };',
+    }
+    nodeConfig.width = 280
+    nodeConfig.height = 140
   }
 
+  // 创建节点并启动拖拽
   // 使用 Graph 的 createNode 方法创建节点实例
   const node = props.graph.createNode(nodeConfig)
 
   // 启动 Dnd 拖拽（传入节点和鼠标事件）
   props.dnd.start(node, e)
 }
+
 </script>
 
 <style scoped>
@@ -216,7 +329,7 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
   flex-direction: column;
   gap: 8px;
 }
-
+/* ===== 单个节点卡片 ===== */
 .node-item {
   padding: 10px 12px;
   background: #fff;
