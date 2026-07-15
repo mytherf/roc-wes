@@ -49,19 +49,124 @@
           <input v-model="element.data.label" @input="updateEdgeLabel" />
         </div>
       </template>
+
+      <!-- 数据绑定配置（仅节点） -->
+      <div v-if="element.type === 'node'" class="binding-section">
+        <div class="section-header" @click="showBinding = !showBinding">
+          <span>📡 数据绑定</span>
+          <span>{{ showBinding ? '▼' : '▶' }}</span>
+        </div>
+        <div v-show="showBinding" class="binding-body">
+          <div class="field">
+            <label>启用</label>
+            <input type="checkbox" v-model="bindingEnabled" @change="updateBinding" />
+          </div>
+          <div v-if="bindingEnabled" class="field">
+            <label>数据源类型</label>
+            <select v-model="bindingSourceType" @change="updateBinding">
+              <option value="websocket">WebSocket</option>
+              <option value="mqtt">MQTT</option>
+              <option value="http">HTTP</option>
+              <option value="sse">SSE</option>
+            </select>
+          </div>
+          <div v-if="bindingEnabled" class="field">
+            <label>点ID</label>
+            <input v-model="bindingPointId" @input="updateBinding" placeholder="例如: sensor.temp.001" />
+          </div>
+          <div v-if="bindingEnabled" class="field">
+            <label>转换函数 (可选)</label>
+            <input v-model="bindingTransform" @input="updateBinding" placeholder="(raw) => Math.round(raw)" />
+          </div>
+        </div>
+      </div>
     </div>
     <div v-else class="empty">请选择一个元素</div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 
 const editorStore = useEditorStore()
 
 // 当前选中的元素（从 store 计算）
 const element = computed(() => editorStore.selectedElement)
+
+// 引用 X6Canvas 组件（通过父组件传递或 inject）
+const props = defineProps<{
+  canvasRef: any  // 传入 X6Canvas 实例
+}>()
+// 绑定配置的本地状态
+const showBinding = ref(true)
+const bindingEnabled = ref(false)
+const bindingSourceType = ref('websocket')
+const bindingPointId = ref('')
+const bindingTransform = ref('')
+
+// 监听选中的元素变化，加载其 binding 配置
+watch(
+    () => element.value,
+    (newElement) => {
+      if (newElement && newElement.type === 'node') {
+        const data = newElement.data
+        const binding = data?.binding || {}
+        bindingEnabled.value = !!binding.pointId
+        bindingSourceType.value = binding.sourceType || 'websocket'
+        bindingPointId.value = binding.pointId || ''
+        bindingTransform.value = binding.transform ? binding.transform.toString() : ''
+      } else {
+        bindingEnabled.value = false
+      }
+    },
+    { immediate: true, deep: true }
+)
+
+/**
+ * 更新节点的 binding 配置，并触发重新绑定
+ */
+function updateBinding() {
+  if (!element.value || element.value.type !== 'node') return
+  const nodeId = element.value.data.id
+
+  // 构建 binding 对象
+  const binding: any = {}
+  if (bindingEnabled.value && bindingPointId.value.trim()) {
+    binding.pointId = bindingPointId.value.trim()
+    binding.sourceType = bindingSourceType.value
+    if (bindingTransform.value.trim()) {
+      // 安全地创建转换函数（注意：eval 有风险，生产环境建议使用 Function 或预定义转换）
+      try {
+        binding.transform = new Function('raw', `return (${bindingTransform.value})(raw)`)
+      } catch (e) {
+        console.warn('转换函数无效:', e)
+      }
+    }
+  }
+
+  // 更新 store 中的节点数据
+  editorStore.updateNode(nodeId, { binding })
+
+  // 触发画布重新绑定（通过 X6Canvas 暴露的方法）
+  if (props.canvasRef && props.canvasRef.bindNodeData) {
+    // 需要获取节点实例，这里通过 graph 获取
+    const graph = props.canvasRef.graph
+    if (graph) {
+      const node = graph.getCellById(nodeId)
+      if (node && node.isNode()) {
+        // 先取消旧订阅（如果有）
+        if (props.canvasRef.unbindNodeData) {
+          props.canvasRef.unbindNodeData(nodeId)
+        }
+        // 如果启用且有点ID，则绑定
+        if (bindingEnabled.value && bindingPointId.value.trim()) {
+          props.canvasRef.bindNodeData(node)
+        }
+      }
+    }
+  }
+}
 
 // 更新节点标签
 function updateNodeLabel() {

@@ -14,7 +14,7 @@
           <!-- 画布组件：通过 ref 获取实例 -->
           <X6Canvas ref="canvasRef" @ready="onCanvasReady" />
         </div>
-        <PropertyPanel />
+        <PropertyPanel :canvas-ref="canvasRef" />
       </div>
       <!-- 底部：状态栏 -->
       <StatusBar :graph="graphInstance" ref="statusBarRef" />

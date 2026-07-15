@@ -60,6 +60,8 @@ const emit = defineEmits<{
 defineExpose({
   graph,
   dnd,
+  bindNodeData,        // 暴露 bindNodeData 方法给父组件
+  unbindNodeData,
 })
 
 
@@ -155,7 +157,7 @@ onMounted(() => {
   //     })
   // )
 
-  // Selection: 框选 + 多选
+  // Selection: shift + 框选 + 多选
   graph.use(
       new Selection({
         enabled: true,        // 启用选择
@@ -183,8 +185,6 @@ onMounted(() => {
         global: true, // 全局快捷键（即使焦点不在画布上也能生效）
       })
   )
-
-
 
   // 4.4 注册快捷键
   // Ctrl+C: 复制选中的节点/边
@@ -514,13 +514,16 @@ onMounted(() => {
 // 初始化数据服务（使用模拟服务，可替换为 WebSocketService）
   dataService = new MockDataService()
   // 或使用 WebSocket: dataService = new WebSocketService('ws://localhost:8080/ws')
-// 绑定所有节点的数据
-  bindAllNodes()
-// 监听新增节点，自动绑定数据
+
+  // 监听新增节点，自动绑定数据（仅当节点已有 binding 配置时）
   graph.on('cell:added', ({cell}) => {
     if (cell.isNode()) {
-      console.log('绑定节点:', cell.id)
-      bindNodeData(cell)
+      const data = cell.getData()
+      if (data?.binding?.pointId) {
+        bindNodeData(cell)
+      }
+      // 应用动画（可选）
+      applyNodeAnimation(cell)
     }
   })
 
@@ -536,7 +539,6 @@ onMounted(() => {
       }
     }
   })
-
 
   animationService = new AnimationService(graph)
 // 监听新增节点，自动应用动画
@@ -596,13 +598,13 @@ function bindNodeData(node: any) {
 }
 
 /**
- * 为所有节点绑定数据
+ * 取消节点的数据订阅
  */
-function bindAllNodes() {
-  if (!graph) return
-  const nodes = graph.getNodes()
-  for (const node of nodes) {
-    bindNodeData(node)
+function unbindNodeData(nodeId: string) {
+  if (nodeDataSubscriptions.has(nodeId)) {
+    const pointId = nodeDataSubscriptions.get(nodeId)!
+    dataService?.unsubscribe(pointId)
+    nodeDataSubscriptions.delete(nodeId)
   }
 }
 
