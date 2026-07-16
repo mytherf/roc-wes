@@ -34,6 +34,16 @@ const nodeTemplates = [
   { type: 'circle', label: '圆形', icon: '◯', pointIdTemplate: null },
   { type: 'custom-card', label: '卡片节点', icon: '📋', pointIdTemplate: null },
 
+  // ===== WCS设备节点 =====
+  { type: 'stacker-node', label: '堆垛机', icon: '🏗️', pointIdTemplate: 'device.stacker' },
+  { type: 'conveyor-node', label: '输送机', icon: '⚡', pointIdTemplate: 'device.conveyor' },
+  { type: 'agv-node', label: 'AGV', icon: '🤖', pointIdTemplate: 'device.agv' },
+  { type: 'shuttle-node', label: '穿梭车', icon: '🚗', pointIdTemplate: 'device.shuttle' },
+  { type: 'sorter-node', label: '分拣机', icon: '📦', pointIdTemplate: 'device.sorter' },
+  { type: 'elevator-node', label: '提升机', icon: '🔼', pointIdTemplate: 'device.elevator' },
+  { type: 'robot-node', label: '机械手', icon: '🦾', pointIdTemplate: 'device.robot' },
+  { type: 'rack-node', label: '货架', icon: '🏛️', pointIdTemplate: 'device.rack' },
+
   // ===== IoT 节点（预设点ID） =====
   {
     type: 'gauge-node',
@@ -242,15 +252,18 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
     }
     nodeConfig.width = 130
     nodeConfig.height = 70
-  } else if (item.type === 'workflow-start') {
+  }
+  else if (item.type === 'workflow-start') {
     nodeConfig.data = { label: '开始' }
     nodeConfig.width = 120
     nodeConfig.height = 50
-  } else if (item.type === 'workflow-end') {
+  }
+  else if (item.type === 'workflow-end') {
     nodeConfig.data = { label: '结束' }
     nodeConfig.width = 120
     nodeConfig.height = 50
-  } else if (item.type === 'condition-node') {
+  }
+  else if (item.type === 'condition-node') {
     nodeConfig.data = {
       label: '条件判断',
       branches: [
@@ -260,7 +273,8 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
     }
     nodeConfig.width = 200
     nodeConfig.height = 120
-  } else if (item.type === 'timer-node') {
+  }
+  else if (item.type === 'timer-node') {
     nodeConfig.data = {
       label: '定时器',
       duration: 5,
@@ -268,7 +282,8 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
     }
     nodeConfig.width = 180
     nodeConfig.height = 100
-  } else if (item.type === 'http-request-node') {
+  }
+  else if (item.type === 'http-request-node') {
     nodeConfig.data = {
       label: 'HTTP 请求',
       method: 'GET',
@@ -278,13 +293,269 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
     }
     nodeConfig.width = 280
     nodeConfig.height = 150
-  } else if (item.type === 'custom-code-node') {
+  }
+  else if (item.type === 'custom-code-node') {
     nodeConfig.data = {
       label: '自定义代码',
       code: '// 编写你的代码\nreturn { next: null };',
     }
     nodeConfig.width = 280
     nodeConfig.height = 140
+  }
+      // ==================== 5. WCS 设备节点 ====================
+  // 堆垛机
+  else if (item.type === 'stacker-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'device.stacker')
+
+    nodeConfig.data = {
+      name: '堆垛机-01',
+      lane: 'A01',
+      position: '05-12-03',
+      status: 'idle',
+      isMoving: false,
+      progress: 0,
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+        transform: (raw: any) => {
+          const v = Number(raw)
+          // 模拟堆垛机状态：0-20 idle, 20-60 running, 60-80 warning, 80-100 error
+          if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }
+          if (v < 60) return { status: 'running', isMoving: true, progress: (v - 20) / 40 * 100 }
+          if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }
+          return { status: 'error', isMoving: false, progress: 0 }
+        }
+      }
+    }
+    nodeConfig.width = 200
+    nodeConfig.height = 130
+  }
+
+  // 输送机
+  else if (item.type === 'conveyor-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'device.conveyor')
+
+    nodeConfig.data = {
+      name: '输送线-01',
+      direction: 'left',
+      isRunning: false,
+      status: 'idle',
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+        transform: (raw: any) => {
+          const v = Number(raw)
+          if (v < 30) return { isRunning: false, status: 'idle' }
+          if (v < 70) return { isRunning: true, status: 'running' }
+          return { isRunning: false, status: 'error' }
+        }
+      }
+    }
+    nodeConfig.width = 220
+    nodeConfig.height = 80
+  }
+
+  // AGV
+  else if (item.type === 'agv-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'device.agv')
+
+    nodeConfig.data = {
+      name: 'AGV-01',
+      battery: 85,
+      isMoving: false,
+      status: 'idle',
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+        transform: (raw: any) => {
+          const v = Number(raw)
+          if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }
+          if (v < 40) return { battery: v, isMoving: false, status: 'idle' }
+          if (v < 80) return { battery: v, isMoving: true, status: 'running' }
+          return { battery: v, isMoving: false, status: 'error' }
+        }
+      }
+    }
+    nodeConfig.width = 160
+    nodeConfig.height = 120
+  }
+
+  // 穿梭车
+  else if (item.type === 'shuttle-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'device.shuttle')
+
+    nodeConfig.data = {
+      name: '穿梭车-01',
+      position: 50,
+      status: 'idle',
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+        transform: (raw: any) => {
+          const v = Number(raw)
+          const pos = (v % 100)
+          if (v < 30) return { position: pos, status: 'idle' }
+          if (v < 80) return { position: pos, status: 'running' }
+          return { position: pos, status: 'error' }
+        }
+      }
+    }
+    nodeConfig.width = 200
+    nodeConfig.height = 100
+  }
+
+  // 分拣机
+  else if (item.type === 'sorter-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'device.sorter')
+
+    nodeConfig.data = {
+      name: '分拣机-01',
+      speed: 60,
+      status: 'idle',
+      chutes: [
+        { label: 'A区', count: 0, active: false },
+        { label: 'B区', count: 0, active: false },
+        { label: 'C区', count: 0, active: false },
+        { label: 'D区', count: 0, active: false },
+      ],
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+        transform: (raw: any) => {
+          const v = Number(raw)
+          const chutes = [
+            { label: 'A区', count: Math.floor(v * 0.1), active: v > 20 },
+            { label: 'B区', count: Math.floor(v * 0.2), active: v > 40 },
+            { label: 'C区', count: Math.floor(v * 0.3), active: v > 60 },
+            { label: 'D区', count: Math.floor(v * 0.4), active: v > 80 },
+          ]
+          return {
+            speed: 30 + v * 0.7,
+            status: v > 90 ? 'error' : v > 10 ? 'running' : 'idle',
+            chutes
+          }
+        }
+      }
+    }
+    nodeConfig.width = 240
+    nodeConfig.height = 160
+  }
+
+  // 提升机
+  else if (item.type === 'elevator-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'device.elevator')
+
+    nodeConfig.data = {
+      name: '提升机-01',
+      maxLevel: 6,
+      currentLevel: 1,
+      position: 0,
+      status: 'idle',
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+        transform: (raw: any) => {
+          const v = Number(raw)
+          const level = Math.floor((v % 100) / 100 * 6) + 1
+          if (v < 30) return { currentLevel: level, position: v, status: 'idle' }
+          if (v < 80) return { currentLevel: level, position: v, status: 'running' }
+          return { currentLevel: level, position: v, status: 'error' }
+        }
+      }
+    }
+    nodeConfig.width = 120
+    nodeConfig.height = 160
+  }
+
+  // 机械手
+  else if (item.type === 'robot-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'device.robot')
+
+    nodeConfig.data = {
+      name: '机械手-01',
+      jointAngle: 0,
+      isOpen: false,
+      status: 'idle',
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+        transform: (raw: any) => {
+          const v = Number(raw)
+          if (v < 20) return { jointAngle: 0, isOpen: false, status: 'idle' }
+          if (v < 40) return { jointAngle: 30, isOpen: false, status: 'idle' }
+          if (v < 60) return { jointAngle: 60, isOpen: true, status: 'running' }
+          if (v < 80) return { jointAngle: 90, isOpen: true, status: 'running' }
+          return { jointAngle: 0, isOpen: false, status: 'error' }
+        }
+      }
+    }
+    nodeConfig.width = 150
+    nodeConfig.height = 130
+  }
+
+  // 货架
+  else if (item.type === 'rack-node') {
+    const generator = PointIdGenerator.getInstance()
+    generator.initFromNodes(props.graph.getNodes())
+    const pointId = generator.generate(item.pointIdTemplate || 'device.rack')
+
+    const rows = 4
+    const cols = 6
+    // 生成随机货位占用
+    const grid = Array.from({ length: rows }, () =>
+        Array.from({ length: cols }, () => ({
+          status: Math.random() > 0.6 ? 'occupied' : 'empty'
+        }))
+    )
+
+    nodeConfig.data = {
+      name: '货架-A01',
+      rows,
+      cols,
+      grid,
+      pointId,
+      binding: {
+        pointId,
+        sourceType: 'websocket',
+        transform: (raw: any) => {
+          // 模拟货位状态更新
+          const v = Number(raw)
+          const newGrid = JSON.parse(JSON.stringify(grid))
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              const rand = Math.random()
+              if (rand < 0.3) newGrid[r][c].status = 'empty'
+              else if (rand < 0.6) newGrid[r][c].status = 'occupied'
+              else newGrid[r][c].status = 'reserved'
+            }
+          }
+          return { grid: newGrid }
+        }
+      }
+    }
+    nodeConfig.width = 200
+    nodeConfig.height = 150
   }
 
   // 创建节点并启动拖拽

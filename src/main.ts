@@ -15,6 +15,16 @@ import WorkflowStartNode from './components/nodes/workflow/WorkflowStartNode.vue
 import WorkflowEndNode from './components/nodes/workflow/WorkflowEndNode.vue'
 import CustomCodeNode from './components/nodes/workflow/CustomCodeNode.vue'
 
+// WCS设备节点
+import StackerNode from './components/nodes/StackerNode.vue'
+import ConveyorNode from './components/nodes/ConveyorNode.vue'
+import AgvNode from './components/nodes/AgvNode.vue'
+import ShuttleNode from './components/nodes/ShuttleNode.vue'
+import SorterNode from './components/nodes/SorterNode.vue'
+import ElevatorNode from './components/nodes/ElevatorNode.vue'
+import RobotNode from './components/nodes/RobotNode.vue'
+import RackNode from './components/nodes/RackNode.vue'
+
 /**
  * 注册自定义 Vue 节点形状
  * 作用：将 Vue 组件与 X6 的 shape 名称绑定，这样在 JSON 数据中
@@ -38,6 +48,15 @@ register({ shape: 'indicator-node', component: IndicatorNode })
 register({ shape: 'workflow-start', component: WorkflowStartNode })
 register({ shape: 'workflow-end', component: WorkflowEndNode })
 register({ shape: 'custom-code-node', component: CustomCodeNode })
+// 注册WCS设备节点
+register({ shape: 'stacker-node', component: StackerNode })
+register({ shape: 'conveyor-node', component: ConveyorNode })
+register({ shape: 'agv-node', component: AgvNode })
+register({ shape: 'shuttle-node', component: ShuttleNode })
+register({ shape: 'sorter-node', component: SorterNode })
+register({ shape: 'elevator-node', component: ElevatorNode })
+register({ shape: 'robot-node', component: RobotNode })
+register({ shape: 'rack-node', component: RackNode })
 
 // 创建 Pinia 实例并启用持久化插件
 const pinia = createPinia()
