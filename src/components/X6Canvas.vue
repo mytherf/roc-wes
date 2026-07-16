@@ -14,6 +14,7 @@ import {useEditorStore} from '@/stores/editor'
 
 import {MockDataService} from '@/services/MockDataService'
 import type {DataBindingConfig, IDataService} from '@/services/DataService'
+import {WebSocketService} from '@/services/WebSocketService'
 
 import {AnimationService} from '@/services/AnimationService'
 
@@ -21,9 +22,12 @@ import { PointIdGenerator } from '@/services/PointIdGenerator'
 
 let animationService: AnimationService | null = null
 
-
-// 数据服务实例
-let dataService: IDataService | null = null
+// 数据服务实例（根据 sourceType + sourceUrl 缓存）
+const dataServiceMap = new Map<string, IDataService>()
+// 默认数据服务（无 sourceUrl 时的兜底）
+let defaultDataService: IDataService | null = null
+// 存储节点 ID → 数据服务 key 的映射
+const nodeServiceKeys = new Map<string, string>()
 // 存储节点 ID → 数据点 ID 的映射，用于清理
 const nodeDataSubscriptions = new Map<string, string>()
 
@@ -342,7 +346,7 @@ onMounted(() => {
       {deep: true}
   )
 
-  dataService = new MockDataService()
+  defaultDataService = new MockDataService()
 
   graph.on('cell:change:data', ({cell}) => {
     if (cell.isNode()) {
@@ -366,6 +370,25 @@ function applyNodeAnimation(node: any) {
 }
 
 /**
+ * 根据 sourceType 和 sourceUrl 获取或创建数据服务实例
+ */
+function getDataService(sourceType: string, sourceUrl?: string): IDataService | null {
+  if (!sourceUrl) {
+    return defaultDataService
+  }
+  const key = `${sourceType}:${sourceUrl}`
+  if (!dataServiceMap.has(key)) {
+    if (sourceType === 'websocket') {
+      dataServiceMap.set(key, new WebSocketService(sourceUrl))
+    } else {
+      console.warn(`[X6Canvas] 不支持的数据源类型: ${sourceType}`)
+      return defaultDataService
+    }
+  }
+  return dataServiceMap.get(key)!
+}
+
+/**
  * 为节点绑定数据源
  */
 function bindNodeData(node: any) {
@@ -373,12 +396,32 @@ function bindNodeData(node: any) {
   const binding = nodeData?.binding as DataBindingConfig | undefined
   if (!binding?.pointId) return
 
+  // 先取消旧订阅
   if (nodeDataSubscriptions.has(node.id)) {
-    dataService?.unsubscribe(nodeDataSubscriptions.get(node.id)!)
+    const oldPointId = nodeDataSubscriptions.get(node.id)!
+    const oldServiceKey = nodeServiceKeys.get(node.id)
+    if (oldServiceKey && dataServiceMap.has(oldServiceKey)) {
+      dataServiceMap.get(oldServiceKey)!.unsubscribe(oldPointId)
+    } else {
+      defaultDataService?.unsubscribe(oldPointId)
+    }
     nodeDataSubscriptions.delete(node.id)
+    nodeServiceKeys.delete(node.id)
   }
 
-  dataService?.subscribe(binding.pointId, (point) => {
+  // 根据配置获取对应的数据服务
+  const service = getDataService(binding.sourceType, binding.sourceUrl)
+  if (!service) {
+    console.warn('[X6Canvas] 无法获取数据服务')
+    return
+  }
+
+  // 记录该节点使用的服务 key
+  if (binding.sourceUrl) {
+    nodeServiceKeys.set(node.id, `${binding.sourceType}:${binding.sourceUrl}`)
+  }
+
+  service.subscribe(binding.pointId, (point) => {
     const currentData = node.getData()
     let newValue = point.value
     if (binding.transform) {
@@ -390,7 +433,6 @@ function bindNodeData(node: any) {
       _timestamp: point.timestamp,
       _quality: point.quality,
     })
-    node.trigger('change:data', {current: node})
   })
 
   nodeDataSubscriptions.set(node.id, binding.pointId)
@@ -402,16 +444,33 @@ function bindNodeData(node: any) {
 function unbindNodeData(nodeId: string) {
   if (nodeDataSubscriptions.has(nodeId)) {
     const pointId = nodeDataSubscriptions.get(nodeId)!
-    dataService?.unsubscribe(pointId)
+    const serviceKey = nodeServiceKeys.get(nodeId)
+    if (serviceKey && dataServiceMap.has(serviceKey)) {
+      dataServiceMap.get(serviceKey)!.unsubscribe(pointId)
+    } else {
+      defaultDataService?.unsubscribe(pointId)
+    }
     nodeDataSubscriptions.delete(nodeId)
+    nodeServiceKeys.delete(nodeId)
   }
 }
 
 function unbindAllNodes() {
-  for (const [_nodeId, pointId] of nodeDataSubscriptions) {
-    dataService?.unsubscribe(pointId)
+  for (const [nodeId, pointId] of nodeDataSubscriptions) {
+    const serviceKey = nodeServiceKeys.get(nodeId)
+    if (serviceKey && dataServiceMap.has(serviceKey)) {
+      dataServiceMap.get(serviceKey)!.unsubscribe(pointId)
+    } else {
+      defaultDataService?.unsubscribe(pointId)
+    }
   }
   nodeDataSubscriptions.clear()
+  nodeServiceKeys.clear()
+  for (const [, service] of dataServiceMap) {
+    service.disconnect()
+  }
+  dataServiceMap.clear()
+  defaultDataService?.disconnect()
 }
 
 function syncGraphToStore() {
@@ -430,6 +489,8 @@ function loadGraphData(data: GraphData) {
   if (!graph) return
   const g = graph
 
+  unbindAllNodes()
+
   g.batchUpdate(() => {
     g.clearCells()
     g.fromJSON(data)
@@ -438,6 +499,14 @@ function loadGraphData(data: GraphData) {
   const generator = PointIdGenerator.getInstance()
   if (graph) {
     generator.initFromNodes(graph.getNodes())
+  }
+
+  for (const node of g.getNodes()) {
+    const nodeData = node.getData()
+    if (nodeData?.binding?.pointId) {
+      bindNodeData(node)
+    }
+    applyNodeAnimation(node)
   }
 }
 
@@ -467,7 +536,6 @@ onBeforeUnmount(() => {
   resizeObserver = null
 
   unbindAllNodes()
-  dataService?.disconnect()
 
   animationService?.dispose()
 

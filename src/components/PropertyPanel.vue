@@ -68,6 +68,15 @@
                 <option value="sse">SSE</option>
               </select>
             </div>
+            <!-- 数据源地址（WebSocket/MQTT/HTTP/SSE 需要） -->
+            <div class="field">
+              <label>数据源地址 <span class="hint">（不填则使用模拟数据）</span></label>
+              <input
+                  v-model="bindingSourceUrl"
+                  @input="updateBinding"
+                  placeholder="ws://localhost:8080/ws"
+              />
+            </div>
             <!-- 点ID（核心字段，填写即启用） -->
             <div class="field">
               <label>点ID <span class="hint">（填写即启用数据绑定）</span></label>
@@ -131,6 +140,7 @@ const element = computed(() => editorStore.selectedElement)
 // ===================== 数据绑定配置的本地状态 =====================
 const showBinding = ref(true)
 const bindingSourceType = ref('websocket')
+const bindingSourceUrl = ref('')
 const bindingPointId = ref('')
 const bindingTransform = ref('')
 
@@ -159,6 +169,7 @@ watch(
         }
 
         bindingSourceType.value = binding.sourceType || 'websocket'
+        bindingSourceUrl.value = binding.sourceUrl || ''
         bindingPointId.value = binding.pointId || ''
         bindingTransform.value = binding.transform ? binding.transform.toString() : ''
       } else {
@@ -187,6 +198,9 @@ function updateBinding() {
       pointId,
       sourceType: bindingSourceType.value,
     }
+    if (bindingSourceUrl.value.trim()) {
+      binding.sourceUrl = bindingSourceUrl.value.trim()
+    }
     if (bindingTransform.value.trim()) {
       try {
         binding.transform = new Function('raw', `return (${bindingTransform.value})(raw)`)
@@ -198,8 +212,7 @@ function updateBinding() {
     binding = undefined
   }
 
-  // 更新 store
-  editorStore.updateNode(nodeId, { binding })
+
 
   // 触发画布重新绑定
   try {
@@ -219,7 +232,7 @@ function updateBinding() {
     const currentData = node.getData() || {}
     node.setData({
       ...currentData,
-      binding: binding ? { pointId: binding.pointId, sourceType: binding.sourceType } : undefined,
+      binding: binding ? { pointId: binding.pointId, sourceType: binding.sourceType, sourceUrl: binding.sourceUrl, } : undefined,
     })
 
     // 取消旧订阅
@@ -234,6 +247,9 @@ function updateBinding() {
   } catch (error) {
     console.error('[PropertyPanel] 更新数据绑定时发生错误:', error)
   }
+
+  // 最后更新 store（会触发 watcher → loadGraphData，但此时 X6 节点已带有 binding）
+  editorStore.updateNode(nodeId, { binding })
 }
 
 // ===================== 其他属性更新方法 =====================
