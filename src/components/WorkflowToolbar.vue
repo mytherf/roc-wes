@@ -12,6 +12,9 @@
     <button class="toolbar-btn" @click="handleClear" title="清空画布">
       🗑 清空
     </button>
+    <button class="toolbar-btn run" @click="handleRun" title="运行模式">
+      ▶ 运行
+    </button>
     <div class="toolbar-status" v-if="validationResult">
       <span v-if="validationResult.valid" class="status-valid">✅ 校验通过</span>
       <span v-else class="status-invalid">❌ 校验失败：{{ validationResult.errors.join('；') }}</span>
@@ -32,6 +35,46 @@ const props = defineProps<{
 const editorStore = useEditorStore()
 const validationResult = ref<any>(null)
 const isExecuting = ref(false)
+
+/**
+ * 运行模式：导出数据到 sessionStorage，在新窗口打开运行态页面
+ */
+function handleRun() {
+  if (!props.graph) {
+    console.warn('画布未初始化，无法运行')
+    return
+  }
+
+  const nodes = props.graph.getNodes()
+  if (nodes.length === 0) {
+    alert('画布为空，请先添加节点')
+    return
+  }
+
+  // 1. 获取当前画布数据
+  const rawData = props.graph.toJSON()
+  const data = {
+    nodes: rawData.cells.filter((cell: any) => !('source' in cell && 'target' in cell)),
+    edges: rawData.cells.filter((cell: any) => 'source' in cell && 'target' in cell),
+  }
+
+  // 2. 存入 sessionStorage
+  try {
+    const jsonStr = JSON.stringify(data)
+    if (jsonStr.length > 4.5 * 1024 * 1024) {
+      alert('画布数据过大（超过 4.5MB），请精简内容后重试')
+      return
+    }
+    sessionStorage.setItem('scada-run-data', jsonStr)
+
+    // 3. 在新窗口打开运行态页面
+    const runUrl = `${window.location.origin}/run`
+    window.open(runUrl, '_blank')
+  } catch (error) {
+    console.error('运行数据保存失败:', error)
+    alert('运行数据保存失败，请检查控制台错误')
+  }
+}
 
 /**
  * 校验工作流
@@ -167,5 +210,14 @@ function handleClear() {
 }
 .status-invalid {
   color: #ff4d4f;
+}
+.toolbar-btn.run {
+  background: #52c41a;
+  color: #fff;
+  border-color: #52c41a;
+}
+.toolbar-btn.run:hover {
+  background: #73d13d;
+  border-color: #73d13d;
 }
 </style>

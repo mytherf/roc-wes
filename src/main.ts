@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import './style.css'
+import router from './router'
 import App from './App.vue'
 import { register } from '@antv/x6-vue-shape'
 // 引入X6的自定义VUE组件
@@ -42,4 +43,4 @@ register({ shape: 'custom-code-node', component: CustomCodeNode })
 const pinia = createPinia()
 pinia.use(piniaPluginPersistedstate)
 
-createApp(App).use(pinia).mount('#app')
+createApp(App).use(pinia).use(router).mount('#app')
