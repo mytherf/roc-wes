@@ -9,6 +9,9 @@
     <button class="toolbar-btn" @click="handleExport" title="导出为 JSON">
       📥 导出
     </button>
+    <button class="toolbar-btn" @click="handleImport" title="从 JSON 文件导入">
+      📤 导入
+    </button>
     <button class="toolbar-btn" @click="handleClear" title="清空画布">
       🗑 清空
     </button>
@@ -142,11 +145,23 @@ async function handleExecute() {
 }
 
 /**
- * 导出工作流为 JSON
+ * 导出工作流为 JSON（Store 格式：{ nodes: [], edges: [] }）
  */
 function handleExport() {
   if (!props.graph) return
-  const data = props.graph.toJSON()
+  const rawData = props.graph.toJSON()
+  const data = {
+    nodes: rawData.cells
+        .filter((cell: any) => !('source' in cell && 'target' in cell))
+        .map((node: any) => ({
+          ...node,
+          x: node.position?.x ?? node.x ?? 0,
+          y: node.position?.y ?? node.y ?? 0,
+        })),
+    edges: rawData.cells.filter(
+        (cell: any) => 'source' in cell && 'target' in cell
+    ),
+  }
   const json = JSON.stringify(data, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -155,6 +170,38 @@ function handleExport() {
   a.download = `workflow-${Date.now()}.json`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/**
+ * 从 JSON 文件导入画布数据（Store 格式：{ nodes: [], edges: [] }）
+ */
+function handleImport() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.onchange = () => {
+    const file = input.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const json = JSON.parse(reader.result as string)
+        if (!json.nodes || !json.edges) {
+          alert('无效的 JSON 格式，需要 { nodes: [], edges: [] } 结构')
+          return
+        }
+        editorStore.setGraphData({ nodes: json.nodes, edges: json.edges })
+        editorStore.pushHistory()
+        console.log(`✅ 导入成功：${json.nodes.length} 个节点，${json.edges.length} 条边`)
+      } catch (err) {
+        console.error('导入失败:', err)
+        alert('JSON 解析失败，请检查文件格式')
+      }
+    }
+    reader.readAsText(file)
+  }
+  input.click()
 }
 
 /**
