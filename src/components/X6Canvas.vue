@@ -70,6 +70,7 @@ defineExpose({
   dnd: dndRef,
   bindNodeData,
   unbindNodeData,
+  updateNodePosition,
 })
 
 
@@ -237,13 +238,7 @@ onMounted(() => {
 
   graph.on('node:moved', () => {
     if (isUpdatingFromStore || isSyncingPosition) return
-    const cells = graph!.getSelectedCells()
-    for (const cell of cells) {
-      if (cell.isNode()) {
-        const pos = cell.getPosition()
-        editorStore.updateNode(cell.id, { x: pos.x, y: pos.y })
-      }
-    }
+    syncGraphToStore()
     editorStore.pushHistory()
   })
   graph.on('cell:change', () => {
@@ -368,11 +363,13 @@ onMounted(() => {
         if (newDataStr === currentDataStr) return
 
         isUpdatingFromStore = true
+        const prevSelectedId = editorStore.selectedId
         loadGraphData(newData)
-        if (editorStore.selectedId) {
-          const cell = graph!.getCellById(editorStore.selectedId)
+        if (prevSelectedId) {
+          const cell = graph!.getCellById(prevSelectedId)
           if (cell) {
             graph!.select(cell)
+            editorStore.setSelected(prevSelectedId)
           }
         }
         nextTick(() => {
@@ -512,9 +509,13 @@ function unbindAllNodes() {
 function syncGraphToStore() {
   if (!graph) return
   const data = graph.toJSON()
-  const nodes = data.cells.filter(
-      (cell: any) => !('source' in cell && 'target' in cell)
-  )
+  const nodes = data.cells
+      .filter((cell: any) => !('source' in cell && 'target' in cell))
+      .map((node: any) => ({
+        ...node,
+        x: node.position?.x ?? node.x ?? 0,
+        y: node.position?.y ?? node.y ?? 0,
+      }))
   const edges = data.cells.filter(
       (cell: any) => 'source' in cell && 'target' in cell
   )
@@ -527,9 +528,15 @@ function loadGraphData(data: GraphData) {
 
   unbindAllNodes()
 
+  const x6Data = {
+    cells: [
+      ...data.nodes.map(n => ({ ...n, position: { x: n.x || 0, y: n.y || 0 } })),
+      ...data.edges,
+    ],
+  }
   g.batchUpdate(() => {
     g.clearCells()
-    g.fromJSON(data)
+    g.fromJSON(x6Data)
   })
 
   const generator = PointIdGenerator.getInstance()
@@ -543,6 +550,19 @@ function loadGraphData(data: GraphData) {
       bindNodeData(node)
     }
     applyNodeAnimation(node)
+  }
+}
+
+function updateNodePosition(nodeId: string, x: number, y: number) {
+  if (!graph) return
+  const cell = graph.getCellById(nodeId)
+  if (cell && cell.isNode()) {
+    isSyncingPosition = true
+    cell.setPosition({ x, y })
+    syncGraphToStore()
+    nextTick(() => {
+      isSyncingPosition = false
+    })
   }
 }
 

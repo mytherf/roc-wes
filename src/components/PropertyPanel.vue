@@ -299,15 +299,9 @@ function onPositionInput() {
   const x = posX.value || 0
   const y = posY.value || 0
 
-  const graph = getGraph()
-  if (graph) {
-    const node = graph.getCellById(id)
-    if (node && node.isNode()) {
-      node.setPosition({ x, y })
-    }
+  if (props.canvasRef?.updateNodePosition) {
+    props.canvasRef.updateNodePosition(id, x, y)
   }
-
-  editorStore.updateNode(id, { x, y })
 }
 
 function syncPositionFromCanvas() {
