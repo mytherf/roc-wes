@@ -41,7 +41,7 @@ const statusText = computed(() => {
 })
 
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData) {
     name.value = newData.name || '提升机-01'
     maxLevel.value = newData.maxLevel || 6

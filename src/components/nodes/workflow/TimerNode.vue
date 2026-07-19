@@ -76,7 +76,7 @@ function saveToNode() {
 
 // 监听节点数据变化
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData) {
     label.value = newData.label || '定时器'
     duration.value = newData.duration ?? 5

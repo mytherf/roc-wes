@@ -53,6 +53,8 @@ let resizeObserver: ResizeObserver | null = null
 
 // 标记是否正在通过 store 更新画布（防止循环）
 let isUpdatingFromStore = false
+// 标记是否正在同步节点位置（防止 node:moved 触发 syncGraphToStore）
+let isSyncingPosition = false
 
 // ===================== 3. 使用 Store =====================
 const editorStore = useEditorStore()
@@ -234,12 +236,18 @@ onMounted(() => {
   // ---------- 监听画布事件，同步到 Store ----------
 
   graph.on('node:moved', () => {
-    if (isUpdatingFromStore) return
-    syncGraphToStore()
+    if (isUpdatingFromStore || isSyncingPosition) return
+    const cells = graph!.getSelectedCells()
+    for (const cell of cells) {
+      if (cell.isNode()) {
+        const pos = cell.getPosition()
+        editorStore.updateNode(cell.id, { x: pos.x, y: pos.y })
+      }
+    }
     editorStore.pushHistory()
   })
   graph.on('cell:change', () => {
-    if (isUpdatingFromStore) return
+    if (isUpdatingFromStore || isSyncingPosition) return
     syncGraphToStore()
     editorStore.pushHistory()
   })
@@ -283,6 +291,11 @@ onMounted(() => {
     if (selected && selected.length > 0) {
       const cell = selected[0]
       editorStore.setSelected(cell.id)
+
+      if (cell.isNode()) {
+        const pos = cell.getPosition()
+        editorStore.updateNode(cell.id, { x: pos.x, y: pos.y })
+      }
     } else {
       editorStore.setSelected(null)
     }
@@ -323,6 +336,29 @@ onMounted(() => {
   resizeObserver.observe(containerRef.value)
 
   // ---------- 监听 store 的 graphData 变化，重新加载画布 ----------
+
+  // 位置专用 watcher：仅更新节点位置，避免全量重载
+  watch(
+      () => editorStore.graphData.nodes.map(n => ({ id: n.id, x: n.x, y: n.y })),
+      (newPositions) => {
+        if (!graph || isUpdatingFromStore) return
+        isSyncingPosition = true
+        for (const pos of newPositions) {
+          const cell = graph.getCellById(pos.id)
+          if (cell && cell.isNode()) {
+            const current = cell.getPosition()
+            if (current.x !== pos.x || current.y !== pos.y) {
+              cell.setPosition({ x: pos.x || 0, y: pos.y || 0 })
+            }
+          }
+        }
+        nextTick(() => {
+          isSyncingPosition = false
+        })
+      },
+      { deep: true }
+  )
+
   watch(
       () => editorStore.graphData,
       (newData) => {

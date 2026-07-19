@@ -50,7 +50,7 @@ const statusText = computed(() => {
 })
 
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData) {
     name.value = newData.name || '分拣机-01'
     speed.value = newData.speed || 60

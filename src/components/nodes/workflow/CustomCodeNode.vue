@@ -53,7 +53,7 @@ function saveToNode() {
 
 // 监听节点数据变化
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData) {
     label.value = newData.label || '自定义代码'
     code.value = newData.code || '// 编写你的代码\nreturn { next: null };'

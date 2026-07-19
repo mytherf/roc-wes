@@ -39,7 +39,7 @@ const statusText = computed(() => {
 })
 
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData) {
     name.value = newData.name || '机械手-01'
     jointAngle.value = newData.jointAngle || 0

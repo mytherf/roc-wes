@@ -56,7 +56,7 @@ const cellClass = (cell: any) => ({
 })
 
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData) {
     name.value = newData.name || '货架-A01'
     rows.value = newData.rows || 4

@@ -43,7 +43,7 @@ const statusText = computed(() => {
 })
 
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData) {
     name.value = newData.name || '输送线-01'
     direction.value = newData.direction || 'left'

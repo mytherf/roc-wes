@@ -48,7 +48,7 @@ const statusText = computed(() => {
 })
 
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData) {
     name.value = newData.name || 'AGV-01'
     battery.value = newData.battery ?? 85

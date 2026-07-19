@@ -83,7 +83,7 @@ function pushData(value: number) {
 
 // 监听节点数据变化
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData?.history) {
     historyData.value = newData.history
     if (chart) {

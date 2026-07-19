@@ -44,11 +44,11 @@
         <!-- 位置 -->
         <div class="field">
           <label>X</label>
-          <input type="number" v-model.number="element.data.x" @input="updateNodePosition" />
+          <input type="number" v-model.number="posX" @input="onPositionInput" />
         </div>
         <div class="field">
           <label>Y</label>
-          <input type="number" v-model.number="element.data.y" @input="updateNodePosition" />
+          <input type="number" v-model.number="posY" @input="onPositionInput" />
         </div>
 
         <!-- ====== 数据绑定配置（仅节点） ====== -->
@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 
 // ===================== 依赖注入 =====================
@@ -145,6 +145,12 @@ const bindingPointId = ref('')
 const bindingTransform = ref('')
 
 let isUpdatingFromWatch = false
+
+// ===================== 位置独立管理（绕过 store 响应式链） =====================
+const posX = ref(0)
+const posY = ref(0)
+let positionRafId: number | null = null
+let lastSyncedNodeId: string | null = null
 
 // ===================== 监听选中元素变化，加载绑定配置 =====================
 watch(
@@ -178,6 +184,25 @@ watch(
     },
     { immediate: true, deep: true }
 )
+
+watch(
+    () => editorStore.selectedId,
+    (newId) => {
+      if (newId && newId !== lastSyncedNodeId) {
+        lastSyncedNodeId = newId
+        syncPositionFromCanvas()
+        startPositionPolling()
+      } else if (!newId) {
+        lastSyncedNodeId = null
+        stopPositionPolling()
+      }
+    },
+    { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  stopPositionPolling()
+})
 
 // ===================== 核心方法：更新绑定配置 =====================
 function updateBinding() {
@@ -263,16 +288,57 @@ function updateNodeData() {
   editorStore.updateNode(element.value.data.id, { data: element.value.data.data })
 }
 
-function updateNodePosition() {
-  if (!element.value || element.value.type !== 'node') return
-  const { x, y } = element.value.data
-  editorStore.updateNode(element.value.data.id, { x, y })
-}
-
 function updateEdgeLabel() {
   if (!element.value || element.value.type !== 'edge') return
   editorStore.updateEdge(element.value.data.id, { label: element.value.data.label })
 }
+
+function onPositionInput() {
+  if (!element.value || element.value.type !== 'node') return
+  const id = element.value.data.id
+  const x = posX.value || 0
+  const y = posY.value || 0
+
+  const graph = getGraph()
+  if (graph) {
+    const node = graph.getCellById(id)
+    if (node && node.isNode()) {
+      node.setPosition({ x, y })
+    }
+  }
+
+  editorStore.updateNode(id, { x, y })
+}
+
+function syncPositionFromCanvas() {
+  const graph = getGraph()
+  if (!graph || !editorStore.selectedId) return
+  const cell = graph.getCellById(editorStore.selectedId)
+  if (cell && cell.isNode()) {
+    const pos = cell.getPosition()
+    if (posX.value !== Math.round(pos.x) || posY.value !== Math.round(pos.y)) {
+      posX.value = Math.round(pos.x)
+      posY.value = Math.round(pos.y)
+    }
+  }
+}
+
+function startPositionPolling() {
+  stopPositionPolling()
+  const poll = () => {
+    syncPositionFromCanvas()
+    positionRafId = requestAnimationFrame(poll)
+  }
+  poll()
+}
+
+function stopPositionPolling() {
+  if (positionRafId !== null) {
+    cancelAnimationFrame(positionRafId)
+    positionRafId = null
+  }
+}
+
 </script>
 
 <style scoped>

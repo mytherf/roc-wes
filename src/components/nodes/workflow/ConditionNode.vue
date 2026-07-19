@@ -101,7 +101,7 @@ function saveToNode() {
 
 // 监听节点数据变化
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData) {
     label.value = newData.label || '条件判断'
     if (newData.branches) {

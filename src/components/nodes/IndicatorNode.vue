@@ -36,7 +36,7 @@ const statusText = computed(() => {
 
 // 监听数据变化
 props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current.getData()
+  const newData = current || props.node.getData()
   if (newData) {
     label.value = newData.label || '指示灯'
     status.value = newData.status || 'off'
