@@ -15,13 +15,29 @@ export interface AnimationConfig {
 }
 
 /**
+ * 单个动画的运行时状态
+ */
+interface AnimationState {
+    config: AnimationConfig
+    node: Node
+    /** 动画起始时间戳（用于基于経過时间计算，避免帧率依赖） */
+    startTime: number
+    /** 闪烁动画的当前可见性（避免重复设置 attr） */
+    visible: boolean
+}
+
+/**
  * 节点动画服务
- * 独立调度器，管理所有节点的动画
+ *
+ * 使用单一 requestAnimationFrame 循环统一调度所有节点动画，
+ * 替代旧版"每个节点一个 setInterval"的实现：
+ * - 帧率由浏览器统一控制，性能更好
+ * - 多节点动画不会导致定时器爆炸
+ * - 动画进度基于经过时间计算，与帧率无关，表现更稳定
  */
 export class AnimationService {
     private graph: Graph
-    private animations: Map<string, AnimationConfig> = new Map()
-    private timers: Map<string, number> = new Map()
+    private animations: Map<string, AnimationState> = new Map()
     private frameId: number | null = null
 
     constructor(graph: Graph) {
@@ -33,94 +49,119 @@ export class AnimationService {
      */
     setAnimation(nodeId: string, config: AnimationConfig) {
         this.stopAnimation(nodeId)
-        this.animations.set(nodeId, config)
-        this.startAnimation(nodeId, config)
+
+        const cell = this.graph.getCellById(nodeId)
+        if (!cell?.isNode()) return
+
+        this.animations.set(nodeId, {
+            config,
+            node: cell as Node,
+            startTime: performance.now(),
+            visible: true,
+        })
+        this.ensureLoop()
     }
 
     /**
-     * 停止节点动画
+     * 停止节点动画并恢复原始样式
      */
     stopAnimation(nodeId: string) {
-        if (this.timers.has(nodeId)) {
-            clearInterval(this.timers.get(nodeId))
-            this.timers.delete(nodeId)
-        }
+        const state = this.animations.get(nodeId)
+        if (!state) return
+
+        this.resetNodeStyle(state.node)
         this.animations.delete(nodeId)
-        // 恢复节点原始样式
-        const node = this.graph.getCellById(nodeId)
-        if (node?.isNode()) {
-            this.resetNodeStyle(node as Node)
+
+        // 无动画时停止循环，释放资源
+        if (this.animations.size === 0) {
+            this.stopLoop()
         }
     }
 
     /**
-     * 启动动画
+     * 停止所有动画
      */
-    private startAnimation(nodeId: string, config: AnimationConfig) {
-        const node = this.graph.getCellById(nodeId)
-        if (!node?.isNode()) return
+    stopAll() {
+        for (const state of this.animations.values()) {
+            this.resetNodeStyle(state.node)
+        }
+        this.animations.clear()
+        this.stopLoop()
+    }
 
+    /**
+     * 销毁服务
+     */
+    dispose() {
+        this.stopAll()
+    }
+
+    /**
+     * 确保 rAF 循环运行中（有动画时）
+     */
+    private ensureLoop() {
+        if (this.frameId !== null) return
+
+        const tick = (now: number) => {
+            for (const state of this.animations.values()) {
+                this.updateAnimation(state, now)
+            }
+            // 仍有动画时继续循环
+            if (this.animations.size > 0) {
+                this.frameId = requestAnimationFrame(tick)
+            } else {
+                this.frameId = null
+            }
+        }
+        this.frameId = requestAnimationFrame(tick)
+    }
+
+    /**
+     * 停止 rAF 循环
+     */
+    private stopLoop() {
+        if (this.frameId !== null) {
+            cancelAnimationFrame(this.frameId)
+            this.frameId = null
+        }
+    }
+
+    /**
+     * 更新单个动画（基于经过时间计算，与帧率无关）
+     */
+    private updateAnimation(state: AnimationState, now: number) {
+        const { config, node } = state
         const duration = config.duration || 1000
         const interval = config.interval || duration
+        const elapsed = now - state.startTime
 
         switch (config.type) {
-            case 'pulse':
-                this.startPulse(node as Node, duration, interval)
+            case 'pulse': {
+                // 每个 interval 完成一次脉冲（缩放 + 透明度）
+                const phase = (elapsed / interval) % 1
+                const scale = 1 + 0.08 * Math.sin(phase * Math.PI * 2)
+                const opacity = 0.7 + 0.3 * Math.sin(phase * Math.PI * 2)
+                node.attr('body', { transform: `scale(${scale})`, opacity })
                 break
-            case 'blink':
-                this.startBlink(node as Node, duration, interval)
+            }
+            case 'blink': {
+                // 每 interval/2 切换一次可见性
+                const shouldBeVisible = Math.floor(elapsed / (interval / 2)) % 2 === 0
+                if (shouldBeVisible !== state.visible) {
+                    state.visible = shouldBeVisible
+                    node.attr('body', { opacity: shouldBeVisible ? 1 : 0.2 })
+                }
                 break
-            case 'rotate':
-                this.startRotate(node as Node, duration, interval)
+            }
+            case 'rotate': {
+                // 与旧实现等效的旋转速度（每 interval 转 90°）
+                const angle = ((elapsed / interval) * 90) % 360
+                node.attr('body', { transform: `rotate(${angle}deg)` })
                 break
+            }
             default:
                 break
         }
-    }
-
-    /**
-     * 脉冲动画（缩放 + 透明度）
-     */
-    private startPulse(node: Node, _duration: number, interval: number) {
-        let phase = 0
-        const timer = window.setInterval(() => {
-            phase = (phase + 0.1) % 1
-            const scale = 1 + 0.08 * Math.sin(phase * Math.PI * 2)
-            const opacity = 0.7 + 0.3 * Math.sin(phase * Math.PI * 2)
-            node.attr('body', {
-                transform: `scale(${scale})`,
-                opacity,
-            })
-        }, interval / 10)
-        this.timers.set(node.id, timer)
-    }
-
-    /**
-     * 闪烁动画（透明度）
-     */
-    private startBlink(node: Node, _duration: number, interval: number) {
-        let visible = true
-        const timer = window.setInterval(() => {
-            visible = !visible
-            node.attr('body', {
-                opacity: visible ? 1 : 0.2,
-            })
-        }, interval / 2)
-        this.timers.set(node.id, timer)
-    }
-
-    /**
-     * 旋转动画
-     */
-    private startRotate(node: Node, _duration: number, interval: number) {
-        let angle = 0
-        const timer = window.setInterval(() => {
-            angle = (angle + 3) % 360
-            node.attr('body', {
-                transform: `rotate(${angle}deg)`,
-            })
-        }, interval / 30)
-        this.timers.set(node.id, timer)
     }
 
     /**
@@ -131,26 +172,5 @@ export class AnimationService {
             transform: '',
             opacity: 1,
         })
-    }
-
-    /**
-     * 停止所有动画
-     */
-    stopAll() {
-        for (const [nodeId] of this.timers) {
-            this.stopAnimation(nodeId)
-        }
-        this.animations.clear()
-    }
-
-    /**
-     * 销毁
-     */
-    dispose() {
-        this.stopAll()
-        if (this.frameId) {
-            cancelAnimationFrame(this.frameId)
-            this.frameId = null
-        }
     }
 }

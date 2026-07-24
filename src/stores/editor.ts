@@ -47,12 +47,17 @@ export const useEditorStore = defineStore(
             return null
         })
 
+        // 是否可撤销（供 UI 按钮禁用状态使用）
+        const canUndo = computed(() => historyIndex.value > 0)
+        // 是否可重做
+        const canRedo = computed(() => historyIndex.value < history.value.length - 1)
+
         // ---------- 操作（Actions） ----------
         /**
          * 设置整个画布数据（用于加载、撤销/重做）
          */
         function setGraphData(data: GraphData) {
-            graphData.value = JSON.parse(JSON.stringify(data)) // 深拷贝
+            graphData.value = structuredClone(data) // 深拷贝
         }
 
         /**
@@ -94,7 +99,7 @@ export const useEditorStore = defineStore(
                 history.value = history.value.slice(0, historyIndex.value + 1)
             }
             // 添加新状态（深拷贝）
-            history.value.push(JSON.parse(JSON.stringify(graphData.value)))
+            history.value.push(structuredClone(graphData.value))
             // 如果超出最大步数，移除最早的一条
             if (history.value.length > MAX_HISTORY) {
                 history.value.shift()
@@ -153,8 +158,8 @@ export const useEditorStore = defineStore(
             graphData,
             selectedId,
             selectedElement,
-            history,
-            historyIndex,
+            canUndo,
+            canRedo,
             setGraphData,
             updateNode,
             updateEdge,

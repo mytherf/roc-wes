@@ -36,15 +36,13 @@ import { getTeleport } from '@antv/x6-vue-shape'
 import '@/components/nodes/registry'
 
 // 服务
-import { MockDataService } from '@/services/MockDataService'
-import type { DataBindingConfig, IDataService } from '@/services/DataService'
 import { AnimationService } from '@/services/AnimationService'
+import { useDataService } from '@/composables/useDataService'
 
 const TeleportContainer = getTeleport()
 
 const containerRef = ref<HTMLDivElement | null>(null)
 let graph: Graph | null = null
-let dataService: IDataService | null = null
 let animationService: AnimationService | null = null
 let resizeHandler: (() => void) | null = null
 let statsTimer: number | null = null
@@ -55,7 +53,8 @@ const nodeCount = ref(0)
 const edgeCount = ref(0)
 const currentTime = ref('')
 
-const nodeDataSubscriptions = new Map<string, string>()
+// 数据服务管理（与编辑态 X6Canvas 共用同一套绑定逻辑）
+const dataService = useDataService()
 
 onMounted(async() => {
   if (!containerRef.value) return
@@ -101,8 +100,8 @@ onMounted(async() => {
     graph.zoomTo(1)
     graph.centerContent()
 
-    dataService = new MockDataService()
-    bindAllNodes()
+    // 绑定数据源（setData 会自动触发 change:data，驱动节点组件刷新）
+    dataService.bindAllNodes(graph)
 
     animationService = new AnimationService(graph)
     applyAllAnimations()
@@ -131,49 +130,6 @@ onMounted(async() => {
     hasData.value = false
   }
 })
-
-function bindNodeData(node: any) {
-  const nodeData = node.getData()
-  const binding = nodeData?.binding as DataBindingConfig | undefined
-  if (!binding?.pointId) return
-
-  if (nodeDataSubscriptions.has(node.id)) {
-    dataService?.unsubscribe(nodeDataSubscriptions.get(node.id)!)
-    nodeDataSubscriptions.delete(node.id)
-  }
-
-  dataService?.subscribe(binding.pointId, (point) => {
-    const currentData = node.getData()
-    let newValue = point.value
-    if (binding.transform) {
-      newValue = binding.transform(point.value)
-    }
-    node.setData({
-      ...currentData,
-      value: newValue,
-      _timestamp: point.timestamp,
-      _quality: point.quality,
-    })
-    node.trigger('change:data', { current: node })
-  })
-
-  nodeDataSubscriptions.set(node.id, binding.pointId)
-}
-
-function bindAllNodes() {
-  if (!graph) return
-  const nodes = graph.getNodes()
-  for (const node of nodes) {
-    bindNodeData(node)
-  }
-}
-
-function unbindAllNodes() {
-  for (const [, pointId] of nodeDataSubscriptions) {
-    dataService?.unsubscribe(pointId)
-  }
-  nodeDataSubscriptions.clear()
-}
 
 function applyNodeAnimation(node: any) {
   const data = node.getData()
@@ -205,8 +161,7 @@ onBeforeUnmount(() => {
     clearInterval(statsTimer)
     statsTimer = null
   }
-  unbindAllNodes()
-  dataService?.disconnect()
+  dataService.dispose()
   animationService?.dispose()
   if (graph) {
     graph.dispose()
