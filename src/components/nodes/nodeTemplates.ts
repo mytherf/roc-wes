@@ -198,12 +198,18 @@ export const nodeTemplates: NodeTemplate[] = [
   {
     type: 'rack-node', label: '货架', icon: '🏛️',
     pointIdTemplate: 'device.rack',
-    width: 220, height: 280,
-    // 复杂构建器：transform 需闭包引用随机生成的货格数据
+    width: 240, height: 150,
+    /**
+     * 货架三维模型：
+     * - rows  排（深度方向）：单深位 = 1，双深位 = 2
+     * - cols  列（宽度方向）
+     * - floors 层（高度方向）
+     * 库位编号规则：排_列_层（如 1_3_2）。默认单深位。
+     */
     buildData: (pointId: string) => {
-      const rows = 4
+      const rows = 1 // 默认单深位（双深位时改为 2）
       const cols = 6
-      const floors = 6
+      const floors = 4
       // 生成随机货位占用（三维：层×排×列）
       const floorGrids = Array.from({ length: floors }, () =>
         Array.from({ length: rows }, () =>

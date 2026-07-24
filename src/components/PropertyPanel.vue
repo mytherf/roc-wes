@@ -316,7 +316,7 @@ function updateNodeName() {
 
   const storeNode = editorStore.graphData.nodes.find(n => n.id === nodeId)
   if (storeNode) {
-    storeNode.data = { ...(storeNode.data || {}), name: newName }
+    editorStore.updateNode(nodeId, { data: { ...(storeNode.data || {}), name: newName } })
   }
 
   const graph = getGraph()
@@ -340,10 +340,10 @@ function updateNodeDataField(field: string) {
   const nodeId = element.value.data.id
   const newValue = element.value.data[field]
 
-  // 直接更新 store 中对应节点的 data
+  // 通过 updateNode 不可变更新 store
   const storeNode = editorStore.graphData.nodes.find(n => n.id === nodeId)
   if (storeNode) {
-    storeNode.data = { ...(storeNode.data || {}), [field]: newValue }
+    editorStore.updateNode(nodeId, { data: { ...(storeNode.data || {}), [field]: newValue } })
   }
 
   // 同步更新 X6 节点 data

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import {shallowRef, ref, computed, toRaw} from 'vue'
 
 
 /**
@@ -20,7 +20,8 @@ export const useEditorStore = defineStore(
     () => {
         // ---------- 状态 ----------
         // 画布数据（节点和边的序列化数组）
-        const graphData = ref<GraphData>({ nodes: [], edges: [] })
+        // shallowRef：值始终为普通对象（非 Proxy），整体替换触发更新
+        const graphData = shallowRef<GraphData>({ nodes: [], edges: [] })
         // 当前选中元素的 ID（节点或边）
         const selectedId = ref<string | null>(null)
         // 历史记录（存储过去的状态快照）
@@ -55,32 +56,36 @@ export const useEditorStore = defineStore(
         // ---------- 操作（Actions） ----------
         /**
          * 设置整个画布数据（用于加载、撤销/重做）
+         * 调用方必须传入全新的普通对象（serializeGraph / JSON.parse / toRaw 均满足）
          */
         function setGraphData(data: GraphData) {
-            graphData.value = structuredClone(data) // 深拷贝
+            graphData.value = data
         }
 
         /**
-         * 更新节点数据（根据 id 更新）
+         * 更新节点数据（根据 id 更新）—— 不可变方式：生成新节点、新数组
          * @param nodeId 节点 ID
          * @param updates 要更新的字段
          */
         function updateNode(nodeId: string, updates: Record<string, any>) {
-            const node = graphData.value.nodes.find(n => n.id === nodeId)
-            if (node) {
-                Object.assign(node, updates)
-                // 如果更新了数据，需要同步到 X6 画布（由监听器负责）
-            }
+            const nodes = graphData.value.nodes
+            const idx = nodes.findIndex(n => n.id === nodeId)
+            if (idx === -1) return
+            const newNodes = [...nodes]
+            newNodes[idx] = { ...nodes[idx], ...updates }
+            graphData.value = { nodes: newNodes, edges: graphData.value.edges }
         }
 
         /**
-         * 更新边数据
+         * 更新边数据 —— 不可变方式
          */
         function updateEdge(edgeId: string, updates: Record<string, any>) {
-            const edge = graphData.value.edges.find(e => e.id === edgeId)
-            if (edge) {
-                Object.assign(edge, updates)
-            }
+            const edges = graphData.value.edges
+            const idx = edges.findIndex(e => e.id === edgeId)
+            if (idx === -1) return
+            const newEdges = [...edges]
+            newEdges[idx] = { ...edges[idx], ...updates }
+            graphData.value = { nodes: graphData.value.nodes, edges: newEdges }
         }
 
         /**
@@ -92,14 +97,15 @@ export const useEditorStore = defineStore(
 
         /**
          * 保存当前状态到历史记录（在每次数据变化后调用）
+         * 数据不可变 → 直接存引用，O(1) 零拷贝
          */
         function pushHistory() {
             // 如果当前索引不是最新，则删除后面的历史
             if (historyIndex.value < history.value.length - 1) {
                 history.value = history.value.slice(0, historyIndex.value + 1)
             }
-            // 添加新状态（深拷贝）
-            history.value.push(structuredClone(graphData.value))
+            // 添加新状态（不可变对象，存引用即可）
+            history.value.push(graphData.value)
             // 如果超出最大步数，移除最早的一条
             if (history.value.length > MAX_HISTORY) {
                 history.value.shift()
@@ -114,8 +120,7 @@ export const useEditorStore = defineStore(
         function undo() {
             if (historyIndex.value > 0) {
                 historyIndex.value--
-                const data = history.value[historyIndex.value]
-                setGraphData(data)
+                graphData.value = toRaw(history.value[historyIndex.value])
                 return true
             }
             return false
@@ -127,8 +132,7 @@ export const useEditorStore = defineStore(
         function redo() {
             if (historyIndex.value < history.value.length - 1) {
                 historyIndex.value++
-                const data = history.value[historyIndex.value]
-                setGraphData(data)
+                graphData.value = toRaw(history.value[historyIndex.value])
                 return true
             }
             return false
