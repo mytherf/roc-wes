@@ -15,38 +15,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
+import { useNodeData } from '@/composables/useNodeData'
+import { useNodeStatus } from '@/composables/useNodeStatus'
 
 const props = defineProps<{
   node: any
 }>()
 
-const data = ref(props.node?.getData() || {})
-const name = ref(data.value.name || '穿梭车-01')
-const position = ref(data.value.position || 50) // 0-100
-const status = ref(data.value.status || 'idle')
+const { name, position, status } = useNodeData(props.node, {
+  name: '穿梭车-01',
+  position: 50, // 0-100
+  status: 'idle',
+})
+
+const { statusClass, statusText } = useNodeStatus(status)
 
 const positionPercent = computed(() => Math.min(100, Math.max(0, position.value)))
-
-const statusClass = computed(() => ({
-  'status-idle': status.value === 'idle',
-  'status-running': status.value === 'running',
-  'status-error': status.value === 'error',
-}))
-
-const statusText = computed(() => {
-  const map: Record<string, string> = { idle: '待机', running: '运行中', error: '故障' }
-  return map[status.value] || '未知'
-})
-
-props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current || props.node.getData()
-  if (newData) {
-    name.value = newData.name || '穿梭车-01'
-    position.value = newData.position ?? 50
-    status.value = newData.status || 'idle'
-  }
-})
 </script>
 
 <style scoped>

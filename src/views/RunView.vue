@@ -30,30 +30,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Graph } from '@antv/x6'
-import { register, getTeleport } from '@antv/x6-vue-shape'
+import { getTeleport } from '@antv/x6-vue-shape'
 
-// 注册所有自定义节点
-import CustomCard from '@/components/nodes/CustomCard.vue'
-import GaugeNode from '@/components/nodes/GaugeNode.vue'
-import ChartNode from '@/components/nodes/ChartNode.vue'
-import IndicatorNode from '@/components/nodes/IndicatorNode.vue'
-import WorkflowStartNode from '@/components/nodes/workflow/WorkflowStartNode.vue'
-import WorkflowEndNode from '@/components/nodes/workflow/WorkflowEndNode.vue'
-import ConditionNode from '@/components/nodes/workflow/ConditionNode.vue'
-import TimerNode from '@/components/nodes/workflow/TimerNode.vue'
-import HttpRequestNode from '@/components/nodes/workflow/HttpRequestNode.vue'
-import CustomCodeNode from '@/components/nodes/workflow/CustomCodeNode.vue'
-
-register({ shape: 'custom-card', component: CustomCard })
-register({ shape: 'gauge-node', component: GaugeNode })
-register({ shape: 'chart-node', component: ChartNode })
-register({ shape: 'indicator-node', component: IndicatorNode })
-register({ shape: 'workflow-start', component: WorkflowStartNode })
-register({ shape: 'workflow-end', component: WorkflowEndNode })
-register({ shape: 'condition-node', component: ConditionNode })
-register({ shape: 'timer-node', component: TimerNode })
-register({ shape: 'http-request-node', component: HttpRequestNode })
-register({ shape: 'custom-code-node', component: CustomCodeNode })
+// 注册所有自定义节点（统一由节点注册表管理）
+import '@/components/nodes/registry'
 
 // 服务
 import { MockDataService } from '@/services/MockDataService'
@@ -189,7 +169,7 @@ function bindAllNodes() {
 }
 
 function unbindAllNodes() {
-  for (const [nodeId, pointId] of nodeDataSubscriptions) {
+  for (const [, pointId] of nodeDataSubscriptions) {
     dataService?.unsubscribe(pointId)
   }
   nodeDataSubscriptions.clear()

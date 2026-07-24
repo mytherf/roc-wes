@@ -30,6 +30,7 @@ import { ref } from 'vue'
 import { DagValidator } from '@/services/workflow/DagValidator'
 import { WorkflowEngine } from '@/services/workflow/WorkflowEngine'
 import { useEditorStore } from '@/stores/editor'
+import { serializeGraph } from '@/utils/graphSerializer'
 
 const props = defineProps<{
   graph: any
@@ -55,11 +56,7 @@ function handleRun() {
   }
 
   // 1. 获取当前画布数据
-  const rawData = props.graph.toJSON()
-  const data = {
-    nodes: rawData.cells.filter((cell: any) => !('source' in cell && 'target' in cell)),
-    edges: rawData.cells.filter((cell: any) => 'source' in cell && 'target' in cell),
-  }
+  const data = serializeGraph(props.graph)
 
   // 2. 存入 sessionStorage
   try {
@@ -149,19 +146,7 @@ async function handleExecute() {
  */
 function handleExport() {
   if (!props.graph) return
-  const rawData = props.graph.toJSON()
-  const data = {
-    nodes: rawData.cells
-        .filter((cell: any) => !('source' in cell && 'target' in cell))
-        .map((node: any) => ({
-          ...node,
-          x: node.position?.x ?? node.x ?? 0,
-          y: node.position?.y ?? node.y ?? 0,
-        })),
-    edges: rawData.cells.filter(
-        (cell: any) => 'source' in cell && 'target' in cell
-    ),
-  }
+  const data = serializeGraph(props.graph)
   const json = JSON.stringify(data, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)

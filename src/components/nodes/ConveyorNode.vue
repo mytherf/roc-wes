@@ -13,44 +13,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
+import { useNodeData } from '@/composables/useNodeData'
+import { useNodeStatus } from '@/composables/useNodeStatus'
 
 const props = defineProps<{
   node: any
 }>()
 
-const data = ref(props.node?.getData() || {})
-const name = ref(data.value.name || '输送线-01')
-const direction = ref(data.value.direction || 'left') // left | right | bidirectional
-const isRunning = ref(data.value.isRunning || false)
-const status = ref(data.value.status || 'idle')
+const { name, direction, isRunning, status } = useNodeData(props.node, {
+  name: '输送线-01',
+  direction: 'left', // left | right | bidirectional
+  isRunning: false,
+  status: 'idle',
+})
+
+const { statusClass, statusText } = useNodeStatus(status)
 
 const directionClass = computed(() => ({
   'conveyor-left': direction.value === 'left',
   'conveyor-right': direction.value === 'right',
   'conveyor-bidirectional': direction.value === 'bidirectional',
 }))
-
-const statusClass = computed(() => ({
-  'status-idle': status.value === 'idle',
-  'status-running': status.value === 'running',
-  'status-error': status.value === 'error',
-}))
-
-const statusText = computed(() => {
-  const map: Record<string, string> = { idle: '待机', running: '运行中', error: '故障' }
-  return map[status.value] || '未知'
-})
-
-props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current || props.node.getData()
-  if (newData) {
-    name.value = newData.name || '输送线-01'
-    direction.value = newData.direction || 'left'
-    isRunning.value = newData.isRunning || false
-    status.value = newData.status || 'idle'
-  }
-})
 </script>
 
 <style scoped>

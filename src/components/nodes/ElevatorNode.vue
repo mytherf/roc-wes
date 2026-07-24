@@ -16,40 +16,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { useNodeData } from '@/composables/useNodeData'
+import { useNodeStatus } from '@/composables/useNodeStatus'
 
 const props = defineProps<{
   node: any
 }>()
 
-const data = ref(props.node?.getData() || {})
-const name = ref(data.value.name || '提升机-01')
-const maxLevel = ref(data.value.maxLevel || 6)
-const currentLevel = ref(data.value.currentLevel || 1)
-const position = ref(data.value.position || 0)
-const status = ref(data.value.status || 'idle')
-
-const statusClass = computed(() => ({
-  'status-idle': status.value === 'idle',
-  'status-running': status.value === 'running',
-  'status-error': status.value === 'error',
-}))
-
-const statusText = computed(() => {
-  const map: Record<string, string> = { idle: '待机', running: '运行中', error: '故障' }
-  return map[status.value] || '未知'
+const { name, maxLevel, currentLevel, position, status } = useNodeData(props.node, {
+  name: '提升机-01',
+  maxLevel: 6,
+  currentLevel: 1,
+  position: 0,
+  status: 'idle',
 })
 
-props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current || props.node.getData()
-  if (newData) {
-    name.value = newData.name || '提升机-01'
-    maxLevel.value = newData.maxLevel || 6
-    currentLevel.value = newData.currentLevel || 1
-    position.value = newData.position || 0
-    status.value = newData.status || 'idle'
-  }
-})
+const { statusClass, statusText } = useNodeStatus(status)
 </script>
 
 <style scoped>

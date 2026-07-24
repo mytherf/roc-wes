@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 
 /**
  * 条件判断节点
@@ -66,22 +66,6 @@ function removeBranch(index: number) {
     return
   }
   branches.value.splice(index, 1)
-  saveToNode()
-}
-
-/**
- * 更新分支标签
- */
-function updateBranchLabel(index: number, newLabel: string) {
-  branches.value[index].label = newLabel
-  saveToNode()
-}
-
-/**
- * 更新分支表达式
- */
-function updateBranchExpression(index: number, newExpression: string) {
-  branches.value[index].expression = newExpression
   saveToNode()
 }
 

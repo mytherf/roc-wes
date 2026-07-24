@@ -9,38 +9,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { useNodeData } from '@/composables/useNodeData'
+import { useNodeStatus } from '@/composables/useNodeStatus'
 
 const props = defineProps<{ node: any }>()
 
-const data = ref(props.node?.getData() || {})
-const label = ref(data.value.label || '指示灯')
-const status = ref(data.value.status || 'off') // 'on' | 'off' | 'warning' | 'error'
-
-const statusClass = computed(() => ({
-  'light-on': status.value === 'on',
-  'light-off': status.value === 'off',
-  'light-warning': status.value === 'warning',
-  'light-error': status.value === 'error',
-}))
-
-const statusText = computed(() => {
-  const map: Record<string, string> = {
-    on: '运行中',
-    off: '已停止',
-    warning: '告警',
-    error: '故障',
-  }
-  return map[status.value] || '未知'
+const { label, status } = useNodeData(props.node, {
+  label: '指示灯',
+  status: 'off',
 })
 
-// 监听数据变化
-props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current || props.node.getData()
-  if (newData) {
-    label.value = newData.label || '指示灯'
-    status.value = newData.status || 'off'
-  }
+const { statusClass, statusText } = useNodeStatus(status, {
+  prefix: 'light',
+  labels: { on: '运行中', off: '已停止', warning: '告警', error: '故障' },
 })
 
 // 暴露更新方法

@@ -1,5 +1,5 @@
 <template>
-  <div class="gauge-node" ref="containerRef">
+  <div class="gauge-node">
     <div class="gauge-title">{{ title }}</div>
     <div class="gauge-chart" ref="chartRef"></div>
     <div class="gauge-value">
@@ -21,7 +21,6 @@ const props = defineProps<{
   node: any // X6 Node 实例
 }>()
 
-const containerRef = ref<HTMLDivElement | null>(null)
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: ECharts | null = null
 

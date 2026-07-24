@@ -1,4 +1,4 @@
-import type { Graph, Node, Edge } from '@antv/x6'
+import type { Graph, Node } from '@antv/x6'
 import axios from 'axios'
 
 /**
@@ -62,7 +62,6 @@ export class WorkflowEngine {
                 this.context.history.push(currentNodeId)
                 executedNodes.push(currentNodeId)
 
-                const _nodeData = node.getData()
                 const shape = node.shape
 
                 // 根据节点类型执行不同逻辑

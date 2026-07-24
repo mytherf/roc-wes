@@ -21,43 +21,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { useNodeData } from '@/composables/useNodeData'
+import { useNodeStatus } from '@/composables/useNodeStatus'
 
 const props = defineProps<{
   node: any
 }>()
 
-const data = ref(props.node?.getData() || {})
-const name = ref(data.value.name || '分拣机-01')
-const speed = ref(data.value.speed || 60)
-const status = ref(data.value.status || 'idle')
-const chutes = ref(data.value.chutes || [
-  { label: 'A区', count: 0, active: false },
-  { label: 'B区', count: 0, active: false },
-  { label: 'C区', count: 0, active: false },
-  { label: 'D区', count: 0, active: false },
-])
-
-const statusClass = computed(() => ({
-  'status-idle': status.value === 'idle',
-  'status-running': status.value === 'running',
-  'status-error': status.value === 'error',
-}))
-
-const statusText = computed(() => {
-  const map: Record<string, string> = { idle: '待机', running: '运行中', error: '故障' }
-  return map[status.value] || '未知'
+const { name, speed, status, chutes } = useNodeData(props.node, {
+  name: '分拣机-01',
+  speed: 60,
+  status: 'idle',
+  chutes: [
+    { label: 'A区', count: 0, active: false },
+    { label: 'B区', count: 0, active: false },
+    { label: 'C区', count: 0, active: false },
+    { label: 'D区', count: 0, active: false },
+  ],
 })
 
-props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current || props.node.getData()
-  if (newData) {
-    name.value = newData.name || '分拣机-01'
-    speed.value = newData.speed || 60
-    status.value = newData.status || 'idle'
-    if (newData.chutes) chutes.value = newData.chutes
-  }
-})
+const { statusClass, statusText } = useNodeStatus(status)
 </script>
 
 <style scoped>

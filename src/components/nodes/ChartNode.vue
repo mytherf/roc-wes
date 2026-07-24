@@ -1,5 +1,5 @@
 <template>
-  <div class="chart-node" ref="containerRef">
+  <div class="chart-node">
     <div class="chart-title">{{ title }}</div>
     <div class="chart-container" ref="chartRef"></div>
   </div>
@@ -12,7 +12,6 @@ import type { ECharts } from 'echarts'
 
 const props = defineProps<{ node: any }>()
 
-const containerRef = ref<HTMLDivElement | null>(null)
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: ECharts | null = null
 

@@ -18,44 +18,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { useNodeData } from '@/composables/useNodeData'
+import { useNodeStatus } from '@/composables/useNodeStatus'
 
 const props = defineProps<{
   node: any
 }>()
 
-const data = ref(props.node?.getData() || {})
-const name = ref(data.value.name || 'AGV-01')
-const battery = ref(data.value.battery || 85)
-const isMoving = ref(data.value.isMoving || false)
-const status = ref(data.value.status || 'idle')
-
-const statusClass = computed(() => ({
-  'status-idle': status.value === 'idle',
-  'status-running': status.value === 'running',
-  'status-charging': status.value === 'charging',
-  'status-error': status.value === 'error',
-}))
-
-const statusText = computed(() => {
-  const map: Record<string, string> = {
-    idle: '待机',
-    running: '运行中',
-    charging: '充电中',
-    error: '故障',
-  }
-  return map[status.value] || '未知'
+const { name, battery, isMoving, status } = useNodeData(props.node, {
+  name: 'AGV-01',
+  battery: 85,
+  isMoving: false,
+  status: 'idle',
 })
 
-props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current || props.node.getData()
-  if (newData) {
-    name.value = newData.name || 'AGV-01'
-    battery.value = newData.battery ?? 85
-    isMoving.value = newData.isMoving || false
-    status.value = newData.status || 'idle'
-  }
-})
+const { statusClass, statusText } = useNodeStatus(status)
 </script>
 
 <style scoped>

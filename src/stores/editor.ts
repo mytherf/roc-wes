@@ -34,12 +34,16 @@ export const useEditorStore = defineStore(
         // 根据 selectedId 获取当前选中的节点或边（仅用于属性面板展示）
         const selectedElement = computed(() => {
             if (!selectedId.value) return null
-            // 在节点中查找
             const node = graphData.value.nodes.find(n => n.id === selectedId.value)
-            if (node) return { type: 'node', data: node }
-            // 在边中查找
+            if (node) {
+                const { data: nodeData, ...rest } = node
+                return { type: 'node', data: { ...rest, ...nodeData } }
+            }
             const edge = graphData.value.edges.find(e => e.id === selectedId.value)
-            if (edge) return { type: 'edge', data: edge }
+            if (edge) {
+                const { data: edgeData, ...rest } = edge
+                return { type: 'edge', data: { ...rest, ...edgeData } }
+            }
             return null
         })
 

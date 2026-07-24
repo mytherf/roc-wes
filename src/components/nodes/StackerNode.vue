@@ -21,48 +21,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { useNodeData } from '@/composables/useNodeData'
+import { useNodeStatus } from '@/composables/useNodeStatus'
 
 const props = defineProps<{
   node: any
 }>()
 
-const data = ref(props.node?.getData() || {})
-const name = ref(data.value.name || '堆垛机-01')
-const lane = ref(data.value.lane || 'A01')
-const position = ref(data.value.position || '05-12-03')
-const status = ref(data.value.status || 'idle') // idle | running | warning | error
-const isMoving = ref(data.value.isMoving || false)
-const progress = ref(data.value.progress || 0)
-
-const statusClass = computed(() => ({
-  'status-idle': status.value === 'idle',
-  'status-running': status.value === 'running',
-  'status-warning': status.value === 'warning',
-  'status-error': status.value === 'error',
-}))
-
-const statusText = computed(() => {
-  const map: Record<string, string> = {
-    idle: '待机',
-    running: '运行中',
-    warning: '告警',
-    error: '故障',
-  }
-  return map[status.value] || '未知'
+const { name, lane, position, status, isMoving, progress } = useNodeData(props.node, {
+  name: '堆垛机-01',
+  lane: 'A01',
+  position: '05-12-03',
+  status: 'idle',
+  isMoving: false,
+  progress: 0,
 })
 
-// 监听数据变化
-props.node?.on('change:data', ({ current }: { current: any }) => {
-  const newData = current || props.node.getData()
-  if (newData) {
-    name.value = newData.name || '堆垛机-01'
-    lane.value = newData.lane || 'A01'
-    position.value = newData.position || '05-12-03'
-    status.value = newData.status || 'idle'
-    isMoving.value = newData.isMoving || false
-    progress.value = newData.progress || 0
-  }
+const { statusClass, statusText } = useNodeStatus(status, {
+  labels: { warning: '告警' },
 })
 
 defineExpose({

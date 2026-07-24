@@ -24,6 +24,32 @@
           <input v-model="element.data.label" @input="updateNodeLabel" />
         </div>
 
+        <!-- 设备名称（货架、堆垛机等 WCS 设备节点） -->
+        <div v-if="element.data.name !== undefined" class="field">
+          <label>名称</label>
+          <input v-model="element.data.name" @input="updateNodeName" />
+        </div>
+
+        <!-- 货架维度属性：排/列/层 -->
+        <template v-if="element.data.rows !== undefined">
+          <div class="field">
+            <label>排 (rows)</label>
+            <input type="number" min="1" v-model.number="element.data.rows" @input="updateNodeDataField('rows')" />
+          </div>
+        </template>
+        <template v-if="element.data.cols !== undefined">
+          <div class="field">
+            <label>列 (cols)</label>
+            <input type="number" min="1" v-model.number="element.data.cols" @input="updateNodeDataField('cols')" />
+          </div>
+        </template>
+        <template v-if="element.data.floors !== undefined">
+          <div class="field">
+            <label>层 (floors)</label>
+            <input type="number" min="1" v-model.number="element.data.floors" @input="updateNodeDataField('floors')" />
+          </div>
+        </template>
+
         <!-- 自定义数据（卡片节点等） -->
         <template v-if="element.data.data">
           <div class="field">
@@ -283,9 +309,52 @@ function updateNodeLabel() {
   editorStore.updateNode(element.value.data.id, { label: element.value.data.label })
 }
 
+function updateNodeName() {
+  if (!element.value || element.value.type !== 'node') return
+  const nodeId = element.value.data.id
+  const newName = element.value.data.name
+
+  const storeNode = editorStore.graphData.nodes.find(n => n.id === nodeId)
+  if (storeNode) {
+    storeNode.data = { ...(storeNode.data || {}), name: newName }
+  }
+
+  const graph = getGraph()
+  if (graph) {
+    const node = graph.getCellById(nodeId)
+    if (node && node.isNode()) {
+      const currentData = node.getData() || {}
+      node.setData({ ...currentData, name: newName })
+    }
+  }
+}
+
 function updateNodeData() {
   if (!element.value || element.value.type !== 'node') return
   editorStore.updateNode(element.value.data.id, { data: element.value.data.data })
+}
+
+/** 同步货架等节点的 data 子字段（rows/cols/floors）到 store 和 X6 节点 */
+function updateNodeDataField(field: string) {
+  if (!element.value || element.value.type !== 'node') return
+  const nodeId = element.value.data.id
+  const newValue = element.value.data[field]
+
+  // 直接更新 store 中对应节点的 data
+  const storeNode = editorStore.graphData.nodes.find(n => n.id === nodeId)
+  if (storeNode) {
+    storeNode.data = { ...(storeNode.data || {}), [field]: newValue }
+  }
+
+  // 同步更新 X6 节点 data
+  const graph = getGraph()
+  if (graph) {
+    const node = graph.getCellById(nodeId)
+    if (node && node.isNode()) {
+      const currentData = node.getData() || {}
+      node.setData({ ...currentData, [field]: newValue })
+    }
+  }
 }
 
 function updateEdgeLabel() {

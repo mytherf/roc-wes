@@ -248,6 +248,7 @@ onMounted(() => {
   })
 
   graph.on('cell:added', ({cell}) => {
+    console.log('添加了元素:', cell)
     if (isUpdatingFromStore) return
 
     if (cell.isNode()) {
@@ -357,9 +358,20 @@ onMounted(() => {
   watch(
       () => editorStore.graphData,
       (newData) => {
-        const currentData = graph!.toJSON()
+        const currentCells = graph!.toJSON().cells
+        const currentNodes = currentCells
+            .filter((cell: any) => !('source' in cell && 'target' in cell))
+            .map((node: any) => ({
+              ...node,
+              x: node.position?.x ?? node.x ?? 0,
+              y: node.position?.y ?? node.y ?? 0,
+            }))
+        const currentEdges = currentCells.filter(
+            (cell: any) => 'source' in cell && 'target' in cell
+        )
+        const normalized = { nodes: currentNodes, edges: currentEdges }
         const newDataStr = JSON.stringify(newData)
-        const currentDataStr = JSON.stringify(currentData)
+        const currentDataStr = JSON.stringify(normalized)
         if (newDataStr === currentDataStr) return
 
         isUpdatingFromStore = true
@@ -564,26 +576,6 @@ function updateNodePosition(nodeId: string, x: number, y: number) {
       isSyncingPosition = false
     })
   }
-}
-
-function batchAddNodes(nodes: any[]) {
-  if (!graph) return
-  const g = graph
-  g.batchUpdate(() => {
-    for (const nodeConfig of nodes) {
-      g.addNode(nodeConfig)
-    }
-  })
-}
-
-function batchAddEdges(edges: any[]) {
-  if (!graph) return
-  const g = graph
-  g.batchUpdate(() => {
-    for (const edgeConfig of edges) {
-      g.addEdge(edgeConfig)
-    }
-  })
 }
 
 // ===================== 5. 组件卸载前清理 =====================

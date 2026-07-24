@@ -522,40 +522,45 @@ const handleDragStart = (e: MouseEvent, item: typeof nodeTemplates[0]) => {
 
     const rows = 4
     const cols = 6
-    // 生成随机货位占用
-    const grid = Array.from({ length: rows }, () =>
+    const floors = 6
+    // 生成随机货位占用（三维：层×排×列）
+    const floorGrids = Array.from({ length: floors }, () =>
+      Array.from({ length: rows }, () =>
         Array.from({ length: cols }, () => ({
           status: Math.random() > 0.6 ? 'occupied' : 'empty'
         }))
+      )
     )
 
     nodeConfig.data = {
       name: '货架-A01',
       rows,
       cols,
-      grid,
+      floors,
+      floorGrids,
       pointId,
       binding: {
         pointId,
         sourceType: 'websocket',
-        transform: (raw: any) => {
+        transform: (_raw: any) => {
           // 模拟货位状态更新
-          const v = Number(raw)
-          const newGrid = JSON.parse(JSON.stringify(grid))
-          for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-              const rand = Math.random()
-              if (rand < 0.3) newGrid[r][c].status = 'empty'
-              else if (rand < 0.6) newGrid[r][c].status = 'occupied'
-              else newGrid[r][c].status = 'reserved'
+          const newGrids = JSON.parse(JSON.stringify(floorGrids))
+          for (let f = 0; f < floors; f++) {
+            for (let r = 0; r < rows; r++) {
+              for (let c = 0; c < cols; c++) {
+                const rand = Math.random()
+                if (rand < 0.3) newGrids[f][r][c].status = 'empty'
+                else if (rand < 0.6) newGrids[f][r][c].status = 'occupied'
+                else newGrids[f][r][c].status = 'reserved'
+              }
             }
           }
-          return { grid: newGrid }
+          return { floorGrids: newGrids }
         }
       }
     }
-    nodeConfig.width = 200
-    nodeConfig.height = 150
+    nodeConfig.width = 220
+    nodeConfig.height = 280
   }
 
   // 创建节点并启动拖拽

@@ -1,4 +1,4 @@
-import type { Graph, Node, Edge } from '@antv/x6'
+import type { Graph } from '@antv/x6'
 
 /**
  * 校验结果
@@ -130,7 +130,6 @@ export class DagValidator {
         const dfs = (nodeId: string): boolean => {
             if (recursionStack.has(nodeId)) {
                 // 找到环
-                const cycleStart = path.indexOf(nodeId)
                 return true
             }
             if (visited.has(nodeId)) return false
