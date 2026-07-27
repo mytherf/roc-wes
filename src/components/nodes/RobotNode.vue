@@ -1,5 +1,6 @@
 <template>
-  <div class="robot-node">
+  <NodeMinimalView v-if="isMinimal" icon="🦾" :name="name" :status="status" />
+  <div v-else class="robot-node">
     <div class="robot-arm">
       <div class="arm-base"></div>
       <div class="arm-joint" :style="{ transform: 'rotate(' + jointAngle + 'deg)' }">
@@ -17,10 +18,14 @@
 <script setup lang="ts">
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
+import { useDisplayMode } from '@/composables/useDisplayMode'
+import NodeMinimalView from './NodeMinimalView.vue'
 
 const props = defineProps<{
   node: any
 }>()
+
+const { isMinimal } = useDisplayMode()
 
 const { name, jointAngle, isOpen, status } = useNodeData(props.node, {
   name: '机械手-01',

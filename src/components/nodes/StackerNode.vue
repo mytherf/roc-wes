@@ -1,5 +1,6 @@
 <template>
-  <div class="stacker-node" :class="{ 'stacker-moving': isMoving }">
+  <NodeMinimalView v-if="isMinimal" icon="🏗️" :name="name" :status="status" />
+  <div v-else class="stacker-node" :class="{ 'stacker-moving': isMoving }">
     <div class="stacker-header">
       <span class="stacker-icon">🏗️</span>
       <span class="stacker-name">{{ name }}</span>
@@ -23,10 +24,14 @@
 <script setup lang="ts">
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
+import { useDisplayMode } from '@/composables/useDisplayMode'
+import NodeMinimalView from './NodeMinimalView.vue'
 
 const props = defineProps<{
   node: any
 }>()
+
+const { isMinimal } = useDisplayMode()
 
 const { name, lane, position, status, isMoving, progress } = useNodeData(props.node, {
   name: '堆垛机-01',

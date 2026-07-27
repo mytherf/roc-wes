@@ -1,16 +1,21 @@
 <template>
-  <div class="chart-node">
+  <NodeMinimalView v-if="isMinimal" icon="📈" :name="title" />
+  <div v-else class="chart-node">
     <div class="chart-title">{{ title }}</div>
     <div class="chart-container" ref="chartRef"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
+import { useDisplayMode } from '@/composables/useDisplayMode'
+import NodeMinimalView from './NodeMinimalView.vue'
 
 const props = defineProps<{ node: any }>()
+
+const { isMinimal } = useDisplayMode()
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: ECharts | null = null
@@ -96,6 +101,16 @@ props.node?.on('change:data', ({ current }: { current: any }) => {
 
 onMounted(() => {
   nextTick(initChart)
+})
+
+// 显示模式切换：极简模式下释放图表，切回图标模式时重新初始化
+watch(isMinimal, (minimal) => {
+  if (minimal) {
+    chart?.dispose()
+    chart = null
+  } else {
+    nextTick(initChart)
+  }
 })
 
 onBeforeUnmount(() => {

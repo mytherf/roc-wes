@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-import {onBeforeUnmount, onMounted, ref} from 'vue'
+import {onBeforeUnmount, onMounted, ref, watch, nextTick} from 'vue'
 import {Clipboard, Dnd, Graph, Keyboard, Selection, Transform} from '@antv/x6'
 import {getTeleport} from '@antv/x6-vue-shape';
 import type {GraphData} from '@/stores/editor'
@@ -47,7 +47,7 @@ const editorStore = useEditorStore()
 const dataService = useDataService()
 
 // 画布 ↔ Store 双向同步（防循环标志、事件监听、watcher）
-const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers} = useGraphSync({
+const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, syncGraphToStore, setSyncSuppressed} = useGraphSync({
   getGraph: () => graph,
   onReload: (data) => loadGraphData(data),
   // 新增节点：绑定数据源 + 应用动画
@@ -57,6 +57,11 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers} =
       dataService.bindNodeData(cell)
     }
     applyNodeAnimation(cell)
+    // 图标模式下新增的节点也需压缩尺寸
+    if (editorStore.displayMode === 'icon' && cell.isNode() && isMinimalShape(cell)) {
+      originalSizes.set(cell.id, { ...cell.getSize() })
+      cell.setSize(ICON_MODE_SIZE)
+    }
   },
   // 移除节点：释放点 ID
   onNodeRemoved: (cell) => {
@@ -71,9 +76,25 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers} =
   },
 })
 
-// 定义事件：画布初始化完成
+// ===================== 4.5 显示模式切换：节点尺寸适配 =====================
+
+/** 图标模式下的紧凑节点尺寸（与 NodeMinimalView 视觉尺寸匹配） */
+const ICON_MODE_SIZE = { width: 140, height: 36 }
+
+/** 支持极简视图的节点形状（切换图标模式时需压缩尺寸） */
+const MINIMAL_SHAPES = new Set([
+  'custom-card', 'gauge-node', 'chart-node', 'indicator-node',
+  'stacker-node', 'conveyor-node', 'agv-node', 'shuttle-node',
+  'sorter-node', 'elevator-node', 'robot-node', 'rack-node',
+])
+
+/** 记录节点进入图标模式前的原始尺寸（nodeId → size） */
+const originalSizes = new Map<string, { width: number; height: number }>()
+
+// 定义事件：画布初始化完成 / 节点双击
 const emit = defineEmits<{
   (e: 'ready', payload: { graph: Graph; dnd: Dnd }): void
+  (e: 'node-dblclick', payload: { nodeId: string; shape: string }): void
 }>()
 
 // ===================== 4. 暴露实例给父组件 =====================
@@ -86,6 +107,19 @@ defineExpose({
   updateNodeSize,
 })
 
+// ===================== 4.6 监听显示模式切换 =====================
+// 切换时批量调整节点模型尺寸，使选择框与图标模式的视觉内容匹配
+watch(() => editorStore.displayMode, (mode, oldMode) => {
+  if (!graph || mode === oldMode) return
+  setSyncSuppressed(true)
+  if (mode === 'icon') {
+    applyIconModeSizes(graph)
+  } else {
+    restoreFullModeSizes(graph)
+  }
+  syncGraphToStore()
+  nextTick(() => setSyncSuppressed(false))
+})
 
 // ===================== 5. 组件挂载后初始化画布 =====================
 onMounted(() => {
@@ -281,6 +315,11 @@ onMounted(() => {
     console.log('点击了元素:', cell.id)
   })
 
+  // 双击节点：派发事件给父组件（用于弹出节点详情界面）
+  graph.on('node:dblclick', ({node}) => {
+    emit('node-dblclick', {nodeId: node.id, shape: node.shape})
+  })
+
   graph.on('edge:connected', ({edge}) => {
     console.log(
         '连线完成:',
@@ -313,6 +352,32 @@ onMounted(() => {
 });
 
 // ===================== 6. 辅助函数 =====================
+
+/** 判断节点是否需要在图标模式下压缩尺寸 */
+function isMinimalShape(node: any): boolean {
+  return MINIMAL_SHAPES.has(node.shape)
+}
+
+/** 图标模式：保存原始尺寸并压缩所有极简视图节点 */
+function applyIconModeSizes(g: Graph) {
+  for (const node of g.getNodes()) {
+    if (!isMinimalShape(node)) continue
+    originalSizes.set(node.id, { ...node.getSize() })
+    node.setSize(ICON_MODE_SIZE)
+  }
+}
+
+/** 切回完整模式：恢复各节点原始尺寸 */
+function restoreFullModeSizes(g: Graph) {
+  for (const node of g.getNodes()) {
+    if (!isMinimalShape(node)) continue
+    const original = originalSizes.get(node.id)
+    if (original) {
+      node.setSize(original)
+    }
+  }
+  originalSizes.clear()
+}
 
 /**
  * 应用节点动画（读取 node.data.animation 配置）
@@ -355,6 +420,12 @@ function loadGraphData(data: GraphData) {
   // 应用动画
   for (const node of g.getNodes()) {
     applyNodeAnimation(node)
+  }
+
+  // 图标模式下重载后重新应用紧凑尺寸（如撤销/重做恢复了完整尺寸）
+  if (editorStore.displayMode === 'icon') {
+    applyIconModeSizes(g)
+    syncGraphToStore()
   }
 }
 

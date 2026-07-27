@@ -15,6 +15,19 @@
     <button class="toolbar-btn" @click="handleClear" title="清空画布">
       🗑 清空
     </button>
+    <!-- 显示模式分段选择器：高亮当前模式，点击另一项切换 -->
+    <div class="mode-switcher" title="节点显示模式">
+      <button
+        class="mode-option"
+        :class="{ active: displayMode === 'full' }"
+        @click="editorStore.setDisplayMode('full')"
+      >🔲 极简</button>
+      <button
+        class="mode-option"
+        :class="{ active: displayMode === 'icon' }"
+        @click="editorStore.setDisplayMode('icon')"
+      >🖼️ 图标</button>
+    </div>
     <button class="toolbar-btn run" @click="handleRun" title="运行模式">
       ▶ 运行
     </button>
@@ -26,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { DagValidator } from '@/services/workflow/DagValidator'
 import { WorkflowEngine } from '@/services/workflow/WorkflowEngine'
 import { useEditorStore } from '@/stores/editor'
@@ -39,6 +52,9 @@ const props = defineProps<{
 const editorStore = useEditorStore()
 const validationResult = ref<any>(null)
 const isExecuting = ref(false)
+
+// 节点显示模式（图标模式 ↔ 极简模式）
+const displayMode = computed(() => editorStore.displayMode)
 
 /**
  * 运行模式：导出数据到 sessionStorage，在新窗口打开运行态页面
@@ -251,5 +267,35 @@ function handleClear() {
 .toolbar-btn.run:hover {
   background: #73d13d;
   border-color: #73d13d;
+}
+/* 显示模式分段选择器 */
+.mode-switcher {
+  display: inline-flex;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+}
+.mode-option {
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: #666;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.mode-option + .mode-option {
+  border-left: 1px solid #d9d9d9;
+}
+.mode-option:hover:not(.active) {
+  color: #1890ff;
+  background: #e6f7ff;
+}
+.mode-option.active {
+  background: #1890ff;
+  color: #fff;
+  cursor: default;
 }
 </style>

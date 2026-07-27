@@ -1,5 +1,6 @@
 <template>
-  <div class="conveyor-node" :class="directionClass">
+  <NodeMinimalView v-if="isMinimal" icon="⚡" :name="name" :status="status" />
+  <div v-else class="conveyor-node" :class="directionClass">
     <div class="conveyor-track">
       <div class="conveyor-belt" :class="{ 'belt-running': isRunning }">
         <span v-for="i in 8" :key="i" class="belt-segment"></span>
@@ -16,10 +17,14 @@
 import { computed } from 'vue'
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
+import { useDisplayMode } from '@/composables/useDisplayMode'
+import NodeMinimalView from './NodeMinimalView.vue'
 
 const props = defineProps<{
   node: any
 }>()
+
+const { isMinimal } = useDisplayMode()
 
 const { name, direction, isRunning, status } = useNodeData(props.node, {
   name: '输送线-01',

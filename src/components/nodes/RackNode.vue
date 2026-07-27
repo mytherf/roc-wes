@@ -1,6 +1,7 @@
 <template>
   <!-- 双击打开正视图（通过图级 cell:dblclick 事件触发，见 script） -->
-  <div class="rack-node">
+  <NodeMinimalView v-if="isMinimal" icon="🏛️" :name="name" />
+  <div v-else class="rack-node">
     <div class="rack-header">
       <span class="rack-icon">🏛️</span>
       <span class="rack-name">{{ name }}</span>
@@ -23,9 +24,10 @@
       <span>利用率 {{ utilization }}%</span>
     </div>
     <div class="rack-hint">⤢ 双击查看正视图</div>
+  </div>
 
-    <!-- 正视图弹窗：Teleport 到 body，避免被画布层叠上下文遮挡 -->
-    <Teleport to="body">
+  <!-- 正视图弹窗：Teleport 到 body，避免被画布层叠上下文遮挡（两种显示模式均可触发） -->
+  <Teleport to="body">
       <div v-if="showFront" class="rack-modal-mask" @click.self="showFront = false">
         <div class="rack-modal">
           <div class="modal-header">
@@ -62,18 +64,21 @@
           </div>
         </div>
       </div>
-    </Teleport>
-  </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useNodeData } from '@/composables/useNodeData'
+import { useDisplayMode } from '@/composables/useDisplayMode'
+import NodeMinimalView from './NodeMinimalView.vue'
 
 const props = defineProps<{
   node: any
   graph: any
 }>()
+
+const { isMinimal } = useDisplayMode()
 
 /**
  * 货架三维模型：

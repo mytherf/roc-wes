@@ -1,5 +1,6 @@
 <template>
-  <div class="custom-card" :style="{ borderColor: statusColor }">
+  <NodeMinimalView v-if="isMinimal" :icon="icon" :name="title" :status="minimalStatus" />
+  <div v-else class="custom-card" :style="{ borderColor: statusColor }">
     <div class="card-header">
       <span class="icon">{{ icon }}</span>
       <span class="title">{{ title }}</span>
@@ -16,6 +17,8 @@
 <script setup lang="ts">
 // 这个组件会接收一个名为 'node' 的 prop，即 X6 的 Node 实例
 import { computed } from 'vue';
+import { useDisplayMode } from '@/composables/useDisplayMode'
+import NodeMinimalView from './NodeMinimalView.vue'
 
 /**
  * Props 说明：
@@ -25,6 +28,8 @@ import { computed } from 'vue';
 const props = defineProps<{
   node: any; // X6 Node 实例
 }>();
+
+const { isMinimal } = useDisplayMode()
 
 // 从节点数据中读取自定义属性
 const data = computed(() => props.node.getData());
@@ -41,6 +46,17 @@ const statusColor = computed(() => {
     '停止': '#8c8c8c',
   }
   return map[statusText.value] || '#d9d9d9'
+})
+
+// 极简模式状态映射（中文状态 → NodeMinimalView 的英文状态）
+const minimalStatus = computed(() => {
+  const map: Record<string, string> = {
+    '正常': 'on',
+    '告警': 'warning',
+    '故障': 'error',
+    '停止': 'off',
+  }
+  return map[statusText.value] || 'idle'
 })
 </script>
 

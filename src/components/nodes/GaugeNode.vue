@@ -1,5 +1,6 @@
 <template>
-  <div class="gauge-node">
+  <NodeMinimalView v-if="isMinimal" icon="📊" :name="title" />
+  <div v-else class="gauge-node">
     <div class="gauge-title">{{ title }}</div>
     <div class="gauge-chart" ref="chartRef"></div>
     <div class="gauge-value">
@@ -9,9 +10,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
+import { useDisplayMode } from '@/composables/useDisplayMode'
+import NodeMinimalView from './NodeMinimalView.vue'
 
 /**
  * 仪表盘节点组件
@@ -20,6 +23,8 @@ import type { ECharts } from 'echarts'
 const props = defineProps<{
   node: any // X6 Node 实例
 }>()
+
+const { isMinimal } = useDisplayMode()
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: ECharts | null = null
@@ -141,6 +146,16 @@ onMounted(() => {
     initChart()
     setupDataWatcher()
   })
+})
+
+// 显示模式切换：极简模式下释放图表，切回图标模式时重新初始化
+watch(isMinimal, (minimal) => {
+  if (minimal) {
+    chart?.dispose()
+    chart = null
+  } else {
+    nextTick(initChart)
+  }
 })
 
 onBeforeUnmount(() => {

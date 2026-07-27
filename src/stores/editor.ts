@@ -11,6 +11,9 @@ export interface GraphData {
     edges: any[]
 }
 
+/** 节点显示模式：full=完整渲染（「极简」按钮） icon=图标模式（紧凑图标卡片，「图标」按钮） */
+export type DisplayMode = 'full' | 'icon'
+
 /**
  * 编辑器 Store
  * 负责管理画布数据、当前选中元素、历史记录（撤销/重做）
@@ -24,6 +27,8 @@ export const useEditorStore = defineStore(
         const graphData = shallowRef<GraphData>({ nodes: [], edges: [] })
         // 当前选中元素的 ID（节点或边）
         const selectedId = ref<string | null>(null)
+        // 节点显示模式（默认完整渲染）
+        const displayMode = ref<DisplayMode>('full')
         // 历史记录（存储过去的状态快照）
         const history = ref<GraphData[]>([])
         // 当前历史索引（-1 表示无历史）
@@ -86,6 +91,13 @@ export const useEditorStore = defineStore(
             const newEdges = [...edges]
             newEdges[idx] = { ...edges[idx], ...updates }
             graphData.value = { nodes: graphData.value.nodes, edges: newEdges }
+        }
+
+        /**
+         * 切换节点显示模式
+         */
+        function setDisplayMode(mode: DisplayMode) {
+            displayMode.value = mode
         }
 
         /**
@@ -161,12 +173,14 @@ export const useEditorStore = defineStore(
         return {
             graphData,
             selectedId,
+            displayMode,
             selectedElement,
             canUndo,
             canRedo,
             setGraphData,
             updateNode,
             updateEdge,
+            setDisplayMode,
             setSelected,
             pushHistory,
             undo,
@@ -179,7 +193,7 @@ export const useEditorStore = defineStore(
         // 持久化选项（仅存储 graphData 和 selectedId）
         persist: {
             key: 'roc-wes-editor',
-            pick: ['graphData', 'selectedId'],
+            pick: ['graphData', 'selectedId', 'displayMode'],
         },
     }
 )

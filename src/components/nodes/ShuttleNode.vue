@@ -1,5 +1,6 @@
 <template>
-  <div class="shuttle-node">
+  <NodeMinimalView v-if="isMinimal" icon="🚗" :name="name" :status="status" />
+  <div v-else class="shuttle-node">
     <div class="shuttle-body">
       <div class="shuttle-track">
         <div class="shuttle-car" :style="{ left: positionPercent + '%' }">
@@ -18,10 +19,14 @@
 import { computed } from 'vue'
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
+import { useDisplayMode } from '@/composables/useDisplayMode'
+import NodeMinimalView from './NodeMinimalView.vue'
 
 const props = defineProps<{
   node: any
 }>()
+
+const { isMinimal } = useDisplayMode()
 
 const { name, position, status } = useNodeData(props.node, {
   name: '穿梭车-01',

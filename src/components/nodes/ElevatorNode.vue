@@ -1,5 +1,6 @@
 <template>
-  <div class="elevator-node">
+  <NodeMinimalView v-if="isMinimal" icon="🔼" :name="name" :status="status" />
+  <div v-else class="elevator-node">
     <div class="elevator-shaft">
       <div class="elevator-car" :style="{ bottom: (position / maxLevel * 100) + '%' }">
         <span class="elevator-icon">🔼</span>
@@ -18,10 +19,14 @@
 <script setup lang="ts">
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
+import { useDisplayMode } from '@/composables/useDisplayMode'
+import NodeMinimalView from './NodeMinimalView.vue'
 
 const props = defineProps<{
   node: any
 }>()
+
+const { isMinimal } = useDisplayMode()
 
 const { name, maxLevel, currentLevel, position, status } = useNodeData(props.node, {
   name: '提升机-01',

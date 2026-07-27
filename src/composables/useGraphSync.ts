@@ -41,7 +41,15 @@ export function useGraphSync(options: GraphSyncOptions) {
   let isSyncingSize = false
   // 标记是否正在拖拽调整大小（期间 cell:change 不推历史，由 node:resized 统一推送）
   let isResizing = false
+// 标记是否正在批量调整尺寸（显示模式切换期间，抑制所有自动同步）
+  let isSyncSuppressed = false
 
+  /**
+   * 设置同步抑制状态（显示模式切换等批量操作期间使用）
+   */
+  function setSyncSuppressed(suppressed: boolean) {
+    isSyncSuppressed = suppressed
+  }
   /**
    * 将当前画布数据序列化并写入 Store
    */
@@ -92,7 +100,7 @@ export function useGraphSync(options: GraphSyncOptions) {
    */
   function bindGraphEvents(graph: Graph) {
     graph.on('node:moved', () => {
-      if (isUpdatingFromStore || isSyncingPosition) return
+      if (isUpdatingFromStore || isSyncingPosition || isSyncSuppressed) return
       syncGraphToStore()
       editorStore.pushHistory()
     })
@@ -105,13 +113,13 @@ export function useGraphSync(options: GraphSyncOptions) {
     // 节点调整大小结束：统一同步 + 推历史
     graph.on('node:resized', () => {
       isResizing = false
-      if (isUpdatingFromStore || isSyncingSize) return
+      if (isUpdatingFromStore || isSyncingSize || isSyncSuppressed) return
       syncGraphToStore()
       editorStore.pushHistory()
     })
 
     graph.on('cell:change', () => {
-      if (isUpdatingFromStore || isSyncingPosition || isSyncingSize) return
+      if (isUpdatingFromStore || isSyncingPosition || isSyncingSize || isSyncSuppressed) return
       syncGraphToStore()
       // 拖拽调整大小期间不逐步推历史，由 node:resized 统一推送
       if (!isResizing) {
@@ -224,6 +232,7 @@ export function useGraphSync(options: GraphSyncOptions) {
     updateNodeSize,
     bindGraphEvents,
     bindStoreWatchers,
+    setSyncSuppressed,
   }
 }
 

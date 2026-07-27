@@ -1,5 +1,6 @@
 <template>
-  <div class="agv-node" :class="{ 'agv-moving': isMoving }">
+  <NodeMinimalView v-if="isMinimal" icon="🤖" :name="name" :status="status" />
+  <div v-else class="agv-node" :class="{ 'agv-moving': isMoving }">
     <div class="agv-body">
       <div class="agv-wheel agv-wheel-fl"></div>
       <div class="agv-wheel agv-wheel-fr"></div>
@@ -20,10 +21,14 @@
 <script setup lang="ts">
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
+import { useDisplayMode } from '@/composables/useDisplayMode'
+import NodeMinimalView from './NodeMinimalView.vue'
 
 const props = defineProps<{
   node: any
 }>()
+
+const { isMinimal } = useDisplayMode()
 
 const { name, battery, isMoving, status } = useNodeData(props.node, {
   name: 'AGV-01',
