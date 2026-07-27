@@ -77,6 +77,16 @@
           <input type="number" v-model.number="posY" @input="onPositionInput" />
         </div>
 
+        <!-- 尺寸 -->
+        <div class="field">
+          <label>宽度</label>
+          <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
+        </div>
+        <div class="field">
+          <label>高度</label>
+          <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
+        </div>
+
         <!-- ====== 数据绑定配置（仅节点） ====== -->
         <div class="binding-section">
           <div class="section-header" @click="showBinding = !showBinding">
@@ -172,9 +182,11 @@ const bindingTransform = ref('')
 
 let isUpdatingFromWatch = false
 
-// ===================== 位置独立管理（绕过 store 响应式链） =====================
+// ===================== 位置与尺寸独立管理（绕过 store 响应式链） =====================
 const posX = ref(0)
 const posY = ref(0)
+const nodeWidth = ref(0)
+const nodeHeight = ref(0)
 let positionRafId: number | null = null
 let lastSyncedNodeId: string | null = null
 
@@ -373,6 +385,17 @@ function onPositionInput() {
   }
 }
 
+function onSizeInput() {
+  if (!element.value || element.value.type !== 'node') return
+  const id = element.value.data.id
+  const w = Math.max(nodeWidth.value || 40, 40)
+  const h = Math.max(nodeHeight.value || 40, 40)
+
+  if (props.canvasRef?.updateNodeSize) {
+    props.canvasRef.updateNodeSize(id, w, h)
+  }
+}
+
 function syncPositionFromCanvas() {
   const graph = getGraph()
   if (!graph || !editorStore.selectedId) return
@@ -382,6 +405,11 @@ function syncPositionFromCanvas() {
     if (posX.value !== Math.round(pos.x) || posY.value !== Math.round(pos.y)) {
       posX.value = Math.round(pos.x)
       posY.value = Math.round(pos.y)
+    }
+    const size = cell.getSize()
+    if (nodeWidth.value !== Math.round(size.width) || nodeHeight.value !== Math.round(size.height)) {
+      nodeWidth.value = Math.round(size.width)
+      nodeHeight.value = Math.round(size.height)
     }
   }
 }

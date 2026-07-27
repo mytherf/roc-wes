@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import {onBeforeUnmount, onMounted, ref} from 'vue'
-import {Clipboard, Dnd, Graph, Keyboard, Selection} from '@antv/x6'
+import {Clipboard, Dnd, Graph, Keyboard, Selection, Transform} from '@antv/x6'
 import {getTeleport} from '@antv/x6-vue-shape';
 import type {GraphData} from '@/stores/editor'
 import {useEditorStore} from '@/stores/editor'
@@ -47,7 +47,7 @@ const editorStore = useEditorStore()
 const dataService = useDataService()
 
 // 画布 ↔ Store 双向同步（防循环标志、事件监听、watcher）
-const {updateNodePosition, bindGraphEvents, bindStoreWatchers} = useGraphSync({
+const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers} = useGraphSync({
   getGraph: () => graph,
   onReload: (data) => loadGraphData(data),
   // 新增节点：绑定数据源 + 应用动画
@@ -83,6 +83,7 @@ defineExpose({
   bindNodeData: dataService.bindNodeData,
   unbindNodeData: dataService.unbindNodeData,
   updateNodePosition,
+  updateNodeSize,
 })
 
 
@@ -95,7 +96,10 @@ onMounted(() => {
     autoResize: true,
     grid: true,
     background: {color: '#f5f5f5'},
-    panning: true,
+    panning: {
+      enabled: true,
+      eventTypes: ['rightMouseDown'],
+    },
 
     virtual: {
       enabled: true,
@@ -166,6 +170,20 @@ onMounted(() => {
         strict: false,
         showNodeSelectionBox: true,
         modifiers: ['shift'],
+      })
+  )
+
+  // 节点缩放（X6 v3 通过内置 Transform 插件实现）
+  graph.use(
+      new Transform({
+        resizing: {
+          enabled: true,
+          minWidth: 40,
+          minHeight: 40,
+          orthogonal: true,
+          allowReverse: true,
+          preserveAspectRatio: false,
+        },
       })
   )
 
@@ -325,6 +343,7 @@ function loadGraphData(data: GraphData) {
     g.clearCells()
     g.fromJSON(x6Data)
   })
+
 
   // 从画布节点初始化已用点 ID
   const generator = PointIdGenerator.getInstance()

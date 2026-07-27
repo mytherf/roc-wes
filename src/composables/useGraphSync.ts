@@ -37,6 +37,10 @@ export function useGraphSync(options: GraphSyncOptions) {
   let isUpdatingFromStore = false
   // 标记是否正在同步节点位置（防止 node:moved 触发 syncGraphToStore）
   let isSyncingPosition = false
+  // 标记是否正在同步节点尺寸（防止 updateNodeSize 触发重复同步）
+  let isSyncingSize = false
+  // 标记是否正在拖拽调整大小（期间 cell:change 不推历史，由 node:resized 统一推送）
+  let isResizing = false
 
   /**
    * 将当前画布数据序列化并写入 Store
@@ -65,6 +69,24 @@ export function useGraphSync(options: GraphSyncOptions) {
   }
 
   /**
+   * 更新单个节点尺寸并同步到 Store（供属性面板等外部调用）
+   */
+  function updateNodeSize(nodeId: string, width: number, height: number) {
+    const graph = getGraph()
+    if (!graph) return
+    const cell = graph.getCellById(nodeId)
+    if (cell && cell.isNode()) {
+      isSyncingSize = true
+      cell.setSize({ width, height })
+      syncGraphToStore()
+      editorStore.pushHistory()
+      nextTick(() => {
+        isSyncingSize = false
+      })
+    }
+  }
+
+  /**
    * 注册画布 → Store 的事件监听
    * 需在 graph 创建后调用（onMounted 内）
    */
@@ -75,10 +97,26 @@ export function useGraphSync(options: GraphSyncOptions) {
       editorStore.pushHistory()
     })
 
-    graph.on('cell:change', () => {
-      if (isUpdatingFromStore || isSyncingPosition) return
+    // 节点调整大小开始：标记拖拽中，期间 cell:change 不重复推历史
+    graph.on('node:resize', () => {
+      isResizing = true
+    })
+
+    // 节点调整大小结束：统一同步 + 推历史
+    graph.on('node:resized', () => {
+      isResizing = false
+      if (isUpdatingFromStore || isSyncingSize) return
       syncGraphToStore()
       editorStore.pushHistory()
+    })
+
+    graph.on('cell:change', () => {
+      if (isUpdatingFromStore || isSyncingPosition || isSyncingSize) return
+      syncGraphToStore()
+      // 拖拽调整大小期间不逐步推历史，由 node:resized 统一推送
+      if (!isResizing) {
+        editorStore.pushHistory()
+      }
     })
 
     graph.on('cell:added', ({ cell }) => {
@@ -106,10 +144,6 @@ export function useGraphSync(options: GraphSyncOptions) {
       if (selected && selected.length > 0) {
         const cell = selected[0]
         editorStore.setSelected(cell.id)
-        if (cell.isNode()) {
-          const pos = cell.getPosition()
-          editorStore.updateNode(cell.id, { x: pos.x, y: pos.y })
-        }
       } else {
         editorStore.setSelected(null)
       }
@@ -121,24 +155,35 @@ export function useGraphSync(options: GraphSyncOptions) {
    * 需在 graph 创建后调用（onMounted 内）
    */
   function bindStoreWatchers() {
-    // 位置专用 watcher：仅更新节点位置，避免全量重载
+    // 位置/尺寸专用 watcher：仅更新节点坐标和尺寸，避免全量重载
     watch(
-      () => editorStore.graphData.nodes.map(n => ({ id: n.id, x: n.x, y: n.y })),
-      (newPositions) => {
+      () => editorStore.graphData.nodes.map(n => ({
+        id: n.id, x: n.x, y: n.y,
+        width: n.size?.width, height: n.size?.height,
+      })),
+      (newProps) => {
         const graph = getGraph()
         if (!graph || isUpdatingFromStore) return
         isSyncingPosition = true
-        for (const pos of newPositions) {
-          const cell = graph.getCellById(pos.id)
+        isSyncingSize = true
+        for (const p of newProps) {
+          const cell = graph.getCellById(p.id)
           if (cell && cell.isNode()) {
             const current = cell.getPosition()
-            if (current.x !== pos.x || current.y !== pos.y) {
-              cell.setPosition({ x: pos.x || 0, y: pos.y || 0 })
+            if (current.x !== p.x || current.y !== p.y) {
+              cell.setPosition({ x: p.x || 0, y: p.y || 0 })
+            }
+            if (p.width != null && p.height != null) {
+              const size = cell.getSize()
+              if (size.width !== p.width || size.height !== p.height) {
+                cell.setSize({ width: p.width, height: p.height })
+              }
             }
           }
         }
         nextTick(() => {
           isSyncingPosition = false
+          isSyncingSize = false
         })
       },
       { deep: true }
@@ -152,7 +197,7 @@ export function useGraphSync(options: GraphSyncOptions) {
         if (!graph) return
         // 对比当前画布与 Store 数据，无实质变化则跳过
         const normalized = serializeGraph(graph)
-        if (JSON.stringify(newData) === JSON.stringify(normalized)) return
+        if (isSameGraphData(newData, normalized)) return
 
         isUpdatingFromStore = true
         const prevSelectedId = editorStore.selectedId
@@ -176,7 +221,20 @@ export function useGraphSync(options: GraphSyncOptions) {
   return {
     syncGraphToStore,
     updateNodePosition,
+    updateNodeSize,
     bindGraphEvents,
     bindStoreWatchers,
   }
+}
+
+/**
+ * 按 id 排序后逐条对比 nodes/edges，消除 cell 顺序差异导致的误判
+ */
+function isSameGraphData(a: GraphData, b: GraphData): boolean {
+  if (a.nodes.length !== b.nodes.length || a.edges.length !== b.edges.length) return false
+  const sortById = (arr: any[]) => [...arr].sort((x, y) => String(x.id).localeCompare(String(y.id)))
+  return (
+      JSON.stringify(sortById(a.nodes)) === JSON.stringify(sortById(b.nodes)) &&
+      JSON.stringify(sortById(a.edges)) === JSON.stringify(sortById(b.edges))
+  )
 }
