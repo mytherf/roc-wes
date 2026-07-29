@@ -3,145 +3,252 @@
     <h3>属性面板</h3>
 
     <!-- 未选中任何元素 -->
-    <div v-if="!element" class="empty">请选择一个元素</div>
+    <div v-if="!element && !canvasSelected" class="empty">请选择一个元素</div>
 
-    <!-- 已选中元素 -->
-    <div v-else>
-      <!-- 基本信息 -->
-      <div class="field">
-        <label>ID</label>
-        <span>{{ element.data.id }}</span>
-      </div>
+    <!-- ====== 画布属性（点击画布空白处） ====== -->
+    <div v-else-if="canvasSelected">
       <div class="field">
         <label>类型</label>
-        <span>{{ element.type === 'node' ? '节点' : '连线' }}</span>
+        <span>画布</span>
+      </div>
+      <div class="field">
+        <label>节点数量</label>
+        <span>{{ nodeCount }}</span>
+      </div>
+      <div class="field">
+        <label>连线数量</label>
+        <span>{{ edgeCount }}</span>
       </div>
 
-      <!-- ====== 节点特有属性 ====== -->
+      <div class="section-divider">画布设置</div>
+
+      <div class="field">
+        <label>背景颜色</label>
+        <input type="color" class="color-input" v-model="canvasBgColor" @input="updateCanvasBackground" />
+      </div>
+
+      <div class="field checkbox-field">
+        <label class="checkbox-label">
+          <input type="checkbox" v-model="canvasGridVisible" @change="updateGridVisible" />
+          <span>显示网格</span>
+        </label>
+      </div>
+
+      <div class="field">
+        <label>网格大小</label>
+        <input type="number" min="1" v-model.number="canvasGridSize" @input="updateGridSize" :disabled="!canvasGridVisible" />
+      </div>
+
+      <div class="field">
+        <label>网格类型</label>
+        <select v-model="canvasGridType" @change="updateGridType" :disabled="!canvasGridVisible">
+          <option value="dot">点状</option>
+          <option value="mesh">网格线</option>
+          <option value="fixedDot">固定点</option>
+          <option value="doubleMesh">双层网格</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 已选中元素 -->
+    <div v-else-if="element">
+      <!-- ====== 节点：三个标签页 ====== -->
       <template v-if="element.type === 'node'">
-        <div class="field">
-          <label>标签</label>
-          <input v-model="element.data.label" @input="updateNodeLabel" />
+        <!-- 标签栏 -->
+        <div class="panel-tabs">
+          <div class="panel-tab" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">基础属性</div>
+          <div class="panel-tab" :class="{ active: activeTab === 'binding' }" @click="activeTab = 'binding'">数据绑定</div>
+          <div class="panel-tab" :class="{ active: activeTab === 'events' }" @click="activeTab = 'events'">事件</div>
         </div>
 
-        <!-- 设备名称（货架、堆垛机等 WCS 设备节点） -->
-        <div v-if="element.data.name !== undefined" class="field">
-          <label>名称</label>
-          <input v-model="element.data.name" @input="updateNodeName" />
-        </div>
-
-        <!-- 货架维度属性：排/列/层 -->
-        <template v-if="element.data.rows !== undefined">
+        <!-- ====== 基础属性 tab ====== -->
+        <div v-show="activeTab === 'basic'">
           <div class="field">
-            <label>排 (rows)</label>
-            <input type="number" min="1" v-model.number="element.data.rows" @input="updateNodeDataField('rows')" />
-          </div>
-        </template>
-        <template v-if="element.data.cols !== undefined">
-          <div class="field">
-            <label>列 (cols)</label>
-            <input type="number" min="1" v-model.number="element.data.cols" @input="updateNodeDataField('cols')" />
-          </div>
-        </template>
-        <template v-if="element.data.floors !== undefined">
-          <div class="field">
-            <label>层 (floors)</label>
-            <input type="number" min="1" v-model.number="element.data.floors" @input="updateNodeDataField('floors')" />
-          </div>
-        </template>
-
-        <!-- 自定义数据（卡片节点等） -->
-        <template v-if="element.data.data">
-          <div class="field">
-            <label>标题</label>
-            <input v-model="element.data.data.title" @input="updateNodeData" />
+            <label>ID</label>
+            <span>{{ element.data.id }}</span>
           </div>
           <div class="field">
-            <label>状态</label>
-            <select v-model="element.data.data.status" @change="updateNodeData">
-              <option value="正常">正常</option>
-              <option value="告警">告警</option>
-              <option value="故障">故障</option>
-              <option value="停止">停止</option>
-            </select>
+            <label>类型</label>
+            <span>节点</span>
           </div>
-        </template>
-
-        <!-- 位置 -->
-        <div class="field">
-          <label>X</label>
-          <input type="number" v-model.number="posX" @input="onPositionInput" />
-        </div>
-        <div class="field">
-          <label>Y</label>
-          <input type="number" v-model.number="posY" @input="onPositionInput" />
-        </div>
-
-        <!-- 尺寸 -->
-        <div class="field">
-          <label>宽度</label>
-          <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
-        </div>
-        <div class="field">
-          <label>高度</label>
-          <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
-        </div>
-
-        <!-- ====== 数据绑定配置（仅节点） ====== -->
-        <div class="binding-section">
-          <div class="section-header" @click="showBinding = !showBinding">
-            <span>📡 数据绑定</span>
-            <span>{{ showBinding ? '▼' : '▶' }}</span>
+          <div class="field">
+            <label>标签</label>
+            <input v-model="element.data.label" @input="updateNodeLabel" />
           </div>
-          <div v-show="showBinding" class="binding-body">
-            <!-- 数据源类型 -->
+
+          <!-- 设备名称（货架、堆垛机等 WCS 设备节点） -->
+          <div v-if="element.data.name !== undefined" class="field">
+            <label>名称</label>
+            <input v-model="element.data.name" @input="updateNodeName" />
+          </div>
+
+          <!-- 货架维度属性：排/列/层 -->
+          <template v-if="element.data.rows !== undefined">
             <div class="field">
-              <label>数据源类型</label>
-              <select v-model="bindingSourceType" @change="updateBinding">
-                <option value="websocket">WebSocket</option>
-                <option value="mqtt">MQTT</option>
-                <option value="http">HTTP</option>
-                <option value="sse">SSE</option>
+              <label>排 (rows)</label>
+              <input type="number" min="1" v-model.number="element.data.rows" @input="updateNodeDataField('rows')" />
+            </div>
+          </template>
+          <template v-if="element.data.cols !== undefined">
+            <div class="field">
+              <label>列 (cols)</label>
+              <input type="number" min="1" v-model.number="element.data.cols" @input="updateNodeDataField('cols')" />
+            </div>
+          </template>
+          <template v-if="element.data.floors !== undefined">
+            <div class="field">
+              <label>层 (floors)</label>
+              <input type="number" min="1" v-model.number="element.data.floors" @input="updateNodeDataField('floors')" />
+            </div>
+          </template>
+
+          <!-- 自定义数据（卡片节点等） -->
+          <template v-if="element.data.data">
+            <div class="field">
+              <label>标题</label>
+              <input v-model="element.data.data.title" @input="updateNodeData" />
+            </div>
+            <div class="field">
+              <label>状态</label>
+              <select v-model="element.data.data.status" @change="updateNodeData">
+                <option value="正常">正常</option>
+                <option value="告警">告警</option>
+                <option value="故障">故障</option>
+                <option value="停止">停止</option>
               </select>
             </div>
-            <!-- 数据源地址（WebSocket/MQTT/HTTP/SSE 需要） -->
-            <div class="field">
-              <label>数据源地址 <span class="hint">（不填则使用模拟数据）</span></label>
-              <input
-                  v-model="bindingSourceUrl"
-                  @input="updateBinding"
-                  placeholder="ws://localhost:8080/ws"
-              />
-            </div>
-            <!-- 点ID（核心字段，填写即启用） -->
-            <div class="field">
-              <label>点ID <span class="hint">（填写即启用数据绑定）</span></label>
-              <input
-                  v-model="bindingPointId"
-                  @input="updateBinding"
-                  placeholder="例如: sensor.temp.001"
-              />
-            </div>
-            <!-- 转换函数（可选） -->
-            <div class="field">
-              <label>转换函数 (可选)</label>
-              <input
-                  v-model="bindingTransform"
-                  @input="updateBinding"
-                  placeholder="(raw) => Math.round(raw)"
-              />
-            </div>
-            <!-- 绑定状态提示 -->
-            <div class="binding-status">
-              <span v-if="bindingPointId.trim()" class="status-active">✅ 已启用数据绑定</span>
-              <span v-else class="status-inactive">⏸ 未启用（请填写点ID）</span>
-            </div>
+          </template>
+
+          <!-- 位置 -->
+          <div class="field">
+            <label>X</label>
+            <input type="number" v-model.number="posX" @input="onPositionInput" />
           </div>
+          <div class="field">
+            <label>Y</label>
+            <input type="number" v-model.number="posY" @input="onPositionInput" />
+          </div>
+
+          <!-- 尺寸 -->
+          <div class="field">
+            <label>宽度</label>
+            <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
+          </div>
+          <div class="field">
+            <label>高度</label>
+            <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
+          </div>
+        </div>
+
+        <!-- ====== 数据绑定 tab ====== -->
+        <div v-show="activeTab === 'binding'">
+          <div class="field">
+            <label>数据源 <span class="hint">（不选则使用模拟数据）</span></label>
+            <select v-model="bindingSourceId" @change="updateBinding">
+              <option value="">模拟数据</option>
+              <option
+                v-for="ds in dataSourceStore.dataSources"
+                :key="ds.id"
+                :value="ds.id"
+              >{{ ds.name }}（{{ typeLabel(ds.type) }}）</option>
+            </select>
+          </div>
+          <div v-if="selectedDataSource" class="source-info">
+            <div class="source-url" :title="selectedDataSource.url">{{ selectedDataSource.url }}</div>
+            <div v-if="selectedDataSource.description" class="source-desc">{{ selectedDataSource.description }}</div>
+          </div>
+          <div class="field">
+            <label>点ID <span class="hint">（填写即启用数据绑定）</span></label>
+            <input v-model="bindingPointId" @input="updateBinding" placeholder="例如: sensor.temp.001" />
+          </div>
+          <div class="field">
+            <label>转换函数 (可选)</label>
+            <input v-model="bindingTransform" @input="updateBinding" placeholder="(raw) => Math.round(raw)" />
+          </div>
+          <div class="binding-status">
+            <span v-if="bindingPointId.trim()" class="status-active">✅ 已启用数据绑定</span>
+            <span v-else class="status-inactive">⏸ 未启用（请填写点ID）</span>
+          </div>
+        </div>
+
+        <!-- ====== 事件 tab ====== -->
+        <div v-show="activeTab === 'events'">
+          <div v-if="eventsDraft.length === 0" class="empty-hint">暂无事件规则，点击下方按钮添加。</div>
+
+          <div v-for="(rule, idx) in eventsDraft" :key="rule.id" class="event-rule">
+            <div class="rule-header">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="rule.enabled" />
+                <span>启用</span>
+              </label>
+              <button class="rule-remove" @click="removeEventRule(idx)">删除</button>
+            </div>
+            <div class="field">
+              <label>规则名称</label>
+              <input v-model="rule.name" placeholder="例如：温度越限告警" />
+            </div>
+            <div class="field">
+              <label>监听字段 <span class="hint">（留空监听 value）</span></label>
+              <input v-model="rule.field" placeholder="value" />
+            </div>
+            <div class="field">
+              <label>触发条件</label>
+              <select v-model="rule.condition">
+                <option value="changed">值变化</option>
+                <option value="gt">大于 (&gt;)</option>
+                <option value="lt">小于 (&lt;)</option>
+                <option value="gte">大于等于 (≥)</option>
+                <option value="lte">小于等于 (≤)</option>
+                <option value="eq">等于 (=)</option>
+                <option value="neq">不等于 (≠)</option>
+              </select>
+            </div>
+            <div v-if="rule.condition !== 'changed'" class="field">
+              <label>阈值</label>
+              <input v-model="rule.threshold" placeholder="例如：80" />
+            </div>
+            <div class="field">
+              <label>触发动作</label>
+              <select v-model="rule.actionType">
+                <option value="console">控制台日志</option>
+                <option value="alert">弹出告警</option>
+                <option value="http">HTTP 请求</option>
+              </select>
+            </div>
+            <div v-if="rule.actionType === 'alert'" class="field">
+              <label>告警内容</label>
+              <input v-model="rule.message" placeholder="例如：设备温度越限！" />
+            </div>
+            <template v-if="rule.actionType === 'http'">
+              <div class="field">
+                <label>请求地址</label>
+                <input v-model="rule.url" placeholder="http://localhost:8080/api/alarm" />
+              </div>
+              <div class="field">
+                <label>请求方法</label>
+                <select v-model="rule.method">
+                  <option value="POST">POST</option>
+                  <option value="GET">GET</option>
+                  <option value="PUT">PUT</option>
+                </select>
+              </div>
+            </template>
+          </div>
+
+          <button class="add-event-btn" @click="addEventRule">＋ 添加事件规则</button>
         </div>
       </template>
 
-      <!-- ====== 边特有属性 ====== -->
-      <template v-if="element.type === 'edge'">
+      <!-- ====== 边：仅基础属性 ====== -->
+      <template v-else-if="element.type === 'edge'">
+        <div class="field">
+          <label>ID</label>
+          <span>{{ element.data.id }}</span>
+        </div>
+        <div class="field">
+          <label>类型</label>
+          <span>连线</span>
+        </div>
         <div class="field">
           <label>标签</label>
           <input v-model="element.data.label" @input="updateEdgeLabel" />
@@ -154,9 +261,16 @@
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/stores/editor'
+import { createEventRule, type NodeEventRule } from '@/services/NodeEventService'
+import {
+  useDataSourceStore,
+  DATA_SOURCE_TYPE_LABELS,
+  type DataSourceType,
+} from '@/stores/dataSource'
 
 // ===================== 依赖注入 =====================
 const editorStore = useEditorStore()
+const dataSourceStore = useDataSourceStore()
 
 const props = defineProps<{
   canvasRef: any
@@ -173,14 +287,81 @@ function getGraph(): any {
 // ===================== 当前选中元素 =====================
 const element = computed(() => editorStore.selectedElement)
 
+// ===================== 画布属性（点击空白处时展示） =====================
+// 是否选中画布本身
+const canvasSelected = computed(() => editorStore.canvasSelected)
+// 画布统计信息（来源于 store 的 graphData，随数据变化自动更新）
+const nodeCount = computed(() => editorStore.graphData.nodes.length)
+const edgeCount = computed(() => editorStore.graphData.edges.length)
+
+// 画布设置的本地状态（与 X6Canvas 的初始配置保持一致）
+const canvasBgColor = ref('#f5f5f5')
+const canvasGridVisible = ref(true)
+const canvasGridSize = ref(10)
+const canvasGridType = ref<'dot' | 'mesh' | 'fixedDot' | 'doubleMesh'>('dot')
+
+// 选中画布时，从 Graph 实例同步可读的当前状态（如网格大小）
+watch(
+    () => editorStore.canvasSelected,
+    (selected) => {
+      if (!selected) return
+      const graph = getGraph()
+      if (graph) {
+        canvasGridSize.value = graph.getGridSize()
+      }
+    },
+    { immediate: true }
+)
+
+/** 更新画布背景颜色 */
+function updateCanvasBackground() {
+  getGraph()?.drawBackground({ color: canvasBgColor.value })
+}
+
+/** 切换网格显隐 */
+function updateGridVisible() {
+  const graph = getGraph()
+  if (!graph) return
+  canvasGridVisible.value ? graph.showGrid() : graph.hideGrid()
+}
+
+/** 更新网格大小 */
+function updateGridSize() {
+  const graph = getGraph()
+  if (!graph) return
+  canvasGridSize.value = Math.max(canvasGridSize.value || 1, 1)
+  graph.setGridSize(canvasGridSize.value)
+}
+
+/** 更新网格类型 */
+function updateGridType() {
+  getGraph()?.drawGrid({ type: canvasGridType.value })
+}
+
+// ===================== 标签页状态（基础属性 / 数据绑定 / 事件） =====================
+type PanelTab = 'basic' | 'binding' | 'events'
+const activeTab = ref<PanelTab>('basic')
+
 // ===================== 数据绑定配置的本地状态 =====================
-const showBinding = ref(true)
-const bindingSourceType = ref('websocket')
-const bindingSourceUrl = ref('')
+// 数据源实例 ID（空字符串 = 使用模拟数据）
+const bindingSourceId = ref('')
 const bindingPointId = ref('')
 const bindingTransform = ref('')
 
+/** 数据源类型显示名 */
+function typeLabel(type: DataSourceType): string {
+  return DATA_SOURCE_TYPE_LABELS[type] ?? type
+}
+
+/** 当前选中的数据源实例（未选择时为 null） */
+const selectedDataSource = computed(() =>
+  bindingSourceId.value ? dataSourceStore.getDataSource(bindingSourceId.value) ?? null : null
+)
+
 let isUpdatingFromWatch = false
+
+// ===================== 事件规则草稿（编辑后统一提交到 store 与 X6 节点） =====================
+const eventsDraft = ref<NodeEventRule[]>([])
 
 // ===================== 位置与尺寸独立管理（绕过 store 响应式链） =====================
 const posX = ref(0)
@@ -212,8 +393,7 @@ watch(
           }
         }
 
-        bindingSourceType.value = binding.sourceType || 'websocket'
-        bindingSourceUrl.value = binding.sourceUrl || ''
+        bindingSourceId.value = binding.sourceId || ''
         bindingPointId.value = binding.pointId || ''
         bindingTransform.value = binding.transform ? binding.transform.toString() : ''
       } else {
@@ -242,6 +422,72 @@ onBeforeUnmount(() => {
   stopPositionPolling()
 })
 
+// ===================== 事件规则：加载与提交 =====================
+// 选中节点变化时：重置标签页并重新加载事件规则
+watch(
+    () => editorStore.selectedId,
+    (newId) => {
+      activeTab.value = 'basic'
+      loadEventsFromNode(newId)
+    },
+    { immediate: true }
+)
+
+// 事件草稿变化 → 提交到 X6 节点与 store
+watch(
+    eventsDraft,
+    () => {
+      commitEvents()
+    },
+    { deep: true }
+)
+
+/** 从 X6 节点加载事件规则（以节点数据为准） */
+function loadEventsFromNode(nodeId: string | null) {
+  if (!nodeId) {
+    eventsDraft.value = []
+    return
+  }
+  const graph = getGraph()
+  const node = graph?.getCellById(nodeId)
+  const data = node && node.isNode() ? node.getData() : null
+  const evs = data?.events
+  eventsDraft.value = Array.isArray(evs) ? JSON.parse(JSON.stringify(evs)) : []
+}
+
+/** 将事件规则提交到 X6 节点与 store（无变化时跳过，避免加载时冗余写入触发画布重载） */
+function commitEvents() {
+  if (!element.value || element.value.type !== 'node') return
+  const nodeId = element.value.data.id
+  const graph = getGraph()
+  const node = graph?.getCellById(nodeId)
+  if (!node || !node.isNode()) return
+
+  const events = JSON.parse(JSON.stringify(eventsDraft.value)) as NodeEventRule[]
+  const nextEvents = events.length ? events : undefined
+  const currentEvents = node.getData()?.events
+
+  // 无变化则跳过（含「加载后未编辑」的场景）
+  if (JSON.stringify(currentEvents ?? null) === JSON.stringify(nextEvents ?? null)) return
+
+  // 先更新 X6 节点再更新 store（两者同步完成，同步 watcher 不会误判为数据变化）
+  node.setData({ ...(node.getData() || {}), events: nextEvents })
+  const storeNode = editorStore.graphData.nodes.find((n) => n.id === nodeId)
+  if (storeNode) {
+    editorStore.updateNode(nodeId, { data: { ...(storeNode.data || {}), events: nextEvents } })
+  }
+}
+
+/** 添加事件规则 */
+function addEventRule() {
+  eventsDraft.value.push(createEventRule())
+}
+
+/** 删除事件规则 */
+function removeEventRule(index: number) {
+  eventsDraft.value.splice(index, 1)
+}
+
 // ===================== 核心方法：更新绑定配置 =====================
 function updateBinding() {
   if (!element.value || element.value.type !== 'node') {
@@ -257,12 +503,10 @@ function updateBinding() {
   let binding: any = null
 
   if (pointId) {
-    binding = {
-      pointId,
-      sourceType: bindingSourceType.value,
-    }
-    if (bindingSourceUrl.value.trim()) {
-      binding.sourceUrl = bindingSourceUrl.value.trim()
+    binding = { pointId }
+    // 引用数据源实例（未选择则使用模拟数据，不写入 sourceId）
+    if (bindingSourceId.value) {
+      binding.sourceId = bindingSourceId.value
     }
     if (bindingTransform.value.trim()) {
       try {
@@ -274,8 +518,6 @@ function updateBinding() {
   } else {
     binding = undefined
   }
-
-
 
   // 触发画布重新绑定
   try {
@@ -291,11 +533,11 @@ function updateBinding() {
       return
     }
 
-    // 将 binding 同步写入 X6 节点数据
+    // 将 binding 同步写入 X6 节点数据（含 transform，保证重新绑定时不丢失）
     const currentData = node.getData() || {}
     node.setData({
       ...currentData,
-      binding: binding ? { pointId: binding.pointId, sourceType: binding.sourceType, sourceUrl: binding.sourceUrl, } : undefined,
+      binding,
     })
 
     // 取消旧订阅
@@ -311,8 +553,12 @@ function updateBinding() {
     console.error('[PropertyPanel] 更新数据绑定时发生错误:', error)
   }
 
-  // 最后更新 store（会触发 watcher → loadGraphData，但此时 X6 节点已带有 binding）
-  editorStore.updateNode(nodeId, { binding })
+  // 最后更新 store：binding 写入 data.binding（与 X6 节点数据结构一致，
+  // 避免画布重载时 fromJSON 用旧 data.binding 覆盖导致 sourceId 丢失）
+  const storeNode = editorStore.graphData.nodes.find((n) => n.id === nodeId)
+  if (storeNode) {
+    editorStore.updateNode(nodeId, { data: { ...(storeNode.data || {}), binding } })
+  }
 }
 
 // ===================== 其他属性更新方法 =====================
@@ -488,41 +734,130 @@ function stopPositionPolling() {
   outline: none;
   box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
 }
-
-/* ===================== 数据绑定折叠区 ===================== */
-.binding-section {
-  margin-top: 12px;
+.field input:disabled,
+.field select:disabled {
+  background: #f5f5f5;
+  color: #bbb;
+  cursor: not-allowed;
 }
-.section-header {
+
+/* ===================== 画布属性区块样式 ===================== */
+.section-divider {
+  margin: 16px 0 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e8e8e8;
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+}
+.field .color-input {
+  padding: 2px;
+  height: 32px;
+  cursor: pointer;
+}
+.checkbox-field .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  margin-bottom: 0;
+  color: #333;
+  font-size: 13px;
+}
+.checkbox-field .checkbox-label input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* ===================== 标签页栏 ===================== */
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid #e8e8e8;
+  margin-bottom: 12px;
+}
+.panel-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 4px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.panel-tab:hover {
+  color: #1890ff;
+}
+.panel-tab.active {
+  color: #1890ff;
+  font-weight: 600;
+  border-bottom-color: #1890ff;
+}
+
+/* ===================== 事件规则 ===================== */
+.empty-hint {
+  color: #999;
+  font-size: 12px;
+  text-align: center;
+  padding: 16px 0;
+}
+.event-rule {
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+.rule-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 4px;
-  border-top: 1px solid #e8e8e8;
+  margin-bottom: 8px;
+}
+.rule-header .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
-  user-select: none;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  color: #333;
+}
+.rule-header .checkbox-label input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+.rule-remove {
+  border: none;
+  background: none;
+  color: #ff4d4f;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.rule-remove:hover {
+  background: #fff1f0;
+}
+.event-rule .field {
+  margin-bottom: 8px;
+}
+.add-event-btn {
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed #1890ff;
+  border-radius: 6px;
+  background: #fff;
+  color: #1890ff;
+  font-size: 13px;
+  cursor: pointer;
   transition: background-color 0.2s;
 }
-.section-header:hover {
-  background-color: #f0f0f0;
-}
-.binding-body {
-  padding-left: 12px;
-  border-left: 3px solid #1890ff;
-  margin: 4px 0 8px;
-  animation: fadeIn 0.2s ease;
-}
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.add-event-btn:hover {
+  background: #e6f7ff;
 }
 .binding-status {
   margin-top: 8px;
@@ -532,6 +867,24 @@ function stopPositionPolling() {
   color: #52c41a;
 }
 .status-inactive {
+  color: #999;
+}
+/* 数据源信息展示（选中数据源后显示地址与备注） */
+.source-info {
+  margin: -4px 0 12px;
+  padding: 6px 8px;
+  background: #f0f7ff;
+  border: 1px solid #d6e8fa;
+  border-radius: 4px;
+}
+.source-url {
+  font-size: 12px;
+  color: #1890ff;
+  word-break: break-all;
+}
+.source-desc {
+  margin-top: 2px;
+  font-size: 12px;
   color: #999;
 }
 

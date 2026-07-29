@@ -15,6 +15,9 @@
     <button class="toolbar-btn" @click="handleClear" title="清空画布">
       🗑 清空
     </button>
+    <button class="toolbar-btn" @click="showDataSourceDialog = true" title="管理数据源实例">
+      🔌 数据源管理
+    </button>
     <!-- 显示模式分段选择器：高亮当前模式，点击另一项切换 -->
     <div class="mode-switcher" title="节点显示模式">
       <button
@@ -35,6 +38,11 @@
       <span v-if="validationResult.valid" class="status-valid">✅ 校验通过</span>
       <span v-else class="status-invalid">❌ 校验失败：{{ validationResult.errors.join('；') }}</span>
     </div>
+    <!-- 数据源管理对话框 -->
+    <DataSourceDialog
+      v-if="showDataSourceDialog"
+      @close="showDataSourceDialog = false"
+    />
   </div>
 </template>
 
@@ -44,6 +52,7 @@ import { DagValidator } from '@/services/workflow/DagValidator'
 import { WorkflowEngine } from '@/services/workflow/WorkflowEngine'
 import { useEditorStore } from '@/stores/editor'
 import { serializeGraph } from '@/utils/graphSerializer'
+import DataSourceDialog from '@/components/DataSourceDialog.vue'
 
 const props = defineProps<{
   graph: any
@@ -52,6 +61,8 @@ const props = defineProps<{
 const editorStore = useEditorStore()
 const validationResult = ref<any>(null)
 const isExecuting = ref(false)
+// 数据源管理对话框显隐
+const showDataSourceDialog = ref(false)
 
 // 节点显示模式（图标模式 ↔ 极简模式）
 const displayMode = computed(() => editorStore.displayMode)

@@ -27,6 +27,8 @@ export const useEditorStore = defineStore(
         const graphData = shallowRef<GraphData>({ nodes: [], edges: [] })
         // 当前选中元素的 ID（节点或边）
         const selectedId = ref<string | null>(null)
+        // 是否选中画布本身（点击画布空白处时为 true）
+        const canvasSelected = ref(false)
         // 节点显示模式（默认完整渲染）
         const displayMode = ref<DisplayMode>('full')
         // 历史记录（存储过去的状态快照）
@@ -102,9 +104,20 @@ export const useEditorStore = defineStore(
 
         /**
          * 设置当前选中元素
+         * 选中具体元素（id 非空）时清除「画布选中」状态
          */
         function setSelected(id: string | null) {
             selectedId.value = id
+            if (id) canvasSelected.value = false
+        }
+
+        /**
+         * 选中画布本身（点击画布空白处时调用）
+         * 清空元素选中并将画布标记为选中
+         */
+        function selectCanvas() {
+            selectedId.value = null
+            canvasSelected.value = true
         }
 
         /**
@@ -173,6 +186,7 @@ export const useEditorStore = defineStore(
         return {
             graphData,
             selectedId,
+            canvasSelected,
             displayMode,
             selectedElement,
             canUndo,
@@ -182,6 +196,7 @@ export const useEditorStore = defineStore(
             updateEdge,
             setDisplayMode,
             setSelected,
+            selectCanvas,
             pushHistory,
             undo,
             redo,

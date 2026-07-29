@@ -2,6 +2,8 @@ import type { Graph } from '@antv/x6'
 import { MockDataService } from '@/services/MockDataService'
 import type { DataBindingConfig, IDataService } from '@/services/DataService'
 import { WebSocketService } from '@/services/WebSocketService'
+import { useDataSourceStore } from '@/stores/dataSource'
+import { evaluateNodeEvents } from '@/services/NodeEventService'
 
 /**
  * 数据服务管理 Composable
@@ -17,6 +19,8 @@ import { WebSocketService } from '@/services/WebSocketService'
  *   dispose 才断开并清空全部服务（组件卸载时调用）。
  */
 export function useDataService() {
+  // 数据源管理 Store（用于按 sourceId 解析数据源实例）
+  const dataSourceStore = useDataSourceStore()
   // 数据服务实例（根据 sourceType + sourceUrl 缓存）
   const dataServiceMap = new Map<string, IDataService>()
   // 默认数据服务（无 sourceUrl 时的兜底）
@@ -68,8 +72,21 @@ export function useDataService() {
     // 先取消旧订阅（避免重复绑定）
     unbindNodeData(node.id)
 
+    // 解析数据源：优先 sourceId（数据源管理实例），回退旧字段 sourceType/sourceUrl，否则模拟数据
+    let sourceType = binding.sourceType
+    let sourceUrl = binding.sourceUrl
+    if (binding.sourceId) {
+      const ds = dataSourceStore.getDataSource(binding.sourceId)
+      if (ds) {
+        sourceType = ds.type
+        sourceUrl = ds.url
+      } else {
+        console.warn(`[useDataService] 未找到数据源实例: ${binding.sourceId}，回退为模拟数据`)
+      }
+    }
+
     // 根据配置获取对应的数据服务
-    const service = getDataService(binding.sourceType, binding.sourceUrl)
+    const service = getDataService(sourceType ?? 'websocket', sourceUrl)
     if (!service) {
       console.warn('[useDataService] 无法获取数据服务')
       return
@@ -86,12 +103,15 @@ export function useDataService() {
       if (binding.transform) {
         newValue = binding.transform(point.value)
       }
-      node.setData({
+      const nextData = {
         ...currentData,
         value: newValue,
         _timestamp: point.timestamp,
         _quality: point.quality,
-      })
+      }
+      node.setData(nextData)
+      // 评估节点数据变化事件（比较类条件上升沿触发，不会重复告警）
+      evaluateNodeEvents(node.id, currentData, nextData)
     })
 
     nodeDataSubscriptions.set(node.id, binding.pointId)

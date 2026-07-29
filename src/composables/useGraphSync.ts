@@ -156,6 +156,11 @@ export function useGraphSync(options: GraphSyncOptions) {
         editorStore.setSelected(null)
       }
     })
+
+    // 点击画布空白处：选中画布本身，属性面板展示画布属性
+    graph.on('blank:click', () => {
+      editorStore.selectCanvas()
+    })
   }
 
   /**
