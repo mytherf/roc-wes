@@ -31,6 +31,17 @@ export const DATA_SOURCE_TYPE_LABELS: Record<DataSourceType, string> = {
 }
 
 /**
+ * 内置模拟服务地址（开发环境随系统自动启动，见 mock/server.ts）
+ * 端口需与 mock/server.ts 中的 MOCK_PORTS 保持一致。
+ */
+export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
+    websocket: 'ws://localhost:8080/ws',
+    http: 'http://localhost:8081/api/data',
+    sse: 'http://localhost:8082/sse',
+    mqtt: 'ws://localhost:8083',
+}
+
+/**
  * 数据源管理 Store
  * 负责数据源实例的 CRUD 与持久化（localStorage）。
  */

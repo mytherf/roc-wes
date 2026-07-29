@@ -5,7 +5,7 @@
     <!-- 右侧区域 -->
     <div class="right-area">
       <!-- 顶部：工具栏 -->
-      <WorkflowToolbar :graph="graphInstance" :canvas-ref="canvasRef" />
+      <EditorToolbar :graph="graphInstance" :canvas-ref="canvasRef" />
       <!-- 中间：画布 + 属性面板 -->
       <div class="bottom-area">
         <div class="canvas-wrapper">
@@ -32,7 +32,7 @@ import { ref } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import X6Canvas from '@/components/X6Canvas.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
-import WorkflowToolbar from '@/components/WorkflowToolbar.vue'
+import EditorToolbar from '@/components/EditorToolbar.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import NodeDetailDialog from '@/components/NodeDetailDialog.vue'
 

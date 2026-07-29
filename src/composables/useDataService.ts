@@ -2,6 +2,9 @@ import type { Graph } from '@antv/x6'
 import { MockDataService } from '@/services/MockDataService'
 import type { DataBindingConfig, IDataService } from '@/services/DataService'
 import { WebSocketService } from '@/services/WebSocketService'
+import { HttpPollingService } from '@/services/HttpPollingService'
+import { SseService } from '@/services/SseService'
+import { MqttService } from '@/services/MqttService'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { evaluateNodeEvents } from '@/services/NodeEventService'
 
@@ -40,6 +43,8 @@ export function useDataService() {
 
   /**
    * 根据 sourceType 和 sourceUrl 获取或创建数据服务实例
+   * - 无 sourceUrl：返回默认模拟服务（MockDataService）
+   * - 有 sourceUrl：按类型路由到 WebSocket / HTTP 轮询 / SSE / MQTT 服务
    */
   function getDataService(sourceType: string, sourceUrl?: string): IDataService | null {
     if (!sourceUrl) {
@@ -50,12 +55,28 @@ export function useDataService() {
     }
     const key = `${sourceType}:${sourceUrl}`
     if (!dataServiceMap.has(key)) {
-      if (sourceType === 'websocket') {
-        dataServiceMap.set(key, new WebSocketService(sourceUrl))
-      } else {
-        console.warn(`[useDataService] 不支持的数据源类型: ${sourceType}`)
-        return defaultDataService
+      let service: IDataService | null = null
+      switch (sourceType) {
+        case 'websocket':
+          service = new WebSocketService(sourceUrl)
+          break
+        case 'http':
+          service = new HttpPollingService(sourceUrl)
+          break
+        case 'sse':
+          service = new SseService(sourceUrl)
+          break
+        case 'mqtt':
+          service = new MqttService(sourceUrl)
+          break
+        default:
+          console.warn(`[useDataService] 不支持的数据源类型: ${sourceType}，回退为模拟数据`)
+          if (!defaultDataService) {
+            defaultDataService = new MockDataService()
+          }
+          return defaultDataService
       }
+      dataServiceMap.set(key, service)
     }
     return dataServiceMap.get(key)!
   }
@@ -92,9 +113,9 @@ export function useDataService() {
       return
     }
 
-    // 记录该节点使用的服务 key
-    if (binding.sourceUrl) {
-      nodeServiceKeys.set(node.id, `${binding.sourceType}:${binding.sourceUrl}`)
+    // 记录该节点使用的服务 key（使用解析后的数据源类型与地址，兼容 sourceId 方式）
+    if (sourceUrl) {
+      nodeServiceKeys.set(node.id, `${sourceType}:${sourceUrl}`)
     }
 
     service.subscribe(binding.pointId, (point) => {

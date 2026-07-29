@@ -272,6 +272,11 @@ onMounted(() => {
   graph.bindKey('ctrl+shift+z', () => {
     editorStore.redo()
   })
+  // Ctrl+S 手动保存画布（替代实时自动保存），并拦截浏览器默认保存弹窗
+  graph.bindKey('ctrl+s', (e: KeyboardEvent) => {
+    e.preventDefault()
+    editorStore.saveToStorage()
+  })
 
   dnd = new Dnd({
     target: graph,

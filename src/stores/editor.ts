@@ -171,6 +171,46 @@ export const useEditorStore = defineStore(
             historyIndex.value = -1
         }
 
+        // ---------- 持久化（手动保存） ----------
+        // 不再随状态变化实时写入 localStorage，改由工具栏「保存」按钮显式触发。
+        // 沿用原 pinia-plugin-persistedstate 的 key 与字段结构，保证旧缓存仍可读取。
+        const STORAGE_KEY = 'roc-wes-editor'
+
+        /**
+         * 手动保存当前画布与编辑器状态到 localStorage（由「保存」按钮调用）
+         * @returns 是否保存成功
+         */
+        function saveToStorage(): boolean {
+            try {
+                const payload = {
+                    graphData: toRaw(graphData.value),
+                    selectedId: selectedId.value,
+                    displayMode: displayMode.value,
+                }
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+                return true
+            } catch (e) {
+                console.error('保存画布失败:', e)
+                return false
+            }
+        }
+
+        /**
+         * 从 localStorage 恢复状态（store 初始化时同步调用，等价于此前的自动 hydrate）
+         */
+        function loadFromStorage() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY)
+                if (!raw) return
+                const parsed = JSON.parse(raw)
+                if (parsed.graphData) graphData.value = parsed.graphData
+                if ('selectedId' in parsed) selectedId.value = parsed.selectedId
+                if (parsed.displayMode) displayMode.value = parsed.displayMode
+            } catch (e) {
+                console.warn('读取画布缓存失败:', e)
+            }
+        }
+
         /**
          * 重置画布（清空所有数据）
          */
@@ -180,9 +220,8 @@ export const useEditorStore = defineStore(
             clearHistory()
         }
 
-        // ---------- 持久化配置 ----------
-        // 使用 pinia-plugin-persistedstate 自动保存到 localStorage
-        // 仅持久化 graphData 和 selectedId，历史记录不持久化（太大）
+        // 初始化时同步恢复上次保存的画布（须在 X6Canvas 挂载读取 graphData 之前完成）
+        loadFromStorage()
         return {
             graphData,
             selectedId,
@@ -202,13 +241,7 @@ export const useEditorStore = defineStore(
             redo,
             clearHistory,
             resetGraph,
+            saveToStorage,
         }
-    },
-    {
-        // 持久化选项（仅存储 graphData 和 selectedId）
-        persist: {
-            key: 'roc-wes-editor',
-            pick: ['graphData', 'selectedId', 'displayMode'],
-        },
     }
 )

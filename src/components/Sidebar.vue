@@ -2,22 +2,28 @@
   <div class="sidebar">
     <h3 class="title">📦 组件库</h3>
     <p class="hint">拖拽到画布</p>
-    <div class="node-list">
-      <!-- 遍历模板列表，每个项目绑定 mousedown 触发拖拽 -->
-      <div
-          v-for="item in nodeTemplates"
-          :key="item.type"
-          class="node-item"
-          @mousedown="handleDragStart($event, item)"
-      >
-        <span class="icon">{{ item.icon }}</span>
-        <span class="label">{{ item.label }}</span>
+
+    <!-- 按分组渲染：每组一个标题 + 两列网格 -->
+    <div v-for="group in groups" :key="group.name" class="group">
+      <div class="group-title">{{ group.name }}</div>
+      <div class="node-grid">
+        <div
+            v-for="item in group.items"
+            :key="item.type"
+            class="node-item"
+            :title="item.label"
+            @mousedown="handleDragStart($event, item)"
+        >
+          <span class="icon">{{ item.icon }}</span>
+          <span class="label">{{ item.label }}</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { nodeTemplates, buildNodeConfig, type NodeTemplate } from '@/components/nodes/nodeTemplates'
 
 // 从父组件接收 graph 和 dnd 实例
@@ -25,6 +31,28 @@ const props = defineProps<{
   graph: any // Graph 实例
   dnd: any   // Dnd 实例
 }>()
+
+/** 分组展示顺序（未列出的分组追加在末尾） */
+const GROUP_ORDER = ['基础', 'WCS 设备', 'IoT 监控']
+
+/** 按 group 字段聚合模板，保持组内原有顺序与稳定的组间顺序 */
+const groups = computed(() => {
+  const map = new Map<string, NodeTemplate[]>()
+  for (const item of nodeTemplates) {
+    const name = item.group || '其他'
+    if (!map.has(name)) map.set(name, [])
+    map.get(name)!.push(item)
+  }
+  const ordered: { name: string; items: NodeTemplate[] }[] = []
+  for (const name of GROUP_ORDER) {
+    if (map.has(name)) {
+      ordered.push({ name, items: map.get(name)! })
+      map.delete(name)
+    }
+  }
+  for (const [name, items] of map) ordered.push({ name, items })
+  return ordered
+})
 
 /**
  * 处理鼠标按下事件，启动 Dnd 拖拽
@@ -46,8 +74,8 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
 
 <style scoped>
 .sidebar {
-  width: 180px;
-  min-width: 140px;
+  width: 236px;
+  min-width: 200px;
   flex-shrink: 0;
   height: 100%;
   background: #f0f2f5;
@@ -66,26 +94,53 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
 }
 
 .hint {
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
   font-size: 12px;
   color: #999;
 }
 
-.node-list {
+/* ===== 分组 ===== */
+.group + .group {
+  margin-top: 16px;
+}
+.group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8c8c8c;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  padding-left: 2px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.group-title::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: #1890ff;
+}
+
+/* ===== 两列网格 ===== */
+.node-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
-/* ===== 单个节点卡片 ===== */
+
+/* ===== 单个节点卡片（图标在上、名称在下） ===== */
 .node-item {
-  padding: 10px 12px;
+  padding: 10px 6px;
   background: #fff;
   border: 1px solid #d9d9d9;
   border-radius: 6px;
   cursor: grab;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 4px;
   transition: all 0.2s;
   user-select: none;
   min-width: 0;
@@ -101,54 +156,59 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
 }
 
 .icon {
-  font-size: 18px;
+  font-size: 20px;
+  line-height: 1;
 }
 
 .label {
-  font-size: 14px;
+  font-size: 12px;
   color: #333;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 @media (max-width: 768px) {
   .sidebar {
-    width: 140px;
+    width: 200px;
+    min-width: 180px;
     padding: 12px;
   }
   .title {
     font-size: 14px;
   }
   .node-item {
-    padding: 8px 10px;
-    gap: 6px;
+    padding: 8px 4px;
   }
   .icon {
-    font-size: 16px;
+    font-size: 18px;
   }
   .label {
-    font-size: 12px;
+    font-size: 11px;
   }
 }
 
 @media (max-width: 480px) {
   .sidebar {
-    width: 56px;
-    min-width: 56px;
+    width: 64px;
+    min-width: 64px;
     padding: 8px;
     align-items: center;
   }
   .title,
-  .hint {
+  .hint,
+  .group-title {
     display: none;
+  }
+  .node-grid {
+    grid-template-columns: 1fr;
   }
   .label {
     display: none;
   }
   .node-item {
-    justify-content: center;
-    padding: 10px 8px;
+    padding: 10px 6px;
   }
 }
 </style>

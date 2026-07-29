@@ -15,6 +15,8 @@ export interface NodeTemplate {
   label: string
   /** 图标 */
   icon: string
+  /** 所属分组（组件库分类展示，如 基础 / WCS 设备 / IoT 监控） */
+  group: string
   /** 预设点ID模板（null/undefined 表示不生成 pointId、不创建数据绑定） */
   pointIdTemplate?: string | null
   /** 节点宽度 */
@@ -72,17 +74,20 @@ export const nodeTemplates: NodeTemplate[] = [
   // ===== 基础节点（无数据绑定） =====
   {
     type: 'rect', label: '矩形', icon: '▭',
+    group: '基础',
     width: 120, height: 60,
     attrs: nativeAttrs({ rx: 6, ry: 6 }),
     ports: rectPorts,
   },
   {
     type: 'circle', label: '圆形', icon: '◯',
+    group: '基础',
     width: 120, height: 60,
     attrs: nativeAttrs({ rx: '50%' }),
   },
   {
     type: 'custom-card', label: '卡片节点', icon: '📋',
+    group: '基础',
     pointIdTemplate: 'device.card',
     width: 160, height: 80,
     data: (item) => ({ title: item.label, icon: item.icon, status: '正常' }),
@@ -91,6 +96,7 @@ export const nodeTemplates: NodeTemplate[] = [
   // ===== WCS 设备节点 =====
   {
     type: 'stacker-node', label: '堆垛机', icon: '🏗️',
+    group: 'WCS 设备',
     pointIdTemplate: 'device.stacker',
     width: 200, height: 130,
     data: { name: '堆垛机-01', lane: 'A01', position: '05-12-03', status: 'idle', isMoving: false, progress: 0 },
@@ -105,6 +111,7 @@ export const nodeTemplates: NodeTemplate[] = [
   },
   {
     type: 'conveyor-node', label: '输送机', icon: '⚡',
+    group: 'WCS 设备',
     pointIdTemplate: 'device.conveyor',
     width: 220, height: 80,
     data: { name: '输送线-01', direction: 'left', isRunning: false, status: 'idle' },
@@ -117,6 +124,7 @@ export const nodeTemplates: NodeTemplate[] = [
   },
   {
     type: 'agv-node', label: 'AGV', icon: '🤖',
+    group: 'WCS 设备',
     pointIdTemplate: 'device.agv',
     width: 160, height: 120,
     data: { name: 'AGV-01', battery: 85, isMoving: false, status: 'idle' },
@@ -130,6 +138,7 @@ export const nodeTemplates: NodeTemplate[] = [
   },
   {
     type: 'shuttle-node', label: '穿梭车', icon: '🚗',
+    group: 'WCS 设备',
     pointIdTemplate: 'device.shuttle',
     width: 200, height: 100,
     data: { name: '穿梭车-01', position: 50, status: 'idle' },
@@ -143,6 +152,7 @@ export const nodeTemplates: NodeTemplate[] = [
   },
   {
     type: 'sorter-node', label: '分拣机', icon: '📦',
+    group: 'WCS 设备',
     pointIdTemplate: 'device.sorter',
     width: 240, height: 160,
     // 函数形式：确保每个节点获得全新的 chutes 数组，避免共享引用
@@ -170,6 +180,7 @@ export const nodeTemplates: NodeTemplate[] = [
   },
   {
     type: 'elevator-node', label: '提升机', icon: '🔼',
+    group: 'WCS 设备',
     pointIdTemplate: 'device.elevator',
     width: 120, height: 160,
     data: { name: '提升机-01', maxLevel: 6, currentLevel: 1, position: 0, status: 'idle' },
@@ -183,6 +194,7 @@ export const nodeTemplates: NodeTemplate[] = [
   },
   {
     type: 'robot-node', label: '机械手', icon: '🦾',
+    group: 'WCS 设备',
     pointIdTemplate: 'device.robot',
     width: 150, height: 130,
     data: { name: '机械手-01', jointAngle: 0, isOpen: false, status: 'idle' },
@@ -197,6 +209,7 @@ export const nodeTemplates: NodeTemplate[] = [
   },
   {
     type: 'rack-node', label: '货架', icon: '🏛️',
+    group: 'WCS 设备',
     pointIdTemplate: 'device.rack',
     width: 240, height: 150,
     /**
@@ -251,6 +264,7 @@ export const nodeTemplates: NodeTemplate[] = [
   // ===== IoT 节点 =====
   {
     type: 'gauge-node', label: '仪表盘', icon: '📊',
+    group: 'IoT 监控',
     pointIdTemplate: 'sensor.temp',
     width: 200, height: 180,
     data: { title: '温度', unit: '°C', min: 0, max: 100, value: 50 },
@@ -258,6 +272,7 @@ export const nodeTemplates: NodeTemplate[] = [
   },
   {
     type: 'chart-node', label: '折线图', icon: '📈',
+    group: 'IoT 监控',
     pointIdTemplate: 'sensor.chart',
     width: 260, height: 160,
     // 函数形式：确保每个节点获得全新的 history 数组
@@ -266,6 +281,7 @@ export const nodeTemplates: NodeTemplate[] = [
   },
   {
     type: 'indicator-node', label: '指示灯', icon: '💡',
+    group: 'IoT 监控',
     pointIdTemplate: 'device.status',
     width: 130, height: 70,
     data: { label: '设备状态', status: 'off' },
@@ -276,44 +292,6 @@ export const nodeTemplates: NodeTemplate[] = [
       if (raw > 20) return 'off'
       return 'error'
     },
-  },
-
-  // ===== 工作流节点（无数据绑定） =====
-  {
-    type: 'workflow-start', label: '开始节点', icon: '▶',
-    width: 120, height: 50,
-    data: { label: '开始' },
-  },
-  {
-    type: 'workflow-end', label: '结束节点', icon: '■',
-    width: 120, height: 50,
-    data: { label: '结束' },
-  },
-  {
-    type: 'condition-node', label: '条件判断', icon: '◇',
-    width: 200, height: 120,
-    data: () => ({
-      label: '条件判断',
-      branches: [
-        { id: 'branch-1', label: '分支 1', expression: '${amount} > 10000' },
-        { id: 'branch-2', label: '分支 2', expression: '${amount} <= 10000' },
-      ],
-    }),
-  },
-  {
-    type: 'timer-node', label: '定时器', icon: '⏱',
-    width: 180, height: 100,
-    data: { label: '定时器', duration: 5, unit: 'seconds' },
-  },
-  {
-    type: 'http-request-node', label: 'HTTP 请求', icon: '🌐',
-    width: 280, height: 150,
-    data: { label: 'HTTP 请求', method: 'GET', url: '', body: '', timeout: 30 },
-  },
-  {
-    type: 'custom-code-node', label: '自定义代码', icon: '{ }',
-    width: 280, height: 140,
-    data: { label: '自定义代码', code: '// 编写你的代码\nreturn { next: null };' },
   },
 ]
 

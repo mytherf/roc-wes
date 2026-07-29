@@ -24,14 +24,6 @@ import ElevatorNode from './ElevatorNode.vue'
 import RobotNode from './RobotNode.vue'
 import RackNode from './RackNode.vue'
 
-// 工作流节点
-import WorkflowStartNode from './workflow/WorkflowStartNode.vue'
-import WorkflowEndNode from './workflow/WorkflowEndNode.vue'
-import ConditionNode from './workflow/ConditionNode.vue'
-import TimerNode from './workflow/TimerNode.vue'
-import HttpRequestNode from './workflow/HttpRequestNode.vue'
-import CustomCodeNode from './workflow/CustomCodeNode.vue'
-
 /** 节点形状名 → 组件 映射表 */
 const nodeRegistry: { shape: string; component: any }[] = [
   // IoT / 基础
@@ -48,13 +40,6 @@ const nodeRegistry: { shape: string; component: any }[] = [
   { shape: 'elevator-node', component: ElevatorNode },
   { shape: 'robot-node', component: RobotNode },
   { shape: 'rack-node', component: RackNode },
-  // 工作流
-  { shape: 'workflow-start', component: WorkflowStartNode },
-  { shape: 'workflow-end', component: WorkflowEndNode },
-  { shape: 'condition-node', component: ConditionNode },
-  { shape: 'timer-node', component: TimerNode },
-  { shape: 'http-request-node', component: HttpRequestNode },
-  { shape: 'custom-code-node', component: CustomCodeNode },
 ]
 
 /** 注册所有节点（幂等，多次调用安全） */

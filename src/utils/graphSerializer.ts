@@ -8,7 +8,7 @@ export interface SerializedGraphData {
 /**
  * serializeGraph - 将 X6 Graph 序列化为 { nodes, edges } 结构
  *
- * 消除 X6Canvas.vue（2处）和 WorkflowToolbar.vue（2处）中重复的
+ * 消除 X6Canvas.vue（2处）和 EditorToolbar.vue（2处）中重复的
  * graph.toJSON() + cells 过滤 + position 归一化逻辑。
  *
  * @param graph - X6 Graph 实例
