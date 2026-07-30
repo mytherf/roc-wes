@@ -29,7 +29,7 @@
       >🖼️ 图标</button>
     </div>
     <button class="toolbar-btn run" @click="handleRun" title="运行模式">
-      ▶ 运行
+      ▶ 预览
     </button>
     <!-- 数据源管理对话框 -->
     <DataSourceDialog

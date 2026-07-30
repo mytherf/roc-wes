@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 /** 数据源类型 */
-export type DataSourceType = 'websocket' | 'mqtt' | 'http' | 'sse'
+export type DataSourceType = 'websocket' | 'mqtt' | 'http' | 'sse' | 's7' | 'opc' | 'modbus'
 
 /**
  * 数据源实例定义
@@ -28,6 +28,9 @@ export const DATA_SOURCE_TYPE_LABELS: Record<DataSourceType, string> = {
     mqtt: 'MQTT',
     http: 'HTTP 轮询',
     sse: 'SSE',
+    s7: '西门子 S7',
+    opc: 'OPC UA',
+    modbus: 'Modbus',
 }
 
 /**
@@ -39,6 +42,9 @@ export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
     http: 'http://localhost:8081/api/data',
     sse: 'http://localhost:8082/sse',
     mqtt: 'ws://localhost:8083',
+    s7: 'ws://localhost:8084/s7',
+    opc: 'ws://localhost:8085/opc',
+    modbus: 'ws://localhost:8086/modbus',
 }
 
 /**

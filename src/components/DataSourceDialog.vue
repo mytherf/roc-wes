@@ -12,7 +12,7 @@
           <div class="ds-list-toolbar">
             <span class="ds-count">共 {{ dataSourceStore.dataSources.length }} 个数据源</span>
             <div class="ds-toolbar-actions">
-              <button class="ds-btn" @click="createBuiltinSources" title="创建 WebSocket/HTTP/SSE/MQTT 内置模拟数据源">⚡ 一键创建内置模拟源</button>
+              <button class="ds-btn" @click="createBuiltinSources" title="创建 WebSocket/HTTP/SSE/MQTT/S7/OPC UA/Modbus 内置模拟数据源">⚡ 一键创建内置模拟源</button>
               <button class="ds-btn primary" @click="openAdd">＋ 新增数据源</button>
             </div>
           </div>
@@ -61,6 +61,9 @@
                 <option value="mqtt">MQTT</option>
                 <option value="http">HTTP 轮询</option>
                 <option value="sse">SSE</option>
+                <option value="s7">西门子 S7</option>
+                <option value="opc">OPC UA</option>
+                <option value="modbus">Modbus</option>
               </select>
               <div class="ds-builtin-hint">
                 <span>内置模拟地址：{{ builtinUrl }}</span>
@@ -137,9 +140,9 @@ function typeLabel(type: DataSourceType): string {
 /** 当前类型对应的内置模拟服务地址 */
 const builtinUrl = computed(() => BUILTIN_MOCK_URLS[form.type])
 
-/** 一键创建四种内置模拟数据源（已存在相同地址的跳过） */
+/** 一键创建各类型内置模拟数据源（已存在相同地址的跳过） */
 function createBuiltinSources() {
-  const types: DataSourceType[] = ['websocket', 'http', 'sse', 'mqtt']
+  const types: DataSourceType[] = ['websocket', 'http', 'sse', 'mqtt', 's7', 'opc', 'modbus']
   let created = 0
   for (const type of types) {
     const url = BUILTIN_MOCK_URLS[type]

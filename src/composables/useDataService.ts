@@ -5,6 +5,9 @@ import { WebSocketService } from '@/services/WebSocketService'
 import { HttpPollingService } from '@/services/HttpPollingService'
 import { SseService } from '@/services/SseService'
 import { MqttService } from '@/services/MqttService'
+import { S7Service } from '@/services/S7Service'
+import { OpcService } from '@/services/OpcService'
+import { ModbusService } from '@/services/ModbusService'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { evaluateNodeEvents } from '@/services/NodeEventService'
 
@@ -68,6 +71,15 @@ export function useDataService() {
           break
         case 'mqtt':
           service = new MqttService(sourceUrl)
+          break
+        case 's7':
+          service = new S7Service(sourceUrl)
+          break
+        case 'opc':
+          service = new OpcService(sourceUrl)
+          break
+        case 'modbus':
+          service = new ModbusService(sourceUrl)
           break
         default:
           console.warn(`[useDataService] 不支持的数据源类型: ${sourceType}，回退为模拟数据`)

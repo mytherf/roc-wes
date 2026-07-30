@@ -1,11 +1,17 @@
 /**
  * 内置模拟数据服务器
  *
- * 随开发系统（vite dev）自动启动，为四种数据源类型各提供一个可直接连接的模拟服务：
+ * 随开发系统（vite dev）自动启动，为各数据源类型各提供一个可直接连接的模拟服务：
  * - WebSocket ：ws://localhost:8080/ws        （订阅制实时推送，1s/次）
  * - HTTP 轮询 ：http://localhost:8081/api/data?pointId=xxx （请求/响应）
  * - SSE       ：http://localhost:8082/sse?pointId=xxx      （服务端推送流，1s/次）
  * - MQTT      ：ws://localhost:8083（浏览器经 WebSocket 连接 MQTT broker，TCP 1883）
+ * - S7        ：ws://localhost:8084/s7（浏览器经 WebSocket 连接 S7 网关，模拟西门子 PLC）
+ * - OPC UA    ：ws://localhost:8085/opc（浏览器经 WebSocket 连接 OPC UA 网关，模拟统一架构节点）
+ * - Modbus    ：ws://localhost:8086/modbus（浏览器经 WebSocket 连接 Modbus 网关，模拟寄存器扫描）
+ *
+ * 说明：S7（S7comm）、OPC UA、Modbus（Modbus TCP）均为原生 TCP 协议，浏览器无法直接连接，
+ * 故内置 mock 以 WebSocket 网关方式桥接（与 MQTT-WS 思路一致），仅用于开发演示。
  *
  * 这些服务仅在开发环境由 vite.config.ts 的 mock-servers 插件拉起，不参与生产构建。
  */
@@ -13,7 +19,7 @@ import http from 'http'
 import net from 'net'
 import { WebSocketServer, createWebSocketStream } from 'ws'
 import { Aedes } from 'aedes'
-import { wsValue, httpValue, sseValue, mqttValue } from './generators.ts'
+import { wsValue, httpValue, sseValue, mqttValue, s7Value, opcValue, modbusValue } from './generators.ts'
 
 /** 内置模拟服务端口（避免与 Vite 5173 冲突） */
 export const MOCK_PORTS = {
@@ -22,6 +28,9 @@ export const MOCK_PORTS = {
   sse: 8082,
   mqttTcp: 1883,
   mqttWs: 8083,
+  s7: 8084,
+  opc: 8085,
+  modbus: 8086,
 }
 
 /** 内置模拟服务连接地址（供前端数据源管理预置） */
@@ -30,6 +39,9 @@ export const BUILTIN_MOCK_URLS = {
   http: `http://localhost:${MOCK_PORTS.http}/api/data`,
   sse: `http://localhost:${MOCK_PORTS.sse}/sse`,
   mqtt: `ws://localhost:${MOCK_PORTS.mqttWs}`,
+  s7: `ws://localhost:${MOCK_PORTS.s7}/s7`,
+  opc: `ws://localhost:${MOCK_PORTS.opc}/opc`,
+  modbus: `ws://localhost:${MOCK_PORTS.modbus}/modbus`,
 }
 
 /** 安全监听：端口被占用时仅告警，不中断 dev server */
@@ -216,6 +228,156 @@ async function startMqttServer() {
   console.log(`[mock] MQTT broker 已启动: tcp://localhost:${MOCK_PORTS.mqttTcp}, ${BUILTIN_MOCK_URLS.mqtt}`)
 }
 
+// ===================== S7（西门子 PLC）网关服务 =====================
+/**
+ * S7（S7comm）为原生 TCP 协议，浏览器无法直接连接。
+ * 此处以 WebSocket 网关方式桥接（与 MQTT-WS 思路一致），
+ * 采用与 WS 服务相同的订阅协议，周期性推送 PLC 设定值跟踪数据。
+ */
+function startS7Server() {
+  const wss = new WebSocketServer({ port: MOCK_PORTS.s7, path: '/s7' })
+  // 每个连接订阅的数据点集合
+  const clientPoints = new Map<any, Set<string>>()
+
+  wss.on('connection', (ws) => {
+    clientPoints.set(ws, new Set())
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString())
+        const points = clientPoints.get(ws)
+        if (!points) return
+        if (msg.action === 'subscribe' && msg.topic) points.add(msg.topic)
+        else if (msg.action === 'unsubscribe' && msg.topic) points.delete(msg.topic)
+      } catch {
+        /* 忽略非 JSON 消息 */
+      }
+    })
+    ws.on('close', () => clientPoints.delete(ws))
+  })
+
+  // 每秒向已订阅数据点推送 PLC 设定值跟踪数据
+  setInterval(() => {
+    const t = Date.now()
+    for (const [ws, points] of clientPoints) {
+      if (ws.readyState !== ws.OPEN) continue
+      for (const pointId of points) {
+        ws.send(
+          JSON.stringify({ topic: pointId, value: s7Value(pointId, t), timestamp: t, quality: 'good' })
+        )
+      }
+    }
+  }, 1000)
+
+  wss.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[mock] S7 端口 ${MOCK_PORTS.s7} 已被占用，跳过`)
+    } else {
+      console.error('[mock] S7 网关错误:', err.message)
+    }
+  })
+  console.log(`[mock] S7（西门子 PLC）网关已启动: ${BUILTIN_MOCK_URLS.s7}`)
+}
+
+// ===================== OPC UA 网关服务 =====================
+/**
+ * OPC UA 为原生 TCP 协议（二进制编码），浏览器无法直接连接。
+ * 此处以 WebSocket 网关方式桥接（与 MQTT-WS / S7 思路一致），
+ * 采用相同的订阅协议，周期性推送量化阶梯数据，模拟 OPC UA 节点读数。
+ */
+function startOpcServer() {
+  const wss = new WebSocketServer({ port: MOCK_PORTS.opc, path: '/opc' })
+  // 每个连接订阅的数据点（节点 NodeId）集合
+  const clientPoints = new Map<any, Set<string>>()
+
+  wss.on('connection', (ws) => {
+    clientPoints.set(ws, new Set())
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString())
+        const points = clientPoints.get(ws)
+        if (!points) return
+        if (msg.action === 'subscribe' && msg.topic) points.add(msg.topic)
+        else if (msg.action === 'unsubscribe' && msg.topic) points.delete(msg.topic)
+      } catch {
+        /* 忽略非 JSON 消息 */
+      }
+    })
+    ws.on('close', () => clientPoints.delete(ws))
+  })
+
+  // 每秒向已订阅数据点推送量化阶梯数据
+  setInterval(() => {
+    const t = Date.now()
+    for (const [ws, points] of clientPoints) {
+      if (ws.readyState !== ws.OPEN) continue
+      for (const pointId of points) {
+        ws.send(
+          JSON.stringify({ topic: pointId, value: opcValue(pointId, t), timestamp: t, quality: 'good' })
+        )
+      }
+    }
+  }, 1000)
+
+  wss.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[mock] OPC UA 端口 ${MOCK_PORTS.opc} 已被占用，跳过`)
+    } else {
+      console.error('[mock] OPC UA 网关错误:', err.message)
+    }
+  })
+  console.log(`[mock] OPC UA 网关已启动: ${BUILTIN_MOCK_URLS.opc}`)
+}
+
+// ===================== Modbus 网关服务 =====================
+/**
+ * Modbus（Modbus TCP）为原生 TCP 协议，浏览器无法直接连接。
+ * 此处以 WebSocket 网关方式桥接（与 MQTT-WS / S7 / OPC UA 思路一致），
+ * 采用相同的订阅协议，周期性推送三角波数据，模拟 Modbus 寄存器连续扫描读数。
+ */
+function startModbusServer() {
+  const wss = new WebSocketServer({ port: MOCK_PORTS.modbus, path: '/modbus' })
+  // 每个连接订阅的数据点（寄存器地址）集合
+  const clientPoints = new Map<any, Set<string>>()
+
+  wss.on('connection', (ws) => {
+    clientPoints.set(ws, new Set())
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString())
+        const points = clientPoints.get(ws)
+        if (!points) return
+        if (msg.action === 'subscribe' && msg.topic) points.add(msg.topic)
+        else if (msg.action === 'unsubscribe' && msg.topic) points.delete(msg.topic)
+      } catch {
+        /* 忽略非 JSON 消息 */
+      }
+    })
+    ws.on('close', () => clientPoints.delete(ws))
+  })
+
+  // 每秒向已订阅数据点推送三角波数据
+  setInterval(() => {
+    const t = Date.now()
+    for (const [ws, points] of clientPoints) {
+      if (ws.readyState !== ws.OPEN) continue
+      for (const pointId of points) {
+        ws.send(
+          JSON.stringify({ topic: pointId, value: modbusValue(pointId, t), timestamp: t, quality: 'good' })
+        )
+      }
+    }
+  }, 1000)
+
+  wss.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[mock] Modbus 端口 ${MOCK_PORTS.modbus} 已被占用，跳过`)
+    } else {
+      console.error('[mock] Modbus 网关错误:', err.message)
+    }
+  })
+  console.log(`[mock] Modbus 网关已启动: ${BUILTIN_MOCK_URLS.modbus}`)
+}
+
 // ===================== 统一启动入口（幂等） =====================
 let started = false
 
@@ -231,6 +393,9 @@ export async function startMockServers() {
     startHttpServer()
     startSseServer()
     await startMqttServer()
+    startS7Server()
+    startOpcServer()
+    startModbusServer()
     console.log('[mock] 全部内置模拟数据服务已启动')
   } catch (e) {
     console.error('[mock] 启动内置模拟服务失败:', e)

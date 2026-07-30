@@ -37,7 +37,7 @@ export interface DataBindingConfig {
     /** 数据源实例 ID（引用「数据源管理」中创建的实例；为空则使用模拟数据） */
     sourceId?: string
     /** 数据源类型（兼容旧数据；新数据通过 sourceId 解析） */
-    sourceType?: 'websocket' | 'mqtt' | 'http' | 'sse'
+    sourceType?: 'websocket' | 'mqtt' | 'http' | 'sse' | 's7' | 'opc' | 'modbus'
     /** 数据源地址（兼容旧数据；新数据通过 sourceId 解析） */
     sourceUrl?: string
     /** 数据转换函数（字符串 → 数值） */
