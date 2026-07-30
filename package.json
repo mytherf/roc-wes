@@ -6,7 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "gateway": "tsx gateway/modbus-gateway.ts",
+    "simulator": "tsx gateway/simulator.ts",
+    "opc-gateway": "tsx gateway/opc-gateway.ts",
+    "opc-simulator": "tsx gateway/opc-simulator.ts",
+    "s7-gateway": "tsx gateway/s7-gateway.ts",
+    "s7-simulator": "tsx gateway/s7-simulator.ts"
   },
   "dependencies": {
     "@antv/x6": "^3.1.7",
@@ -14,7 +20,10 @@
     "@vueuse/core": "^14.3.0",
     "axios": "^1.18.1",
     "echarts": "^6.1.0",
+    "modbus-serial": "^8.0.25",
     "mqtt": "^5.15.2",
+    "node-opcua": "^2.175.3",
+    "nodes7": "^0.3.18",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "tslib": "^2.8.1",

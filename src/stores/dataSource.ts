@@ -20,6 +20,8 @@ export interface DataSource {
     url: string
     /** 备注说明（可选） */
     description?: string
+    /** 协议特定的设备连接参数（可选，如 Modbus 的 host/port/unitId/pollInterval/demo） */
+    config?: Record<string, any>
 }
 
 /** 数据源类型显示名 */
@@ -45,6 +47,20 @@ export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
     s7: 'ws://localhost:8084/s7',
     opc: 'ws://localhost:8085/opc',
     modbus: 'ws://localhost:8086/modbus',
+}
+
+/**
+ * 独立真实设备网关地址（连接真实 PLC / 设备，需单独启动，见 gateway/ 目录）
+ * - Modbus：gateway/modbus-gateway.ts（npm run gateway），ws://localhost:19100/modbus
+ * - 西门子 S7：gateway/s7-gateway.ts（npm run s7-gateway），ws://localhost:19101/s7
+ * - OPC UA：gateway/opc-gateway.ts（npm run opc-gateway），ws://localhost:19102/opc
+ * 浏览器经 WS 接入网关，网关再以对应工业协议连接真实设备 / 仿真服务端。
+ * 数据源在「真实设备」模式下使用此地址；「演示模式」则使用 BUILTIN_MOCK_URLS。
+ */
+export const REAL_GATEWAY_URLS: Partial<Record<DataSourceType, string>> = {
+    modbus: 'ws://localhost:19100/modbus',
+    s7: 'ws://localhost:19101/s7',
+    opc: 'ws://localhost:19102/opc',
 }
 
 /**

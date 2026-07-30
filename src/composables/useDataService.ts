@@ -47,16 +47,17 @@ export function useDataService() {
   /**
    * 根据 sourceType 和 sourceUrl 获取或创建数据服务实例
    * - 无 sourceUrl：返回默认模拟服务（MockDataService）
-   * - 有 sourceUrl：按类型路由到 WebSocket / HTTP 轮询 / SSE / MQTT 服务
+   * - 有 sourceUrl：按类型路由到 WebSocket / HTTP 轮询 / SSE / MQTT / S7 / OPC UA / Modbus 服务
+   * - sourceConfig：协议特定的设备连接参数（如 Modbus 的 host/port/unitId），传给对应服务
    */
-  function getDataService(sourceType: string, sourceUrl?: string): IDataService | null {
+  function getDataService(sourceType: string, sourceUrl?: string, sourceConfig?: Record<string, any>): IDataService | null {
     if (!sourceUrl) {
       if (!defaultDataService) {
         defaultDataService = new MockDataService()
       }
       return defaultDataService
     }
-    const key = `${sourceType}:${sourceUrl}`
+    const key = serviceKey(sourceType, sourceUrl, sourceConfig)
     if (!dataServiceMap.has(key)) {
       let service: IDataService | null = null
       switch (sourceType) {
@@ -73,13 +74,13 @@ export function useDataService() {
           service = new MqttService(sourceUrl)
           break
         case 's7':
-          service = new S7Service(sourceUrl)
+          service = new S7Service(sourceUrl, sourceConfig)
           break
         case 'opc':
-          service = new OpcService(sourceUrl)
+          service = new OpcService(sourceUrl, sourceConfig)
           break
         case 'modbus':
-          service = new ModbusService(sourceUrl)
+          service = new ModbusService(sourceUrl, sourceConfig)
           break
         default:
           console.warn(`[useDataService] 不支持的数据源类型: ${sourceType}，回退为模拟数据`)
@@ -91,6 +92,12 @@ export function useDataService() {
       dataServiceMap.set(key, service)
     }
     return dataServiceMap.get(key)!
+  }
+
+  /** 生成数据服务缓存键：类型 + 地址 + 设备配置（区分同地址不同设备） */
+  function serviceKey(sourceType: string, sourceUrl: string, sourceConfig?: Record<string, any>): string {
+    const cfg = sourceConfig ? JSON.stringify(sourceConfig) : ''
+    return `${sourceType}:${sourceUrl}:${cfg}`
   }
 
   /**
@@ -108,26 +115,28 @@ export function useDataService() {
     // 解析数据源：优先 sourceId（数据源管理实例），回退旧字段 sourceType/sourceUrl，否则模拟数据
     let sourceType = binding.sourceType
     let sourceUrl = binding.sourceUrl
+    let sourceConfig: Record<string, any> | undefined
     if (binding.sourceId) {
       const ds = dataSourceStore.getDataSource(binding.sourceId)
       if (ds) {
         sourceType = ds.type
         sourceUrl = ds.url
+        sourceConfig = ds.config
       } else {
         console.warn(`[useDataService] 未找到数据源实例: ${binding.sourceId}，回退为模拟数据`)
       }
     }
 
     // 根据配置获取对应的数据服务
-    const service = getDataService(sourceType ?? 'websocket', sourceUrl)
+    const service = getDataService(sourceType ?? 'websocket', sourceUrl, sourceConfig)
     if (!service) {
       console.warn('[useDataService] 无法获取数据服务')
       return
     }
 
-    // 记录该节点使用的服务 key（使用解析后的数据源类型与地址，兼容 sourceId 方式）
+    // 记录该节点使用的服务 key（使用解析后的数据源类型、地址与配置，兼容 sourceId 方式）
     if (sourceUrl) {
-      nodeServiceKeys.set(node.id, `${sourceType}:${sourceUrl}`)
+      nodeServiceKeys.set(node.id, serviceKey(sourceType ?? 'websocket', sourceUrl, sourceConfig))
     }
 
     service.subscribe(binding.pointId, (point) => {

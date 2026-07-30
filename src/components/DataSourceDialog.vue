@@ -70,6 +70,71 @@
                 <button type="button" class="ds-link-btn" @click="form.url = builtinUrl">填入</button>
               </div>
             </div>
+
+            <!-- 工业协议设备参数（S7 / OPC UA / Modbus） -->
+            <div v-if="isIndustrial" class="ds-proto-cfg">
+              <div class="ds-field">
+                <label class="ds-label">连接模式</label>
+                <div class="ds-radio-row">
+                  <label class="ds-radio">
+                    <input type="radio" v-model="form.demo" :value="true" /> 演示模式（内置模拟网关）
+                  </label>
+                  <label class="ds-radio">
+                    <input type="radio" v-model="form.demo" :value="false" /> 真实设备（独立网关）
+                  </label>
+                </div>
+                <div class="ds-cfg-hint">{{ cfgHint }}</div>
+              </div>
+              <template v-if="!form.demo">
+                <!-- OPC UA：端点 URL -->
+                <div v-if="isOpc" class="ds-field">
+                  <label class="ds-label">端点 URL <span class="required">*</span></label>
+                  <input v-model="form.endpoint" class="ds-input" placeholder="如：opc.tcp://192.168.0.10:4840" />
+                </div>
+                <!-- S7 / Modbus：主机 + 端口 -->
+                <div v-else class="ds-field-row">
+                  <div class="ds-field grow">
+                    <label class="ds-label">主机地址 <span class="required">*</span></label>
+                    <input v-model="form.host" class="ds-input" placeholder="如：192.168.0.10" />
+                  </div>
+                  <div class="ds-field">
+                    <label class="ds-label">端口</label>
+                    <input v-model.number="form.port" type="number" class="ds-input num" />
+                  </div>
+                </div>
+                <!-- Modbus：从站地址 + 轮询间隔 -->
+                <div v-if="isModbus" class="ds-field-row">
+                  <div class="ds-field">
+                    <label class="ds-label">从站地址</label>
+                    <input v-model.number="form.unitId" type="number" class="ds-input num" />
+                  </div>
+                  <div class="ds-field">
+                    <label class="ds-label">轮询间隔(ms)</label>
+                    <input v-model.number="form.pollInterval" type="number" class="ds-input num" />
+                  </div>
+                </div>
+                <!-- S7：机架 / 槽号 -->
+                <div v-if="isS7" class="ds-field-row">
+                  <div class="ds-field">
+                    <label class="ds-label">机架号(rack)</label>
+                    <input v-model.number="form.rack" type="number" class="ds-input num" />
+                  </div>
+                  <div class="ds-field">
+                    <label class="ds-label">槽号(slot)</label>
+                    <input v-model.number="form.slot" type="number" class="ds-input num" />
+                  </div>
+                </div>
+                <!-- S7 / OPC UA：轮询间隔 -->
+                <div v-if="isS7 || isOpc" class="ds-field-row">
+                  <div class="ds-field">
+                    <label class="ds-label">轮询间隔(ms)</label>
+                    <input v-model.number="form.pollInterval" type="number" class="ds-input num" />
+                  </div>
+                  <div class="ds-field"></div>
+                </div>
+              </template>
+            </div>
+
             <div class="ds-field">
               <label class="ds-label">地址 <span class="required">*</span></label>
               <input
@@ -105,11 +170,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import {
   useDataSourceStore,
   DATA_SOURCE_TYPE_LABELS,
   BUILTIN_MOCK_URLS,
+  REAL_GATEWAY_URLS,
   type DataSource,
   type DataSourceType,
 } from '@/stores/dataSource'
@@ -130,6 +196,15 @@ const form = reactive({
   type: 'websocket' as DataSourceType,
   url: '',
   description: '',
+  // 工业协议设备参数（S7 / OPC UA / Modbus，仅对应类型时生效）
+  demo: true,
+  host: '127.0.0.1',
+  port: 502,
+  unitId: 1, // Modbus 从站地址
+  rack: 0, // S7 机架号
+  slot: 2, // S7 槽号
+  endpoint: '', // OPC UA 端点 URL
+  pollInterval: 1000,
 })
 const formError = ref('')
 
@@ -139,6 +214,78 @@ function typeLabel(type: DataSourceType): string {
 
 /** 当前类型对应的内置模拟服务地址 */
 const builtinUrl = computed(() => BUILTIN_MOCK_URLS[form.type])
+
+/** 是否为需配置设备参数的工业协议类型 */
+function isIndustrialType(t: DataSourceType): boolean {
+  return t === 'modbus' || t === 's7' || t === 'opc'
+}
+
+/** 当前类型是否为工业协议（需配置设备参数） */
+const isIndustrial = computed(() => isIndustrialType(form.type))
+const isModbus = computed(() => form.type === 'modbus')
+const isS7 = computed(() => form.type === 's7')
+const isOpc = computed(() => form.type === 'opc')
+
+/** 各工业协议的默认设备端口 */
+function defaultPortFor(t: DataSourceType): number {
+  if (t === 's7') return 102
+  if (t === 'opc') return 4840
+  return 502 // modbus
+}
+
+/** 根据演示/真实模式推导当前类型的网关地址 */
+function gatewayUrl(): string {
+  return form.demo ? BUILTIN_MOCK_URLS[form.type] : (REAL_GATEWAY_URLS[form.type] as string)
+}
+
+/** 连接模式提示文案（随协议变化） */
+const cfgHint = computed(() => {
+  if (form.demo) {
+    return `使用内置模拟网关，无需真实设备，地址自动填充为 ${BUILTIN_MOCK_URLS[form.type]}`
+  }
+  switch (form.type) {
+    case 'modbus':
+      return '需先启动独立网关（npm run gateway），网关以 Modbus TCP 连接设备；可用 npm run simulator 起仿真从站验证'
+    case 's7':
+      return '需先启动独立网关（npm run s7-gateway），网关以 S7comm(nodes7) 连接 PLC；可用 npm run s7-simulator 起仿真 PLC 验证'
+    case 'opc':
+      return '需先启动独立网关（npm run opc-gateway），网关以 node-opcua 连接服务器；可用 npm run opc-simulator 起仿真服务端验证'
+    default:
+      return ''
+  }
+})
+
+// 切换类型：工业协议自动填充网关地址并重置默认端口
+watch(
+  () => form.type,
+  (t) => {
+    if (isIndustrialType(t)) {
+      form.port = defaultPortFor(t)
+      form.url = gatewayUrl()
+    }
+  }
+)
+// 切换演示/真实模式：工业协议重新填充网关地址
+watch(
+  () => form.demo,
+  () => {
+    if (isIndustrialType(form.type)) form.url = gatewayUrl()
+  }
+)
+
+/** 各工业协议内置模拟源的默认（演示模式）设备配置 */
+function defaultConfigFor(type: DataSourceType): Record<string, any> | undefined {
+  switch (type) {
+    case 'modbus':
+      return { demo: true, host: '127.0.0.1', port: 502, unitId: 1, pollInterval: 1000 }
+    case 's7':
+      return { demo: true, host: '127.0.0.1', port: 102, rack: 0, slot: 2, pollInterval: 1000 }
+    case 'opc':
+      return { demo: true, endpoint: 'opc.tcp://127.0.0.1:4840', pollInterval: 1000 }
+    default:
+      return undefined
+  }
+}
 
 /** 一键创建各类型内置模拟数据源（已存在相同地址的跳过） */
 function createBuiltinSources() {
@@ -153,6 +300,7 @@ function createBuiltinSources() {
       type,
       url,
       description: '系统内置模拟数据服务（开发环境自动启动）',
+      config: defaultConfigFor(type),
     })
     created++
   }
@@ -166,6 +314,14 @@ function resetForm() {
   form.type = 'websocket'
   form.url = ''
   form.description = ''
+  form.demo = true
+  form.host = '127.0.0.1'
+  form.port = 502
+  form.unitId = 1
+  form.rack = 0
+  form.slot = 2
+  form.endpoint = ''
+  form.pollInterval = 1000
   formError.value = ''
 }
 
@@ -180,6 +336,15 @@ function openEdit(ds: DataSource) {
   form.type = ds.type
   form.url = ds.url
   form.description = ds.description ?? ''
+  const c = ds.config || {}
+  form.demo = c.demo !== false
+  form.host = c.host ?? '127.0.0.1'
+  form.port = c.port ?? defaultPortFor(ds.type)
+  form.unitId = c.unitId ?? 1
+  form.rack = c.rack ?? 0
+  form.slot = c.slot ?? 2
+  form.endpoint = c.endpoint ?? ''
+  form.pollInterval = c.pollInterval ?? 1000
   formError.value = ''
   editingId.value = ds.id
   mode.value = 'edit'
@@ -197,12 +362,52 @@ function handleSave() {
     return
   }
 
+  // 工业协议设备参数与校验
+  let config: Record<string, any> | undefined
+  if (form.type === 'modbus') {
+    if (!form.demo && !form.host.trim()) {
+      formError.value = '真实设备模式下请填写设备主机地址'
+      return
+    }
+    config = {
+      demo: form.demo,
+      host: form.host.trim(),
+      port: Number(form.port) || 502,
+      unitId: Number(form.unitId) || 1,
+      pollInterval: Number(form.pollInterval) || 1000,
+    }
+  } else if (form.type === 's7') {
+    if (!form.demo && !form.host.trim()) {
+      formError.value = '真实设备模式下请填写 PLC 主机地址'
+      return
+    }
+    config = {
+      demo: form.demo,
+      host: form.host.trim(),
+      port: Number(form.port) || 102,
+      rack: Number(form.rack) || 0,
+      slot: Number(form.slot) || 2,
+      pollInterval: Number(form.pollInterval) || 1000,
+    }
+  } else if (form.type === 'opc') {
+    if (!form.demo && !form.endpoint.trim()) {
+      formError.value = '真实设备模式下请填写 OPC UA 端点 URL'
+      return
+    }
+    config = {
+      demo: form.demo,
+      endpoint: form.endpoint.trim(),
+      pollInterval: Number(form.pollInterval) || 1000,
+    }
+  }
+
   if (mode.value === 'edit' && editingId.value) {
     dataSourceStore.updateDataSource(editingId.value, {
       name,
       type: form.type,
       url,
       description: form.description.trim() || undefined,
+      config,
     })
   } else {
     dataSourceStore.addDataSource({
@@ -210,6 +415,7 @@ function handleSave() {
       type: form.type,
       url,
       description: form.description.trim() || undefined,
+      config,
     })
   }
   mode.value = 'list'
@@ -451,5 +657,47 @@ function handleClose() {
   gap: 8px;
   padding: 12px 16px;
   border-top: 1px solid #e8e8e8;
+}
+/* 工业协议设备参数区块（S7 / OPC UA / Modbus） */
+.ds-proto-cfg {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+}
+.ds-radio-row {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.ds-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+}
+.ds-cfg-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #999;
+  line-height: 1.5;
+}
+.ds-field-row {
+  display: flex;
+  gap: 12px;
+}
+.ds-field-row .ds-field {
+  flex: 1;
+}
+.ds-field.grow {
+  flex: 2;
+}
+.ds-input.num {
+  width: 100%;
 }
 </style>
