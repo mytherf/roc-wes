@@ -14,7 +14,8 @@ export class HttpPollingService implements IDataService {
 
     constructor(url: string, interval = 2000) {
         this.url = url
-        this.interval = interval
+        // 防御非法间隔（0 / 负数 / NaN），回退默认 2000ms
+        this.interval = Number(interval) > 0 ? Number(interval) : 2000
     }
 
     subscribe(pointId: string, callback: DataCallback): void {

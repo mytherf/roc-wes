@@ -70,6 +70,34 @@ const nativeAttrs = (extra: Record<string, any>) => (label: string) => ({
   label: { text: label, fill: '#333', fontSize: 14 },
 })
 
+/** 货架默认维度：单深位（排=1）、6 列、4 层 */
+const RACK_ROWS = 1
+const RACK_COLS = 6
+const RACK_FLOORS = 4
+
+/**
+ * 货架货位状态转换函数（无闭包、自包含）。
+ *
+ * 注意：此函数刻意不引用任何外部模块变量（维度常量直接硬编码在函数体内），
+ * 因此 `rackTransform.toString()` 得到的源码可被 `new Function` 在任意作用域
+ * 重新编译——这是 transform 持久化（保存/加载工程）的前提。
+ */
+const rackTransform = (_raw: any) => {
+  const rows = 1
+  const cols = 6
+  const floors = 4
+  const newGrids = Array.from({ length: floors }, () =>
+    Array.from({ length: rows }, () =>
+      Array.from({ length: cols }, () => {
+        const rand = Math.random()
+        const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'
+        return { status }
+      })
+    )
+  )
+  return { floorGrids: newGrids }
+}
+
 export const nodeTemplates: NodeTemplate[] = [
   // ===== 基础节点（无数据绑定） =====
   {
@@ -220,42 +248,24 @@ export const nodeTemplates: NodeTemplate[] = [
      * 库位编号规则：排_列_层（如 1_3_2）。默认单深位。
      */
     buildData: (pointId: string) => {
-      const rows = 1 // 默认单深位（双深位时改为 2）
-      const cols = 6
-      const floors = 4
-      // 生成随机货位占用（三维：层×排×列）
-      const floorGrids = Array.from({ length: floors }, () =>
-        Array.from({ length: rows }, () =>
-          Array.from({ length: cols }, () => ({
-            status: Math.random() > 0.6 ? 'occupied' : 'empty',
-          }))
-        )
-      )
+      const rows = RACK_ROWS
+      const cols = RACK_COLS
+      const floors = RACK_FLOORS
+      // 初始货位占用由 rackTransform 生成，保证与运行期更新形状一致
+      const initial = rackTransform(0)
       return {
         name: '货架-A01',
         rows,
         cols,
         floors,
-        floorGrids,
+        floorGrids: initial.floorGrids,
         pointId,
         binding: {
           pointId,
           sourceType: 'websocket',
-          transform: (_raw: any) => {
-            // 模拟货位状态更新
-            const newGrids = JSON.parse(JSON.stringify(floorGrids))
-            for (let f = 0; f < floors; f++) {
-              for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                  const rand = Math.random()
-                  if (rand < 0.3) newGrids[f][r][c].status = 'empty'
-                  else if (rand < 0.6) newGrids[f][r][c].status = 'occupied'
-                  else newGrids[f][r][c].status = 'reserved'
-                }
-              }
-            }
-            return { floorGrids: newGrids }
-          },
+          transform: rackTransform,
+          // 持久化用：rackTransform 为无闭包自包含函数，toString 可安全序列化
+          transformSource: rackTransform.toString(),
         },
       }
     },
@@ -343,7 +353,10 @@ export function buildNodeConfig(item: NodeTemplate, graph: Graph): Record<string
       config.data.binding = {
         pointId,
         sourceType: 'websocket',
-        ...(item.transform ? { transform: item.transform } : {}),
+        // transform 为运行期函数（不可序列化）；transformSource 为可持久化源码
+        ...(item.transform
+          ? { transform: item.transform, transformSource: item.transform.toString() }
+          : {}),
       }
     }
   }

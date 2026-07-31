@@ -261,7 +261,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/stores/editor'
-import { createEventRule, type NodeEventRule } from '@/services/NodeEventService'
+import { useNodeEvents } from '@/composables/useNodeEvents'
 import {
   useDataSourceStore,
   DATA_SOURCE_TYPE_LABELS,
@@ -360,8 +360,8 @@ const selectedDataSource = computed(() =>
 
 let isUpdatingFromWatch = false
 
-// ===================== 事件规则草稿（编辑后统一提交到 store 与 X6 节点） =====================
-const eventsDraft = ref<NodeEventRule[]>([])
+// ===================== 事件规则（逻辑抽取至 useNodeEvents composable） =====================
+const { eventsDraft, addEventRule, removeEventRule } = useNodeEvents(getGraph, activeTab)
 
 // ===================== 位置与尺寸独立管理（绕过 store 响应式链） =====================
 const posX = ref(0)
@@ -395,7 +395,8 @@ watch(
 
         bindingSourceId.value = binding.sourceId || ''
         bindingPointId.value = binding.pointId || ''
-        bindingTransform.value = binding.transform ? binding.transform.toString() : ''
+        bindingTransform.value =
+          binding.transformSource || (binding.transform ? binding.transform.toString() : '')
       } else {
         bindingPointId.value = ''
       }
@@ -422,72 +423,6 @@ onBeforeUnmount(() => {
   stopPositionPolling()
 })
 
-// ===================== 事件规则：加载与提交 =====================
-// 选中节点变化时：重置标签页并重新加载事件规则
-watch(
-    () => editorStore.selectedId,
-    (newId) => {
-      activeTab.value = 'basic'
-      loadEventsFromNode(newId)
-    },
-    { immediate: true }
-)
-
-// 事件草稿变化 → 提交到 X6 节点与 store
-watch(
-    eventsDraft,
-    () => {
-      commitEvents()
-    },
-    { deep: true }
-)
-
-/** 从 X6 节点加载事件规则（以节点数据为准） */
-function loadEventsFromNode(nodeId: string | null) {
-  if (!nodeId) {
-    eventsDraft.value = []
-    return
-  }
-  const graph = getGraph()
-  const node = graph?.getCellById(nodeId)
-  const data = node && node.isNode() ? node.getData() : null
-  const evs = data?.events
-  eventsDraft.value = Array.isArray(evs) ? JSON.parse(JSON.stringify(evs)) : []
-}
-
-/** 将事件规则提交到 X6 节点与 store（无变化时跳过，避免加载时冗余写入触发画布重载） */
-function commitEvents() {
-  if (!element.value || element.value.type !== 'node') return
-  const nodeId = element.value.data.id
-  const graph = getGraph()
-  const node = graph?.getCellById(nodeId)
-  if (!node || !node.isNode()) return
-
-  const events = JSON.parse(JSON.stringify(eventsDraft.value)) as NodeEventRule[]
-  const nextEvents = events.length ? events : undefined
-  const currentEvents = node.getData()?.events
-
-  // 无变化则跳过（含「加载后未编辑」的场景）
-  if (JSON.stringify(currentEvents ?? null) === JSON.stringify(nextEvents ?? null)) return
-
-  // 先更新 X6 节点再更新 store（两者同步完成，同步 watcher 不会误判为数据变化）
-  node.setData({ ...(node.getData() || {}), events: nextEvents })
-  const storeNode = editorStore.graphData.nodes.find((n) => n.id === nodeId)
-  if (storeNode) {
-    editorStore.updateNode(nodeId, { data: { ...(storeNode.data || {}), events: nextEvents } })
-  }
-}
-
-/** 添加事件规则 */
-function addEventRule() {
-  eventsDraft.value.push(createEventRule())
-}
-
-/** 删除事件规则 */
-function removeEventRule(index: number) {
-  eventsDraft.value.splice(index, 1)
-}
-
 // ===================== 核心方法：更新绑定配置 =====================
 function updateBinding() {
   if (!element.value || element.value.type !== 'node') {
@@ -508,9 +443,12 @@ function updateBinding() {
     if (bindingSourceId.value) {
       binding.sourceId = bindingSourceId.value
     }
-    if (bindingTransform.value.trim()) {
+    const transformSrc = bindingTransform.value.trim()
+    if (transformSrc) {
+      // transformSource：可持久化源码（保存工程不丢失）；transform：运行期编译缓存
+      binding.transformSource = transformSrc
       try {
-        binding.transform = new Function('raw', `return (${bindingTransform.value})(raw)`)
+        binding.transform = new Function('raw', `return (${transformSrc})(raw)`)
       } catch (e) {
         console.warn('[PropertyPanel] 转换函数无效:', e)
       }

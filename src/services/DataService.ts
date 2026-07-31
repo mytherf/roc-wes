@@ -40,8 +40,19 @@ export interface DataBindingConfig {
     sourceType?: 'websocket' | 'mqtt' | 'http' | 'sse' | 's7' | 'opc' | 'modbus'
     /** 数据源地址（兼容旧数据；新数据通过 sourceId 解析） */
     sourceUrl?: string
-    /** 数据转换函数（字符串 → 数值） */
-    transform?: (raw: any) => number | string
+    /**
+     * 转换函数源码（可持久化）。箭头函数字符串，参数固定为 raw，例如：
+     * - 简单表达式："(raw) => Math.round(raw * 10) / 10"
+     * - 多语句：    "(raw) => { const v = Number(raw); return { status: v > 80 ? 'error' : 'idle' } }"
+     * 序列化保存工程时保留此字符串；加载后由 useDataService 在订阅时编译为 transform。
+     */
+    transformSource?: string
+    /**
+     * 运行时编译出的数据转换函数（原始值 → 数值/字符串/局部数据对象）。
+     * 注意：此字段为 Function，无法被 JSON 序列化，仅作运行期缓存；
+     * 持久化与跨会话恢复依赖 transformSource。
+     */
+    transform?: (raw: any) => number | string | Record<string, any>
     /** 更新间隔（毫秒，仅 HTTP 轮询有效） */
     interval?: number
 }

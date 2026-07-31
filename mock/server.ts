@@ -56,47 +56,81 @@ function safeListen(server: http.Server | net.Server, port: number, label: strin
   server.listen(port)
 }
 
-// ===================== WebSocket 服务 =====================
-function startWsServer() {
-  const wss = new WebSocketServer({ port: MOCK_PORTS.ws, path: '/ws' })
-  // 每个连接订阅的主题集合
-  const clientTopics = new Map<any, Set<string>>()
+// ===================== 订阅制 WebSocket 模拟服务工厂 =====================
+/**
+ * 订阅制 WS 模拟服务通用骨架（WebSocket / S7 / OPC UA / Modbus 共用）。
+ *
+ * 四者协议完全一致：前端发送 { action:'subscribe'|'unsubscribe', topic } 登记数据点，
+ * 服务端按固定周期向已订阅点推送 { topic, value, timestamp, quality }，
+ * 仅端口、路径、日志标签与取值生成函数不同，故抽取此工厂去重。
+ */
+interface SubscribeWsOptions {
+  port: number
+  path: string
+  /** 日志标签（如 'WebSocket 服务' / 'S7（西门子 PLC）网关'） */
+  label: string
+  /** 启动日志中展示的完整地址 */
+  url: string
+  /** 数据生成函数：按数据点与时间戳返回该协议的特征模拟值 */
+  gen: (pointId: string, t: number) => number
+  intervalMs?: number
+}
+
+function startSubscribeWsServer(opts: SubscribeWsOptions) {
+  const { port, path, label, url, gen } = opts
+  const intervalMs = opts.intervalMs ?? 1000
+  const wss = new WebSocketServer({ port, path })
+  // 每个连接订阅的数据点集合
+  const clientPoints = new Map<any, Set<string>>()
 
   wss.on('connection', (ws) => {
-    clientTopics.set(ws, new Set())
+    clientPoints.set(ws, new Set())
     ws.on('message', (raw) => {
       try {
         const msg = JSON.parse(raw.toString())
-        const topics = clientTopics.get(ws)
-        if (!topics) return
-        if (msg.action === 'subscribe' && msg.topic) topics.add(msg.topic)
-        else if (msg.action === 'unsubscribe' && msg.topic) topics.delete(msg.topic)
+        const points = clientPoints.get(ws)
+        if (!points) return
+        if (msg.action === 'subscribe' && msg.topic) points.add(msg.topic)
+        else if (msg.action === 'unsubscribe' && msg.topic) points.delete(msg.topic)
       } catch {
         /* 忽略非 JSON 消息 */
       }
     })
-    ws.on('close', () => clientTopics.delete(ws))
+    ws.on('close', () => clientPoints.delete(ws))
   })
 
-  // 每秒向已订阅主题推送正弦波数据
+  // 周期向已订阅数据点推送特征数据
   setInterval(() => {
     const t = Date.now()
-    for (const [ws, topics] of clientTopics) {
+    for (const [ws, points] of clientPoints) {
       if (ws.readyState !== ws.OPEN) continue
-      for (const topic of topics) {
+      for (const pointId of points) {
         ws.send(
-          JSON.stringify({ topic, value: wsValue(topic, t), timestamp: t, quality: 'good' })
+          JSON.stringify({ topic: pointId, value: gen(pointId, t), timestamp: t, quality: 'good' })
         )
       }
     }
-  }, 1000)
+  }, intervalMs)
 
   wss.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
-      console.warn(`[mock] WebSocket 端口 ${MOCK_PORTS.ws} 已被占用，跳过`)
+      console.warn(`[mock] ${label} 端口 ${port} 已被占用，跳过`)
+    } else {
+      console.error(`[mock] ${label} 错误:`, err.message)
     }
   })
-  console.log(`[mock] WebSocket 服务已启动: ${BUILTIN_MOCK_URLS.websocket}`)
+  console.log(`[mock] ${label} 已启动: ${url}`)
+}
+
+// ===================== WebSocket 服务 =====================
+function startWsServer() {
+  startSubscribeWsServer({
+    port: MOCK_PORTS.ws,
+    path: '/ws',
+    label: 'WebSocket 服务',
+    url: BUILTIN_MOCK_URLS.websocket,
+    gen: wsValue, // 正弦波 20~80
+  })
 }
 
 // ===================== HTTP 轮询服务 =====================
@@ -235,47 +269,13 @@ async function startMqttServer() {
  * 采用与 WS 服务相同的订阅协议，周期性推送 PLC 设定值跟踪数据。
  */
 function startS7Server() {
-  const wss = new WebSocketServer({ port: MOCK_PORTS.s7, path: '/s7' })
-  // 每个连接订阅的数据点集合
-  const clientPoints = new Map<any, Set<string>>()
-
-  wss.on('connection', (ws) => {
-    clientPoints.set(ws, new Set())
-    ws.on('message', (raw) => {
-      try {
-        const msg = JSON.parse(raw.toString())
-        const points = clientPoints.get(ws)
-        if (!points) return
-        if (msg.action === 'subscribe' && msg.topic) points.add(msg.topic)
-        else if (msg.action === 'unsubscribe' && msg.topic) points.delete(msg.topic)
-      } catch {
-        /* 忽略非 JSON 消息 */
-      }
-    })
-    ws.on('close', () => clientPoints.delete(ws))
+  startSubscribeWsServer({
+    port: MOCK_PORTS.s7,
+    path: '/s7',
+    label: 'S7（西门子 PLC）网关',
+    url: BUILTIN_MOCK_URLS.s7,
+    gen: s7Value, // 设定值跟踪 0~100
   })
-
-  // 每秒向已订阅数据点推送 PLC 设定值跟踪数据
-  setInterval(() => {
-    const t = Date.now()
-    for (const [ws, points] of clientPoints) {
-      if (ws.readyState !== ws.OPEN) continue
-      for (const pointId of points) {
-        ws.send(
-          JSON.stringify({ topic: pointId, value: s7Value(pointId, t), timestamp: t, quality: 'good' })
-        )
-      }
-    }
-  }, 1000)
-
-  wss.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE') {
-      console.warn(`[mock] S7 端口 ${MOCK_PORTS.s7} 已被占用，跳过`)
-    } else {
-      console.error('[mock] S7 网关错误:', err.message)
-    }
-  })
-  console.log(`[mock] S7（西门子 PLC）网关已启动: ${BUILTIN_MOCK_URLS.s7}`)
 }
 
 // ===================== OPC UA 网关服务 =====================
@@ -285,47 +285,13 @@ function startS7Server() {
  * 采用相同的订阅协议，周期性推送量化阶梯数据，模拟 OPC UA 节点读数。
  */
 function startOpcServer() {
-  const wss = new WebSocketServer({ port: MOCK_PORTS.opc, path: '/opc' })
-  // 每个连接订阅的数据点（节点 NodeId）集合
-  const clientPoints = new Map<any, Set<string>>()
-
-  wss.on('connection', (ws) => {
-    clientPoints.set(ws, new Set())
-    ws.on('message', (raw) => {
-      try {
-        const msg = JSON.parse(raw.toString())
-        const points = clientPoints.get(ws)
-        if (!points) return
-        if (msg.action === 'subscribe' && msg.topic) points.add(msg.topic)
-        else if (msg.action === 'unsubscribe' && msg.topic) points.delete(msg.topic)
-      } catch {
-        /* 忽略非 JSON 消息 */
-      }
-    })
-    ws.on('close', () => clientPoints.delete(ws))
+  startSubscribeWsServer({
+    port: MOCK_PORTS.opc,
+    path: '/opc',
+    label: 'OPC UA 网关',
+    url: BUILTIN_MOCK_URLS.opc,
+    gen: opcValue, // 量化阶梯 0~100
   })
-
-  // 每秒向已订阅数据点推送量化阶梯数据
-  setInterval(() => {
-    const t = Date.now()
-    for (const [ws, points] of clientPoints) {
-      if (ws.readyState !== ws.OPEN) continue
-      for (const pointId of points) {
-        ws.send(
-          JSON.stringify({ topic: pointId, value: opcValue(pointId, t), timestamp: t, quality: 'good' })
-        )
-      }
-    }
-  }, 1000)
-
-  wss.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE') {
-      console.warn(`[mock] OPC UA 端口 ${MOCK_PORTS.opc} 已被占用，跳过`)
-    } else {
-      console.error('[mock] OPC UA 网关错误:', err.message)
-    }
-  })
-  console.log(`[mock] OPC UA 网关已启动: ${BUILTIN_MOCK_URLS.opc}`)
 }
 
 // ===================== Modbus 网关服务 =====================
@@ -335,47 +301,13 @@ function startOpcServer() {
  * 采用相同的订阅协议，周期性推送三角波数据，模拟 Modbus 寄存器连续扫描读数。
  */
 function startModbusServer() {
-  const wss = new WebSocketServer({ port: MOCK_PORTS.modbus, path: '/modbus' })
-  // 每个连接订阅的数据点（寄存器地址）集合
-  const clientPoints = new Map<any, Set<string>>()
-
-  wss.on('connection', (ws) => {
-    clientPoints.set(ws, new Set())
-    ws.on('message', (raw) => {
-      try {
-        const msg = JSON.parse(raw.toString())
-        const points = clientPoints.get(ws)
-        if (!points) return
-        if (msg.action === 'subscribe' && msg.topic) points.add(msg.topic)
-        else if (msg.action === 'unsubscribe' && msg.topic) points.delete(msg.topic)
-      } catch {
-        /* 忽略非 JSON 消息 */
-      }
-    })
-    ws.on('close', () => clientPoints.delete(ws))
+  startSubscribeWsServer({
+    port: MOCK_PORTS.modbus,
+    path: '/modbus',
+    label: 'Modbus 网关',
+    url: BUILTIN_MOCK_URLS.modbus,
+    gen: modbusValue, // 三角波 10~90
   })
-
-  // 每秒向已订阅数据点推送三角波数据
-  setInterval(() => {
-    const t = Date.now()
-    for (const [ws, points] of clientPoints) {
-      if (ws.readyState !== ws.OPEN) continue
-      for (const pointId of points) {
-        ws.send(
-          JSON.stringify({ topic: pointId, value: modbusValue(pointId, t), timestamp: t, quality: 'good' })
-        )
-      }
-    }
-  }, 1000)
-
-  wss.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE') {
-      console.warn(`[mock] Modbus 端口 ${MOCK_PORTS.modbus} 已被占用，跳过`)
-    } else {
-      console.error('[mock] Modbus 网关错误:', err.message)
-    }
-  })
-  console.log(`[mock] Modbus 网关已启动: ${BUILTIN_MOCK_URLS.modbus}`)
 }
 
 // ===================== 统一启动入口（幂等） =====================

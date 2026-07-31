@@ -71,68 +71,16 @@
               </div>
             </div>
 
-            <!-- 工业协议设备参数（S7 / OPC UA / Modbus） -->
-            <div v-if="isIndustrial" class="ds-proto-cfg">
+            <!-- 工业协议设备参数（S7 / OPC UA / Modbus），抽取为子组件 -->
+            <DataSourceDeviceConfig v-if="isIndustrial" :form="form" />
+
+            <!-- HTTP 轮询间隔 -->
+            <div v-if="form.type === 'http'" class="ds-field-row">
               <div class="ds-field">
-                <label class="ds-label">连接模式</label>
-                <div class="ds-radio-row">
-                  <label class="ds-radio">
-                    <input type="radio" v-model="form.demo" :value="true" /> 演示模式（内置模拟网关）
-                  </label>
-                  <label class="ds-radio">
-                    <input type="radio" v-model="form.demo" :value="false" /> 真实设备（独立网关）
-                  </label>
-                </div>
-                <div class="ds-cfg-hint">{{ cfgHint }}</div>
+                <label class="ds-label">轮询间隔(ms)</label>
+                <input v-model.number="form.interval" type="number" class="ds-input num" />
               </div>
-              <template v-if="!form.demo">
-                <!-- OPC UA：端点 URL -->
-                <div v-if="isOpc" class="ds-field">
-                  <label class="ds-label">端点 URL <span class="required">*</span></label>
-                  <input v-model="form.endpoint" class="ds-input" placeholder="如：opc.tcp://192.168.0.10:4840" />
-                </div>
-                <!-- S7 / Modbus：主机 + 端口 -->
-                <div v-else class="ds-field-row">
-                  <div class="ds-field grow">
-                    <label class="ds-label">主机地址 <span class="required">*</span></label>
-                    <input v-model="form.host" class="ds-input" placeholder="如：192.168.0.10" />
-                  </div>
-                  <div class="ds-field">
-                    <label class="ds-label">端口</label>
-                    <input v-model.number="form.port" type="number" class="ds-input num" />
-                  </div>
-                </div>
-                <!-- Modbus：从站地址 + 轮询间隔 -->
-                <div v-if="isModbus" class="ds-field-row">
-                  <div class="ds-field">
-                    <label class="ds-label">从站地址</label>
-                    <input v-model.number="form.unitId" type="number" class="ds-input num" />
-                  </div>
-                  <div class="ds-field">
-                    <label class="ds-label">轮询间隔(ms)</label>
-                    <input v-model.number="form.pollInterval" type="number" class="ds-input num" />
-                  </div>
-                </div>
-                <!-- S7：机架 / 槽号 -->
-                <div v-if="isS7" class="ds-field-row">
-                  <div class="ds-field">
-                    <label class="ds-label">机架号(rack)</label>
-                    <input v-model.number="form.rack" type="number" class="ds-input num" />
-                  </div>
-                  <div class="ds-field">
-                    <label class="ds-label">槽号(slot)</label>
-                    <input v-model.number="form.slot" type="number" class="ds-input num" />
-                  </div>
-                </div>
-                <!-- S7 / OPC UA：轮询间隔 -->
-                <div v-if="isS7 || isOpc" class="ds-field-row">
-                  <div class="ds-field">
-                    <label class="ds-label">轮询间隔(ms)</label>
-                    <input v-model.number="form.pollInterval" type="number" class="ds-input num" />
-                  </div>
-                  <div class="ds-field"></div>
-                </div>
-              </template>
+              <div class="ds-field"></div>
             </div>
 
             <div class="ds-field">
@@ -171,6 +119,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
+import DataSourceDeviceConfig from './DataSourceDeviceConfig.vue'
 import {
   useDataSourceStore,
   DATA_SOURCE_TYPE_LABELS,
@@ -205,6 +154,7 @@ const form = reactive({
   slot: 2, // S7 槽号
   endpoint: '', // OPC UA 端点 URL
   pollInterval: 1000,
+  interval: 2000, // HTTP 轮询间隔（ms）
 })
 const formError = ref('')
 
@@ -222,9 +172,6 @@ function isIndustrialType(t: DataSourceType): boolean {
 
 /** 当前类型是否为工业协议（需配置设备参数） */
 const isIndustrial = computed(() => isIndustrialType(form.type))
-const isModbus = computed(() => form.type === 'modbus')
-const isS7 = computed(() => form.type === 's7')
-const isOpc = computed(() => form.type === 'opc')
 
 /** 各工业协议的默认设备端口 */
 function defaultPortFor(t: DataSourceType): number {
@@ -237,23 +184,6 @@ function defaultPortFor(t: DataSourceType): number {
 function gatewayUrl(): string {
   return form.demo ? BUILTIN_MOCK_URLS[form.type] : (REAL_GATEWAY_URLS[form.type] as string)
 }
-
-/** 连接模式提示文案（随协议变化） */
-const cfgHint = computed(() => {
-  if (form.demo) {
-    return `使用内置模拟网关，无需真实设备，地址自动填充为 ${BUILTIN_MOCK_URLS[form.type]}`
-  }
-  switch (form.type) {
-    case 'modbus':
-      return '需先启动独立网关（npm run gateway），网关以 Modbus TCP 连接设备；可用 npm run simulator 起仿真从站验证'
-    case 's7':
-      return '需先启动独立网关（npm run s7-gateway），网关以 S7comm(nodes7) 连接 PLC；可用 npm run s7-simulator 起仿真 PLC 验证'
-    case 'opc':
-      return '需先启动独立网关（npm run opc-gateway），网关以 node-opcua 连接服务器；可用 npm run opc-simulator 起仿真服务端验证'
-    default:
-      return ''
-  }
-})
 
 // 切换类型：工业协议自动填充网关地址并重置默认端口
 watch(
@@ -282,6 +212,8 @@ function defaultConfigFor(type: DataSourceType): Record<string, any> | undefined
       return { demo: true, host: '127.0.0.1', port: 102, rack: 0, slot: 2, pollInterval: 1000 }
     case 'opc':
       return { demo: true, endpoint: 'opc.tcp://127.0.0.1:4840', pollInterval: 1000 }
+    case 'http':
+      return { interval: 2000 }
     default:
       return undefined
   }
@@ -322,6 +254,7 @@ function resetForm() {
   form.slot = 2
   form.endpoint = ''
   form.pollInterval = 1000
+  form.interval = 2000
   formError.value = ''
 }
 
@@ -345,6 +278,7 @@ function openEdit(ds: DataSource) {
   form.slot = c.slot ?? 2
   form.endpoint = c.endpoint ?? ''
   form.pollInterval = c.pollInterval ?? 1000
+  form.interval = c.interval ?? 2000
   formError.value = ''
   editingId.value = ds.id
   mode.value = 'edit'
@@ -398,6 +332,10 @@ function handleSave() {
       demo: form.demo,
       endpoint: form.endpoint.trim(),
       pollInterval: Number(form.pollInterval) || 1000,
+    }
+  } else if (form.type === 'http') {
+    config = {
+      interval: Number(form.interval) || 2000,
     }
   }
 
