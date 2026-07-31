@@ -1,0 +1,255 @@
+{
+  "dataSources": [
+    {
+      "id": "tpl3-ds-mqtt",
+      "name": "AGV车队遥测(MQTT)",
+      "type": "mqtt",
+      "url": "ws://localhost:8083",
+      "description": "AGV 调度区模板 - 车队位置/电量/任务状态"
+    },
+    {
+      "id": "tpl3-ds-ws",
+      "name": "接驳站数据(WS)",
+      "type": "websocket",
+      "url": "ws://localhost:8080/ws",
+      "description": "AGV 调度区模板 - 接驳输送线/充电桩状态"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "tpl3-agv-01",
+      "shape": "agv-node",
+      "x": 80,
+      "y": 60,
+      "width": 160,
+      "height": 120,
+      "data": {
+        "name": "AGV-01",
+        "battery": 85,
+        "isMoving": false,
+        "status": "idle",
+        "pointId": "device.agv.1",
+        "binding": {
+          "pointId": "device.agv.1",
+          "sourceId": "tpl3-ds-mqtt",
+          "sourceType": "mqtt",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl3-agv-02",
+      "shape": "agv-node",
+      "x": 300,
+      "y": 60,
+      "width": 160,
+      "height": 120,
+      "data": {
+        "name": "AGV-02",
+        "battery": 62,
+        "isMoving": false,
+        "status": "idle",
+        "pointId": "device.agv.2",
+        "binding": {
+          "pointId": "device.agv.2",
+          "sourceId": "tpl3-ds-mqtt",
+          "sourceType": "mqtt",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl3-agv-03",
+      "shape": "agv-node",
+      "x": 80,
+      "y": 240,
+      "width": 160,
+      "height": 120,
+      "data": {
+        "name": "AGV-03",
+        "battery": 45,
+        "isMoving": false,
+        "status": "idle",
+        "pointId": "device.agv.3",
+        "binding": {
+          "pointId": "device.agv.3",
+          "sourceId": "tpl3-ds-mqtt",
+          "sourceType": "mqtt",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl3-agv-04",
+      "shape": "agv-node",
+      "x": 300,
+      "y": 240,
+      "width": 160,
+      "height": 120,
+      "data": {
+        "name": "AGV-04",
+        "battery": 15,
+        "isMoving": false,
+        "status": "charging",
+        "pointId": "device.agv.4",
+        "binding": {
+          "pointId": "device.agv.4",
+          "sourceId": "tpl3-ds-mqtt",
+          "sourceType": "mqtt",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl3-conveyor-01",
+      "shape": "conveyor-node",
+      "x": 560,
+      "y": 80,
+      "width": 220,
+      "height": 80,
+      "data": {
+        "name": "接驳站-入库",
+        "direction": "left",
+        "isRunning": false,
+        "status": "idle",
+        "pointId": "device.conveyor.1",
+        "binding": {
+          "pointId": "device.conveyor.1",
+          "sourceId": "tpl3-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl3-conveyor-02",
+      "shape": "conveyor-node",
+      "x": 560,
+      "y": 220,
+      "width": 220,
+      "height": 80,
+      "data": {
+        "name": "接驳站-出库",
+        "direction": "right",
+        "isRunning": false,
+        "status": "idle",
+        "pointId": "device.conveyor.2",
+        "binding": {
+          "pointId": "device.conveyor.2",
+          "sourceId": "tpl3-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl3-gauge-01",
+      "shape": "gauge-node",
+      "x": 560,
+      "y": 340,
+      "width": 200,
+      "height": 180,
+      "data": {
+        "title": "车队平均电量",
+        "unit": "%",
+        "min": 0,
+        "max": 100,
+        "value": 50,
+        "pointId": "sensor.temp.1",
+        "binding": {
+          "pointId": "sensor.temp.1",
+          "sourceId": "tpl3-ds-mqtt",
+          "sourceType": "mqtt",
+          "transformSource": "(raw) => Math.round(raw * 10) / 10"
+        }
+      }
+    },
+    {
+      "id": "tpl3-chart-01",
+      "shape": "chart-node",
+      "x": 80,
+      "y": 420,
+      "width": 260,
+      "height": 160,
+      "data": {
+        "title": "任务吞吐量(次/min)",
+        "history": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        "pointId": "sensor.chart.1",
+        "binding": {
+          "pointId": "sensor.chart.1",
+          "sourceId": "tpl3-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => Math.round(raw * 10) / 10"
+        }
+      }
+    },
+    {
+      "id": "tpl3-indicator-01",
+      "shape": "indicator-node",
+      "x": 400,
+      "y": 420,
+      "width": 130,
+      "height": 70,
+      "data": {
+        "label": "调度系统",
+        "status": "off",
+        "pointId": "device.status.1",
+        "binding": {
+          "pointId": "device.status.1",
+          "sourceId": "tpl3-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+        }
+      }
+    },
+    {
+      "id": "tpl3-indicator-02",
+      "shape": "indicator-node",
+      "x": 400,
+      "y": 520,
+      "width": 130,
+      "height": 70,
+      "data": {
+        "label": "充电桩",
+        "status": "off",
+        "pointId": "device.status.2",
+        "binding": {
+          "pointId": "device.status.2",
+          "sourceId": "tpl3-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "tpl3-edge-01",
+      "shape": "edge",
+      "source": { "cell": "tpl3-agv-01" },
+      "target": { "cell": "tpl3-conveyor-01" },
+      "attrs": { "line": { "stroke": "#FFC53D", "strokeWidth": 1.5, "strokeDasharray": "6 3" } }
+    },
+    {
+      "id": "tpl3-edge-02",
+      "shape": "edge",
+      "source": { "cell": "tpl3-agv-02" },
+      "target": { "cell": "tpl3-conveyor-01" },
+      "attrs": { "line": { "stroke": "#FFC53D", "strokeWidth": 1.5, "strokeDasharray": "6 3" } }
+    },
+    {
+      "id": "tpl3-edge-03",
+      "shape": "edge",
+      "source": { "cell": "tpl3-agv-03" },
+      "target": { "cell": "tpl3-conveyor-02" },
+      "attrs": { "line": { "stroke": "#FFC53D", "strokeWidth": 1.5, "strokeDasharray": "6 3" } }
+    },
+    {
+      "id": "tpl3-edge-04",
+      "shape": "edge",
+      "source": { "cell": "tpl3-conveyor-02" },
+      "target": { "cell": "tpl3-agv-04" },
+      "attrs": { "line": { "stroke": "#FFC53D", "strokeWidth": 1.5, "strokeDasharray": "6 3" } }
+    }
+  ]
+}

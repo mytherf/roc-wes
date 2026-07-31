@@ -1,0 +1,300 @@
+{
+  "dataSources": [
+    {
+      "id": "tpl1-ds-ws",
+      "name": "立库主数据源(WS)",
+      "type": "websocket",
+      "url": "ws://localhost:8080/ws",
+      "description": "AS/RS 立库模板 - 堆垛机/输送线/提升机实时数据"
+    },
+    {
+      "id": "tpl1-ds-modbus",
+      "name": "提升机Modbus",
+      "type": "modbus",
+      "url": "ws://localhost:8086/modbus",
+      "description": "AS/RS 立库模板 - 提升机寄存器数据",
+      "config": { "demo": true }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "tpl1-stacker-01",
+      "shape": "stacker-node",
+      "x": 80,
+      "y": 60,
+      "width": 200,
+      "height": 130,
+      "data": {
+        "name": "堆垛机-A01",
+        "lane": "A01",
+        "position": "03-08-02",
+        "status": "idle",
+        "isMoving": false,
+        "progress": 0,
+        "pointId": "device.stacker.1",
+        "binding": {
+          "pointId": "device.stacker.1",
+          "sourceId": "tpl1-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }; if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }; if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }; return { status: 'error', isMoving: false, progress: 0 }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl1-stacker-02",
+      "shape": "stacker-node",
+      "x": 80,
+      "y": 260,
+      "width": 200,
+      "height": 130,
+      "data": {
+        "name": "堆垛机-A02",
+        "lane": "A02",
+        "position": "06-04-01",
+        "status": "idle",
+        "isMoving": false,
+        "progress": 0,
+        "pointId": "device.stacker.2",
+        "binding": {
+          "pointId": "device.stacker.2",
+          "sourceId": "tpl1-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }; if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }; if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }; return { status: 'error', isMoving: false, progress: 0 }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl1-rack-01",
+      "shape": "rack-node",
+      "x": 360,
+      "y": 40,
+      "width": 240,
+      "height": 150,
+      "data": {
+        "name": "货架-A01",
+        "rows": 1,
+        "cols": 6,
+        "floors": 4,
+        "floorGrids": [[[{"status":"occupied"},{"status":"empty"},{"status":"reserved"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"}]],[[{"status":"empty"},{"status":"occupied"},{"status":"occupied"},{"status":"reserved"},{"status":"occupied"},{"status":"empty"}]],[[{"status":"reserved"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"},{"status":"reserved"},{"status":"occupied"}]],[[{"status":"occupied"},{"status":"reserved"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"},{"status":"reserved"}]]],
+        "pointId": "device.rack.1",
+        "binding": {
+          "pointId": "device.rack.1",
+          "sourceId": "tpl1-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(_raw) => { const rows = 1; const cols = 6; const floors = 4; const newGrids = Array.from({ length: floors }, () => Array.from({ length: rows }, () => Array.from({ length: cols }, () => { const rand = Math.random(); const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'; return { status }; }))); return { floorGrids: newGrids }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl1-rack-02",
+      "shape": "rack-node",
+      "x": 360,
+      "y": 240,
+      "width": 240,
+      "height": 150,
+      "data": {
+        "name": "货架-A02",
+        "rows": 1,
+        "cols": 6,
+        "floors": 4,
+        "floorGrids": [[[{"status":"empty"},{"status":"occupied"},{"status":"occupied"},{"status":"reserved"},{"status":"empty"},{"status":"occupied"}]],[[{"status":"occupied"},{"status":"reserved"},{"status":"empty"},{"status":"occupied"},{"status":"occupied"},{"status":"reserved"}]],[[{"status":"reserved"},{"status":"empty"},{"status":"occupied"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"}]],[[{"status":"occupied"},{"status":"occupied"},{"status":"reserved"},{"status":"empty"},{"status":"occupied"},{"status":"empty"}]]],
+        "pointId": "device.rack.2",
+        "binding": {
+          "pointId": "device.rack.2",
+          "sourceId": "tpl1-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(_raw) => { const rows = 1; const cols = 6; const floors = 4; const newGrids = Array.from({ length: floors }, () => Array.from({ length: rows }, () => Array.from({ length: cols }, () => { const rand = Math.random(); const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'; return { status }; }))); return { floorGrids: newGrids }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl1-conveyor-01",
+      "shape": "conveyor-node",
+      "x": 680,
+      "y": 60,
+      "width": 220,
+      "height": 80,
+      "data": {
+        "name": "入库输送线-01",
+        "direction": "left",
+        "isRunning": false,
+        "status": "idle",
+        "pointId": "device.conveyor.1",
+        "binding": {
+          "pointId": "device.conveyor.1",
+          "sourceId": "tpl1-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl1-conveyor-02",
+      "shape": "conveyor-node",
+      "x": 680,
+      "y": 180,
+      "width": 220,
+      "height": 80,
+      "data": {
+        "name": "出库输送线-02",
+        "direction": "right",
+        "isRunning": false,
+        "status": "idle",
+        "pointId": "device.conveyor.2",
+        "binding": {
+          "pointId": "device.conveyor.2",
+          "sourceId": "tpl1-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl1-conveyor-03",
+      "shape": "conveyor-node",
+      "x": 680,
+      "y": 300,
+      "width": 220,
+      "height": 80,
+      "data": {
+        "name": "接驳输送线-03",
+        "direction": "left",
+        "isRunning": false,
+        "status": "idle",
+        "pointId": "device.conveyor.3",
+        "binding": {
+          "pointId": "device.conveyor.3",
+          "sourceId": "tpl1-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl1-elevator-01",
+      "shape": "elevator-node",
+      "x": 960,
+      "y": 120,
+      "width": 120,
+      "height": 160,
+      "data": {
+        "name": "提升机-01",
+        "maxLevel": 6,
+        "currentLevel": 1,
+        "position": 0,
+        "status": "idle",
+        "pointId": "device.elevator.1",
+        "binding": {
+          "pointId": "device.elevator.1",
+          "sourceId": "tpl1-ds-modbus",
+          "sourceType": "modbus",
+          "transformSource": "(raw) => { const v = Number(raw); const level = Math.floor(((v % 100) / 100) * 6) + 1; if (v < 30) return { currentLevel: level, position: v, status: 'idle' }; if (v < 80) return { currentLevel: level, position: v, status: 'running' }; return { currentLevel: level, position: v, status: 'error' }; }"
+        }
+      }
+    },
+    {
+      "id": "tpl1-gauge-01",
+      "shape": "gauge-node",
+      "x": 960,
+      "y": 320,
+      "width": 200,
+      "height": 180,
+      "data": {
+        "title": "堆垛机负载",
+        "unit": "%",
+        "min": 0,
+        "max": 100,
+        "value": 50,
+        "pointId": "sensor.temp.1",
+        "binding": {
+          "pointId": "sensor.temp.1",
+          "sourceId": "tpl1-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => Math.round(raw * 10) / 10"
+        }
+      }
+    },
+    {
+      "id": "tpl1-indicator-01",
+      "shape": "indicator-node",
+      "x": 680,
+      "y": 420,
+      "width": 130,
+      "height": 70,
+      "data": {
+        "label": "A巷道状态",
+        "status": "off",
+        "pointId": "device.status.1",
+        "binding": {
+          "pointId": "device.status.1",
+          "sourceId": "tpl1-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+        }
+      }
+    },
+    {
+      "id": "tpl1-indicator-02",
+      "shape": "indicator-node",
+      "x": 850,
+      "y": 420,
+      "width": 130,
+      "height": 70,
+      "data": {
+        "label": "输送系统",
+        "status": "off",
+        "pointId": "device.status.2",
+        "binding": {
+          "pointId": "device.status.2",
+          "sourceId": "tpl1-ds-ws",
+          "sourceType": "websocket",
+          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "tpl1-edge-01",
+      "shape": "edge",
+      "source": { "cell": "tpl1-conveyor-01" },
+      "target": { "cell": "tpl1-elevator-01" },
+      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+    },
+    {
+      "id": "tpl1-edge-02",
+      "shape": "edge",
+      "source": { "cell": "tpl1-elevator-01" },
+      "target": { "cell": "tpl1-stacker-01" },
+      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+    },
+    {
+      "id": "tpl1-edge-03",
+      "shape": "edge",
+      "source": { "cell": "tpl1-stacker-01" },
+      "target": { "cell": "tpl1-rack-01" },
+      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+    },
+    {
+      "id": "tpl1-edge-04",
+      "shape": "edge",
+      "source": { "cell": "tpl1-stacker-02" },
+      "target": { "cell": "tpl1-rack-02" },
+      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+    },
+    {
+      "id": "tpl1-edge-05",
+      "shape": "edge",
+      "source": { "cell": "tpl1-conveyor-02" },
+      "target": { "cell": "tpl1-elevator-01" },
+      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+    },
+    {
+      "id": "tpl1-edge-06",
+      "shape": "edge",
+      "source": { "cell": "tpl1-conveyor-03" },
+      "target": { "cell": "tpl1-stacker-02" },
+      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+    }
+  ]
+}

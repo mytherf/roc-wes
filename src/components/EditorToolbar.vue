@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useEditorStore } from '@/stores/editor'
+import { useDataSourceStore } from '@/stores/dataSource'
 import { serializeGraph } from '@/utils/graphSerializer'
 import DataSourceDialog from '@/components/DataSourceDialog.vue'
 
@@ -149,6 +150,21 @@ function handleImport() {
         }
         editorStore.setGraphData({ nodes: json.nodes, edges: json.edges })
         editorStore.pushHistory()
+
+        // 模板文件可携带 dataSources，导入时自动合并（跳过已存在的同 id 数据源）
+        if (Array.isArray(json.dataSources) && json.dataSources.length > 0) {
+          const dsStore = useDataSourceStore()
+          let added = 0
+          for (const ds of json.dataSources) {
+            if (!ds.id || !ds.type || !ds.url) continue
+            if (!dsStore.getDataSource(ds.id)) {
+              dsStore.dataSources.push(ds)
+              added++
+            }
+          }
+          console.log(`✅ 导入数据源：新增 ${added} 个，跳过 ${json.dataSources.length - added} 个已存在`)
+        }
+
         console.log(`✅ 导入成功：${json.nodes.length} 个节点，${json.edges.length} 条边`)
       } catch (err) {
         console.error('导入失败:', err)
