@@ -1,358 +1,262 @@
-# ROC-WES - 企业级可视化仓库执行系统
+# ROC-WES — 仓储自动化 SCADA 组态平台
 
-基于 Vue 3 + Vite + AntV X6 v3 构建的仓库执行系统，支持流程图编辑、IoT 组件、工作流编排、实时数据绑定、ECDSA 安全授权等企业级功能。
+基于 Vue 3 + AntV X6 v3 的 Web 可视化组态编辑器，面向仓储自动化（WCS）设备监控场景，覆盖 **仿真演示 → 实时监控 → 运行执行** 三大核心环节。
 
-## 📋 目录
-
-- [功能特性](#功能特性)
-- [技术栈](#技术栈)
-- [快速开始](#快速开始)
-- [环境变量](#环境变量)
-- [授权机制](#授权机制)
-- [项目结构](#项目结构)
-- [部署指南](#部署指南)
-- [性能优化](#性能优化)
-- [测试](#测试)
-- [贡献指南](#贡献指南)
-- [许可证](#许可证)
+无需后端服务，浏览器内即可完成设备画面编排、多协议数据接入、实时状态监控与 SCADA 运行态展示。
 
 ---
 
-## 🚀 功能特性
+## 核心能力
 
-### 核心编辑器
-- ✅ 可视化流程图编辑器（拖拽、连线、框选）
-- ✅ 自定义 Vue 节点组件（支持任意复杂交互）
-- ✅ Pinia 状态管理与数据持久化（localStorage）
-- ✅ 撤销/重做（Undo/Redo）
-- ✅ 复制/粘贴/删除（快捷键支持）
+### 仿真演示
 
-### IoT 组件库
-- ✅ ECharts 仪表盘（实时数据展示）
-- ✅ 实时折线图（动态数据曲线）
-- ✅ 指示灯（运行/停止/告警/故障）
-- ✅ 开关、滑块等控件（可扩展）
+内置 7 类模拟数据服务（随 `npm run dev` 自动启动），无需真实 PLC / 网关即可完整体验数据绑定与画面联动：
 
-### 工作流编排
-- ✅ 开始/结束节点
-- ✅ 条件判断（多分支表达式）
-- ✅ 定时器节点（等待指定时间）
-- ✅ HTTP 请求节点（支持 GET/POST/PUT/DELETE）
-- ✅ 自定义代码节点（JavaScript 沙箱执行）
-- ✅ DAG 校验器（环检测、孤立节点检查）
+| 协议 | 模拟地址 | 数据特征 |
+|------|----------|----------|
+| WebSocket | `ws://localhost:8080/ws` | 正弦波 20~80 |
+| HTTP 轮询 | `http://localhost:8081/api/data` | 随机阶梯 |
+| SSE | `http://localhost:8082/sse` | 锯齿斜升 |
+| MQTT (WS) | `ws://localhost:8083` | 离散档位 |
+| S7 (WS 网关) | `ws://localhost:8084/s7` | 设定值跟踪 |
+| OPC UA (WS 网关) | `ws://localhost:8085/opc` | 量化阶梯 |
+| Modbus (WS 网关) | `ws://localhost:8086/modbus` | 三角波 |
 
-### 实时数据
-- ✅ WebSocket 数据订阅（自动重连）
-- ✅ 模拟数据服务（开发测试用）
-- ✅ 数据绑定配置（`binding` 字段驱动）
+演示模式下，数据源监控面板自动注入各协议特征样例点位（如 `holding:100`、`DB1,REAL0`、`ns=2;s=Ramp`），即使画布无节点绑定也能看到实时模拟数据。
 
-### 授权与安全
-- ✅ ECDSA P-256 + SHA-256 数字签名
-- ✅ 许可证验证与激活（状态栏集成）
-- ✅ 功能权限控制（侧边栏自动禁用）
-- ✅ 节点数量限制（超限提示）
+### 实时监控
 
-### 性能优化
-- ✅ 虚拟渲染（视口裁剪，仅渲染可视区域）
-- ✅ Scroller 滚动画布（无限平移）
-- ✅ 批量更新（`batchUpdate`）
-- ✅ 代码分割（按需加载）
+- **数据源管理**：统一管理 7 种协议的数据源连接，支持演示 / 真实双模式一键切换
+- **网关监控面板**：在数据源对话框内实时探测连通性、设备状态、建连耗时、数据点实时值与错误告警
+- **数据绑定**：节点通过 `binding` 配置关联数据源点位，支持 transform 函数将原始值映射为业务状态
+- **边沿触发告警**：节点事件系统采用 PLC 语义（上升沿 / 下降沿触发），避免持续报警
+
+### 运行执行
+
+编辑器中设计的画面可通过「运行」按钮进入 SCADA 运行态（`/run` 路由）：
+
+- 全屏展示设备画面，隐藏编辑工具
+- 数据服务持续订阅，节点实时刷新
+- 适用于现场看板式部署或演示汇报
 
 ---
 
-## 🛠️ 技术栈
+## 组件库
+
+### WCS 设备
+
+堆垛机（Stacker）、输送线（Conveyor）、AGV、穿梭车（Shuttle）、分拣机（Sorter）、提升机（Elevator）、机械臂（Robot）、货架（Rack）
+
+### IoT 监控
+
+ECharts 仪表盘（Gauge）、实时折线图（Chart）、指示灯（Indicator）
+
+### 基础图形
+
+矩形（Rect）、圆形（Circle）、自定义卡片（CustomCard）
+
+每个设备节点预置数据绑定点位，拖入画布即自动关联数据源。
+
+---
+
+## 技术栈
 
 | 类别 | 技术 | 版本 |
 |------|------|------|
-| 框架 | Vue 3 | ^3.4.0 |
-| 构建工具 | Vite | ^5.0.0 |
-| 图引擎 | AntV X6 | ^3.0.0 |
-| 状态管理 | Pinia | ^2.1.0 |
-| 图表库 | ECharts | ^5.4.0 |
-| 加密库 | @noble/curves | ^2.2.0 |
-| 哈希库 | @noble/hashes | ^2.2.0 |
-| 语言 | TypeScript | ^5.0.0 |
+| 框架 | Vue 3 | ^3.5 |
+| 构建 | Vite | ^8.1 |
+| 图引擎 | AntV X6 | ^3.1 |
+| 状态管理 | Pinia | ^3.0 |
+| 图表 | ECharts | ^6.1 |
+| 语言 | TypeScript | ~6.0 |
+| MQTT | mqtt.js | ^5.15 |
+| 工业协议 | nodes7 / node-opcua / modbus-serial | — |
 
 ---
 
-## ⚡ 快速开始
+## 快速开始
 
-### 1. 克隆项目
 ```bash
-git clone https://github.com/mytherf/roc-wes.git
-cd roc-wes
-```
-
-### 2. 安装依赖
-```bash
+# 安装依赖
 npm install
-```
 
-### 3. 配置环境变量（可选）
-创建 `.env.local` 文件：
-```env
-VITE_APP_TITLE=ROC-WES
-VITE_APP_VERSION=1.0.0
-# 可选：覆盖默认授权公钥
-VITE_LICENSE_PUBLIC_KEY=04d5a2c8...
-```
-
-### 4. 启动开发服务器
-```bash
+# 启动开发服务器（自动拉起全部模拟数据服务）
 npm run dev
+# → http://localhost:5173
 ```
-访问 `http://localhost:5173`
 
-### 5. 生产构建
+### 真实设备网关
+
+连接真实 PLC / 网关时，启动对应的独立网关进程（浏览器经 WebSocket 桥接原生 TCP 协议）：
+
 ```bash
-npm run build
+# Modbus TCP 网关（端口 19100）+ 仿真从站（端口 19502）
+npm run gateway
+npm run simulator
+
+# S7comm 网关（端口 19101）+ 仿真 PLC（端口 19503）
+npm run s7-gateway
+npm run s7-simulator
+
+# OPC UA 网关（端口 19102）+ 仿真服务端（端口 19504）
+npm run opc-gateway
+npm run opc-simulator
 ```
-构建产物位于 `dist/` 目录。
 
-### 6. 预览生产构建
+在数据源管理中将对应协议切换为「真实模式」，填入设备地址即可。
+
+### 生产构建
+
 ```bash
-npm run preview
+npm run build    # vue-tsc 类型检查 + vite build
+npm run preview  # 本地预览构建产物
 ```
 
 ---
 
-## 🌍 环境变量
-
-| 变量名 | 说明 | 默认值 | 是否必需 |
-|--------|------|--------|----------|
-| `VITE_APP_TITLE` | 应用标题 | `ROC-WES` | 否 |
-| `VITE_APP_VERSION` | 版本号（显示在状态栏） | `1.0.0` | 否 |
-| `VITE_APP_ENV` | 运行环境（`development`/`production`） | `development` | 否 |
-| `VITE_LICENSE_PUBLIC_KEY` | 授权公钥（十六进制） | 内置公钥 | 否 |
-
-**使用方式**：
-在代码中通过 `import.meta.env.VITE_*` 访问，如 `import.meta.env.VITE_APP_VERSION`。
-
----
-
-## 🔐 授权机制
-
-### 原理
-- 使用 **ECDSA P-256** 曲线 + **SHA-256** 哈希进行数字签名。
-- 服务端使用私钥对许可证数据签名，客户端使用内置公钥验证。
-- 验证通过后，根据许可证中的 `features` 和 `maxNodes` 控制功能。
-
-### 生成授权码（开发/测试用）
-```bash
-npm run generate-license
-
-🔐 私钥: 7778e5f93fecd02f6df97faa809f34e4ccb320c9c94ca37cec74e3f611009b1c
-🔑 公钥: 027796c31bd640c40cec9278881a22c3b16e233c2761f15ac45c6322664ad6efea
-📜 授权码: eyJpZCI6ImRlbW8tbGljZW5zZS0wMDEiLCJzdWJqZWN0IjoiU0NBREEgRW5naW5lIERlbW8iLCJ2ZXJzaW9uIjoiMS4wLjAiLCJpc3N1ZWRBdCI6IjIwMjYtMDctMTRUMDE6MjU6MjQuMDc3WiIsImV4cGlyZXNBdCI6IjIwMzYtMDctMTFUMDE6MjU6MjQuMDc4WiIsImZlYXR1cmVzIjpbImJhc2ljIiwiYWR2YW5jZWQiLCJ3b3JrZmxvdyIsInJlYWx0aW1lIl0sIm1heE5vZGVzIjoxMDAsInNpZ25hdHVyZSI6IjA3YzA2Mzg4NDdiNDM1ZTE2M2E2OWE0NmQ0ZGViZDA1Y2Q0ODhlZjRlYzVmYjRhYmIyZTAwYTA2NTk4MjRmNzM2OWU3M2U0OTZkMDA5NmRkZDkyNWZhMmYzZDc4ZTUzOTE1YzRjOTZiZmFmNmM0ODNlNjJkZjIwMzIxYzUwNTFjIn0=
-```
-
-### 激活授权
-在应用底部状态栏中点击“授权管理”，输入授权码即可激活。
-
-### 功能权限控制
-- 侧边栏节点根据 `requiredFeature` 字段自动禁用（显示 🔒）。
-- 画布中添加节点时自动检查 `maxNodes` 限制。
-
----
-
-## 📁 项目结构
+## 项目结构
 
 ```
-roc-mes/
-├── public/                    # 静态资源
+roc-wes/
 ├── src/
-│   ├── components/            # Vue 组件
-│   │   ├── nodes/             # X6 节点组件
-│   │   │   ├── CustomCard.vue
-│   │   │   ├── GaugeNode.vue
-│   │   │   ├── ChartNode.vue
-│   │   │   ├── IndicatorNode.vue
-│   │   │   ├── WorkflowStartNode.vue
-│   │   │   ├── WorkflowEndNode.vue
-│   │   │   ├── ConditionNode.vue
-│   │   │   ├── TimerNode.vue
-│   │   │   ├── HttpRequestNode.vue
-│   │   │   └── CustomCodeNode.vue
-│   │   ├── X6Canvas.vue       # 画布组件
-│   │   ├── Sidebar.vue        # 组件库侧边栏
-│   │   ├── PropertyPanel.vue  # 属性面板
-│   │   ├── WorkflowToolbar.vue # 工作流工具栏
-│   │   └── StatusBar.vue      # 状态栏（含授权管理）
-│   ├── services/              # 服务层
-│   │   ├── DataService.ts     # 数据服务接口
-│   │   ├── WebSocketService.ts
-│   │   ├── MockDataService.ts
-│   │   ├── AnimationService.ts
-│   │   ├── WorkflowEngine.ts
-│   │   └── DagValidator.ts
-│   ├── stores/                # Pinia 状态
-│   │   └── editor.ts
-│   ├── types/                 # TypeScript 类型
-│   │   └── license.ts
-│   ├── utils/                 # 工具函数
-│   │   └── test-utils.ts
-│   ├── tests/                 # 测试文件
-│   │   ├── integration.test.ts
-│   │   └── performance.test.ts
+│   ├── components/
+│   │   ├── nodes/                  # X6 节点组件
+│   │   │   ├── StackerNode.vue     # 堆垛机
+│   │   │   ├── ConveyorNode.vue    # 输送线
+│   │   │   ├── AgvNode.vue         # AGV
+│   │   │   ├── ShuttleNode.vue     # 穿梭车
+│   │   │   ├── SorterNode.vue      # 分拣机
+│   │   │   ├── ElevatorNode.vue    # 提升机
+│   │   │   ├── RobotNode.vue       # 机械臂
+│   │   │   ├── RackNode.vue        # 货架
+│   │   │   ├── GaugeNode.vue       # 仪表盘
+│   │   │   ├── ChartNode.vue       # 折线图
+│   │   │   ├── IndicatorNode.vue   # 指示灯
+│   │   │   ├── CustomCard.vue      # 自定义卡片
+│   │   │   ├── nodeTemplates.ts    # 节点配置模板
+│   │   │   └── registry.ts         # X6 形状注册
+│   │   ├── X6Canvas.vue            # 画布（编辑 + 事件）
+│   │   ├── Sidebar.vue             # 组件库面板
+│   │   ├── PropertyPanel.vue       # 属性 / 数据绑定面板
+│   │   ├── EditorToolbar.vue       # 工具栏（保存/导出/导入/运行）
+│   │   ├── DataSourceDialog.vue    # 数据源管理 + 网关监控
+│   │   ├── DataSourceDeviceConfig.vue  # 工业协议设备参数
+│   │   ├── NodeDetailDialog.vue    # 节点详情弹窗
+│   │   └── StatusBar.vue           # 状态栏
+│   ├── composables/
+│   │   ├── useDataService.ts       # 数据订阅生命周期
+│   │   ├── useGatewayMonitor.ts    # 网关监控状态管理
+│   │   ├── useNodeEvents.ts        # 节点事件（边沿触发）
+│   │   ├── useNodeData.ts          # 节点数据注入
+│   │   ├── useNodeStatus.ts        # 节点运行状态
+│   │   ├── useGraphSync.ts         # 画布 ↔ Store 同步
+│   │   └── useDisplayMode.ts       # 显示模式切换
+│   ├── services/
+│   │   ├── DataService.ts          # IDataService 接口
+│   │   ├── GatewayService.ts       # 工业协议 WS 网关基类
+│   │   ├── S7Service.ts            # S7comm 服务
+│   │   ├── OpcService.ts           # OPC UA 服务
+│   │   ├── ModbusService.ts        # Modbus 服务
+│   │   ├── MqttService.ts          # MQTT 服务
+│   │   ├── WebSocketService.ts     # WebSocket 服务
+│   │   ├── HttpPollingService.ts   # HTTP 轮询服务
+│   │   ├── SseService.ts           # SSE 服务
+│   │   ├── MockDataService.ts      # 本地模拟数据
+│   │   ├── GatewayMonitorService.ts # 网关连通性探针
+│   │   ├── NodeEventService.ts     # 事件引擎
+│   │   ├── AnimationService.ts     # 动画服务
+│   │   └── PointIdGenerator.ts     # 点位 ID 生成器
+│   ├── stores/
+│   │   ├── editor.ts               # 画布状态（手动持久化）
+│   │   └── dataSource.ts           # 数据源配置（自动持久化）
+│   ├── views/
+│   │   └── RunView.vue             # SCADA 运行态
+│   ├── router/index.ts
+│   ├── utils/graphSerializer.ts
+│   ├── layouts/MainLayout.vue
 │   ├── App.vue
-│   ├── main.ts
-│   └── vite-env.d.ts
-├── .env.production            # 生产环境变量
-├── index.html
-├── package.json
+│   └── main.ts
+├── gateway/                        # 独立 Node.js 网关进程
+│   ├── gateway-shared.ts           # 网关工厂（WS 桥接骨架）
+│   ├── modbus-gateway.ts           # Modbus TCP → WS（19100）
+│   ├── modbus-adapter.ts           # Modbus 批量读适配
+│   ├── s7-gateway.ts              # S7comm → WS（19101）
+│   ├── s7-adapter.ts              # nodes7 读适配
+│   ├── opc-gateway.ts             # OPC UA → WS（19102）
+│   ├── opc-adapter.ts             # node-opcua 订阅适配
+│   ├── simulator.ts               # Modbus 仿真从站（19502）
+│   ├── s7-simulator.ts            # S7 仿真 PLC（19503）
+│   └── opc-simulator.ts           # OPC UA 仿真服务端（19504）
+├── mock/                           # 内置模拟服务（dev 环境）
+│   ├── server.ts                   # 7 类模拟服务统一启动
+│   └── generators.ts              # 各协议特征数据生成
+├── docs/数据源手册/                 # 7 类型 × 用户使用 + 开发手册
 ├── vite.config.ts
 ├── tsconfig.json
-└── README.md
+└── package.json
 ```
 
 ---
 
-## 🚢 部署指南
+## 数据接入架构
 
-### 方式一：静态托管（推荐）
-
-1. **构建项目**：
-   ```bash
-   npm run build
-   ```
-
-2. **部署 `dist/` 目录**：
-    - 上传至 Nginx、Apache、CDN 或对象存储（如 AWS S3、阿里云 OSS）。
-
-3. **Nginx 配置示例**（`/etc/nginx/sites-available/scada`）：
-   ```nginx
-   server {
-       listen 80;
-       server_name wes.yourdomain.com;
-       root /var/www/roc-wes/dist;
-       index index.html;
-
-       location / {
-           try_files $uri $uri/ /index.html;
-       }
-
-       # 启用 Gzip 压缩
-       gzip on;
-       gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-   }
-   ```
-
-4. **启用 HTTPS**（推荐使用 Let's Encrypt）：
-   ```bash
-   certbot --nginx -d roc-wes.yourdomain.com
-   ```
-
-### 方式二：Docker 容器化
-
-创建 `Dockerfile`：
-```dockerfile
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+```
+┌─────────────────────────────────────────────────────────┐
+│  浏览器（Vue 3）                                         │
+│                                                         │
+│  节点组件 ← useDataService ← IDataService 实现          │
+│                │                                        │
+│  数据源管理 ← useGatewayMonitor ← GatewayMonitorService │
+└────────────┬───────────────────────────────┬────────────┘
+             │ WebSocket / HTTP / SSE / MQTT-WS
+             ▼                               ▼
+┌────────────────────────┐    ┌──────────────────────────────┐
+│  内置模拟服务 (mock/)   │    │  独立网关进程 (gateway/)      │
+│  端口 8080-8086        │    │  端口 19100-19102            │
+│  随 vite dev 自动启动   │    │  手动启动，桥接真实 TCP 设备  │
+└────────────────────────┘    └──────────┬───────────────────┘
+                                         │ TCP
+                                         ▼
+                              ┌─────────────────────┐
+                              │  真实 PLC / 网关     │
+                              │  Modbus / S7 / OPC  │
+                              └─────────────────────┘
 ```
 
-创建 `nginx.conf`：
+浏览器无法直接建立 TCP 连接，工业协议（S7comm / OPC UA / Modbus TCP）通过独立 Node.js 网关进程桥接为 WebSocket，前端统一以订阅制协议 `{action:'subscribe', topic}` 接收实时数据。
+
+---
+
+## 部署
+
+构建产物为纯静态文件（`dist/`），可部署至任意静态托管：
+
 ```nginx
 server {
     listen 80;
-    root /usr/share/nginx/html;
+    server_name scada.example.com;
+    root /var/www/roc-wes/dist;
     index index.html;
+
     location / {
         try_files $uri $uri/ /index.html;
     }
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript;
 }
 ```
 
-构建并运行：
-```bash
-docker build -t roc-wes .
-docker run -d -p 8080:80 roc-wes
-```
-
-### 方式三：Vercel / Netlify（一键部署）
-
-- 连接 GitHub 仓库，自动构建部署。
-- 配置环境变量 `VITE_APP_VERSION` 等。
+生产环境中，内置模拟服务不会启动。如需连接真实设备，在服务器上运行 `gateway/` 下对应网关进程，并在数据源管理中配置真实地址。
 
 ---
 
-## ⚡ 性能优化
+## 数据源手册
 
-### 已实现优化
-- **虚拟渲染**：只渲染可视区域内的节点和边（`virtual: { enabled: true }`）。
-- **Scroller 插件**：提供无限滚动画布，避免大画布卡顿。
-- **批量更新**：使用 `graph.batchUpdate()` 批量添加节点/边。
-- **代码分割**：将 X6、ECharts、加密库分离为独立 chunk。
-
-### 自定义优化建议
-1. **懒加载重组件**：对于大量节点，使用 `defineAsyncComponent`。
-2. **减少节点数据冗余**：仅在节点 `data` 中存储必要字段。
-3. **使用 `computed` 缓存**：对于频繁计算（如节点数量），使用 `computed`。
-4. **Web Worker**（可选）：将工作流引擎执行移至 Worker，避免阻塞 UI。
+`docs/数据源手册/` 目录包含 7 种协议的用户使用手册与开发手册，涵盖连接配置、点位格式、transform 函数编写等内容。
 
 ---
 
-## 🧪 测试
+## 许可证
 
-### 运行单元测试
-```bash
-npm run test
-```
-
-### 运行带 UI 的测试
-```bash
-npm run test:ui
-```
-
-### 运行覆盖率测试
-```bash
-npm run test:coverage
-```
-
-### 测试覆盖范围
-- **集成测试**：ECDSA 签名/验证、授权激活、功能权限、节点限制。
-- **性能测试**：签名/验证/授权码生成的平均耗时基准。
-
----
-
-## 🤝 贡献指南
-
-欢迎贡献代码、提出问题或建议。请遵循以下流程：
-
-1. Fork 本仓库。
-2. 创建功能分支 (`git checkout -b feature/amazing-feature`)。
-3. 提交更改 (`git commit -m 'Add some amazing feature'`)。
-4. 推送到分支 (`git push origin feature/amazing-feature`)。
-5. 创建 Pull Request。
-
-**代码规范**：
-- 使用 ESLint + Prettier（已配置）。
-- 所有新功能需包含单元测试。
-- 确保构建通过 (`npm run build`) 且无类型错误 (`npm run type-check`)。
-
----
-
-## 📄 许可证
-
-本项目采用 **MIT License** 开源协议，详情见 [LICENSE](./LICENSE) 文件。
-
----
-
-## 📞 联系方式
-
-- 项目主页：[GitHub](https://github.com/mytherf/roc-wes)
-- 问题反馈：[Issues](https://github.com/mytherf/roc-wes/issues)
-- 邮箱：mytherf@163.com
-
----
-
-**感谢使用 ROC-WES！** 如果觉得有用，请给项目一个 ⭐️ 支持我们。
+MIT License

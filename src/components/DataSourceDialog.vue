@@ -12,6 +12,9 @@
           <div class="ds-list-toolbar">
             <span class="ds-count">共 {{ dataSourceStore.dataSources.length }} 个数据源</span>
             <div class="ds-toolbar-actions">
+              <button class="ds-btn" @click="toggleMonitorAll" :title="anyMonitoring ? '停止对所有数据源的监控' : '监控所有数据源的连通性、设备状态与实时数据'">
+                {{ anyMonitoring ? '⏹ 停止全部监控' : '🖥 监控全部' }}
+              </button>
               <button class="ds-btn primary" @click="openAdd">＋ 新增数据源</button>
             </div>
           </div>
@@ -24,19 +27,88 @@
             <div
               v-for="ds in dataSourceStore.dataSources"
               :key="ds.id"
-              class="ds-item"
+              class="ds-row"
             >
-              <div class="ds-item-main">
-                <div class="ds-item-name">
-                  {{ ds.name }}
-                  <span class="ds-type-tag">{{ typeLabel(ds.type) }}</span>
+              <div class="ds-item" @click="toggleExpand(ds)">
+                <span
+                  class="ds-status-dot"
+                  :class="`st-${monitor.getState(ds.id).status}`"
+                  :title="`监控状态：${statusLabel(monitor.getState(ds.id))}`"
+                ></span>
+                <div class="ds-item-main">
+                  <div class="ds-item-name">
+                    {{ ds.name }}
+                    <span class="ds-type-tag">{{ typeLabel(ds.type) }}</span>
+                  </div>
+                  <div class="ds-item-url" :title="ds.url">{{ ds.url }}</div>
+                  <div v-if="ds.description" class="ds-item-desc">{{ ds.description }}</div>
                 </div>
-                <div class="ds-item-url" :title="ds.url">{{ ds.url }}</div>
-                <div v-if="ds.description" class="ds-item-desc">{{ ds.description }}</div>
+                <div class="ds-item-actions" @click.stop>
+                  <button
+                    class="ds-btn small"
+                    :class="{ active: monitor.isMonitoring(ds.id) }"
+                    :title="monitor.isMonitoring(ds.id) ? '停止监控该数据源' : '监控该数据源'"
+                    @click="toggleMonitor(ds)"
+                  >{{ monitor.isMonitoring(ds.id) ? '停止' : '监控' }}</button>
+                  <button class="ds-btn small" @click="openEdit(ds)">编辑</button>
+                  <button class="ds-btn small danger" @click="handleDelete(ds)">删除</button>
+                </div>
               </div>
-              <div class="ds-item-actions">
-                <button class="ds-btn small" @click="openEdit(ds)">编辑</button>
-                <button class="ds-btn small danger" @click="handleDelete(ds)">删除</button>
+
+              <!-- 展开的监控详情面板 -->
+              <div v-if="expandedId === ds.id" class="ds-monitor-detail" @click.stop>
+                <div class="ds-mon-grid">
+                  <div class="ds-mon-cell">
+                    <span class="ds-mon-k">连接状态</span>
+                    <span class="ds-mon-v" :class="`st-text-${monitor.getState(ds.id).status}`">{{ statusLabel(monitor.getState(ds.id)) }}</span>
+                  </div>
+                  <div class="ds-mon-cell">
+                    <span class="ds-mon-k">建连耗时</span>
+                    <span class="ds-mon-v">{{ monitor.getState(ds.id).latencyMs != null ? monitor.getState(ds.id).latencyMs + ' ms' : '—' }}</span>
+                  </div>
+                  <div v-if="isIndustrialType(ds.type)" class="ds-mon-cell">
+                    <span class="ds-mon-k">设备状态</span>
+                    <span class="ds-mon-v" :class="monitor.getState(ds.id).deviceConnected === false ? 'st-text-offline' : monitor.getState(ds.id).deviceConnected ? 'st-text-online' : ''">
+                      {{ deviceLabel(monitor.getState(ds.id)) }}
+                    </span>
+                  </div>
+                  <div class="ds-mon-cell grow">
+                    <span class="ds-mon-k">监控点位</span>
+                    <span class="ds-mon-v">{{ Object.keys(monitor.getState(ds.id).points).length || monitor.resolvePoints(ds).length }} 个</span>
+                  </div>
+                </div>
+                <div v-if="monitor.getState(ds.id).deviceMessage" class="ds-mon-devmsg">
+                  {{ monitor.getState(ds.id).deviceMessage }}
+                </div>
+                <div v-if="ds.url === BUILTIN_MOCK_URLS[ds.type]" class="ds-mon-demo-note">
+                  演示模式：下列为内置模拟服务推送的样例点位与实时模拟数据
+                </div>
+
+                <!-- 数据点实时值 -->
+                <div class="ds-mon-title">数据点实时值</div>
+                <div v-if="Object.keys(monitor.getState(ds.id).points).length === 0" class="ds-mon-empty">
+                  {{ ds.url === BUILTIN_MOCK_URLS[ds.type] ? '等待模拟服务推送…' : '暂无数据（未绑定节点点位或服务未推送）' }}
+                </div>
+                <table v-else class="ds-mon-table">
+                  <thead>
+                    <tr><th>点位 ID</th><th>当前值</th><th>质量</th><th>更新时间</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(r, pid) in monitor.getState(ds.id).points" :key="pid">
+                      <td class="mono">{{ pid }}</td>
+                      <td>{{ r.value }}</td>
+                      <td><span class="ds-q" :class="`q-${r.quality}`">{{ r.quality }}</span></td>
+                      <td>{{ fmtTime(r.timestamp) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <!-- 错误与告警 -->
+                <div class="ds-mon-title">错误与告警（{{ monitor.getState(ds.id).errors.length }}）</div>
+                <div v-if="monitor.getState(ds.id).errors.length === 0" class="ds-mon-empty">暂无异常</div>
+                <ul v-else class="ds-mon-errors">
+                  <li v-for="(e, i) in monitor.getState(ds.id).errors" :key="i">{{ e }}</li>
+                </ul>
               </div>
             </div>
           </div>
@@ -130,6 +202,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import DataSourceDeviceConfig from './DataSourceDeviceConfig.vue'
+import { useGatewayMonitor } from '@/composables/useGatewayMonitor'
+import type { MonitorState } from '@/services/GatewayMonitorService'
 import {
   useDataSourceStore,
   DATA_SOURCE_TYPE_LABELS,
@@ -144,6 +218,64 @@ const emit = defineEmits<{
 }>()
 
 const dataSourceStore = useDataSourceStore()
+
+// ===================== 网关 / 服务监控 =====================
+const monitor = useGatewayMonitor()
+/** 当前展开监控详情的数据源 ID（单展开） */
+const expandedId = ref<string | null>(null)
+
+/** 是否有任意数据源正在监控（驱动工具栏按钮文案） */
+const anyMonitoring = computed(() =>
+  dataSourceStore.dataSources.some((ds) => monitor.isMonitoring(ds.id))
+)
+
+/** 工具栏：监控全部 / 停止全部 */
+function toggleMonitorAll() {
+  if (anyMonitoring.value) monitor.stopAll()
+  else monitor.startAll(dataSourceStore.dataSources)
+}
+
+/** 单个数据源：监控 / 停止 */
+function toggleMonitor(ds: DataSource) {
+  if (monitor.isMonitoring(ds.id)) monitor.stop(ds.id)
+  else monitor.start(ds)
+}
+
+/** 展开 / 收起监控详情；展开时若未监控则自动启动 */
+function toggleExpand(ds: DataSource) {
+  if (expandedId.value === ds.id) {
+    expandedId.value = null
+    return
+  }
+  expandedId.value = ds.id
+  if (!monitor.isMonitoring(ds.id)) monitor.start(ds)
+}
+
+/** 连接状态文案 */
+function statusLabel(st: MonitorState): string {
+  switch (st.status) {
+    case 'online':
+      return '在线'
+    case 'offline':
+      return '离线'
+    case 'connecting':
+      return '连接中…'
+    default:
+      return '未监控'
+  }
+}
+
+/** 设备连接状态文案（工业网关） */
+function deviceLabel(st: MonitorState): string {
+  if (st.deviceConnected === true) return '已连接'
+  if (st.deviceConnected === false) return '未连接'
+  return st.status === 'online' ? '等待回报…' : '—'
+}
+
+/** 时间戳格式化为本地时间串 */
+function fmtTime(ts: number): string {
+  return ts ? new Date(ts).toLocaleTimeString() : '—'
+}
 
 /** 视图模式：list=列表 add=新增 edit=编辑 */
 const mode = ref<'list' | 'add' | 'edit'>('list')
@@ -379,16 +511,23 @@ function handleSave() {
       config,
     })
   }
+  // 保存后停止该数据源的监控（地址/配置可能已变更，旧探针失效）并收起详情
+  if (editingId.value) monitor.stop(editingId.value)
+  expandedId.value = null
   mode.value = 'list'
 }
 
 function handleDelete(ds: DataSource) {
   if (confirm(`确定删除数据源「${ds.name}」吗？\n已引用该数据源的节点绑定将回退为模拟数据。`)) {
+    monitor.stop(ds.id)
+    if (expandedId.value === ds.id) expandedId.value = null
     dataSourceStore.deleteDataSource(ds.id)
   }
 }
 
 function handleClose() {
+  monitor.stopAll()
+  expandedId.value = null
   mode.value = 'list'
   emit('close')
 }
@@ -633,5 +772,180 @@ function handleClose() {
 }
 .ds-input.num {
   width: 100%;
+}
+
+/* ===================== 网关 / 服务监控 ===================== */
+.ds-row {
+  display: flex;
+  flex-direction: column;
+}
+.ds-row .ds-item {
+  cursor: pointer;
+}
+/* 状态徽标圆点 */
+.ds-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #bfbfbf; /* idle 灰 */
+}
+.ds-status-dot.st-connecting {
+  background: #faad14; /* 连接中 黄 */
+  animation: ds-pulse 1s ease-in-out infinite;
+}
+.ds-status-dot.st-online {
+  background: #52c41a; /* 在线 绿 */
+}
+.ds-status-dot.st-offline {
+  background: #ff4d4f; /* 离线 红 */
+}
+@keyframes ds-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+/* 监控中的按钮高亮 */
+.ds-btn.active {
+  border-color: #52c41a;
+  color: #52c41a;
+}
+/* 状态文字配色 */
+.st-text-online { color: #52c41a; }
+.st-text-offline { color: #ff4d4f; }
+.st-text-connecting { color: #faad14; }
+.st-text-idle { color: #999; }
+
+/* 展开的监控详情面板 */
+.ds-monitor-detail {
+  margin: -4px 0 8px;
+  padding: 12px 14px;
+  border: 1px solid #e8e8e8;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  background: #fafafa;
+  cursor: default;
+}
+.ds-mon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin-bottom: 8px;
+}
+.ds-mon-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 90px;
+}
+.ds-mon-cell.grow {
+  flex: 1;
+}
+.ds-mon-k {
+  font-size: 11px;
+  color: #999;
+}
+.ds-mon-v {
+  font-size: 13px;
+  color: #333;
+  font-weight: 500;
+}
+.ds-mon-devmsg {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #666;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+}
+.ds-mon-demo-note {
+  margin-bottom: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: #1890ff;
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+  border-radius: 4px;
+}
+.ds-mon-title {
+  margin: 10px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+}
+.ds-mon-empty {
+  padding: 8px 0;
+  font-size: 12px;
+  color: #bbb;
+}
+.ds-mon-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ds-mon-table th,
+.ds-mon-table td {
+  padding: 5px 8px;
+  text-align: left;
+  border-bottom: 1px solid #f5f5f5;
+}
+.ds-mon-table th {
+  background: #fafafa;
+  color: #888;
+  font-weight: 500;
+}
+.ds-mon-table tr:last-child td {
+  border-bottom: none;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+/* 质量码徽标 */
+.ds-q {
+  display: inline-block;
+  padding: 0 6px;
+  font-size: 11px;
+  border-radius: 3px;
+  line-height: 16px;
+}
+.ds-q.q-good {
+  color: #52c41a;
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+}
+.ds-q.q-bad {
+  color: #ff4d4f;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+}
+.ds-q.q-uncertain {
+  color: #faad14;
+  background: #fffbe6;
+  border: 1px solid #ffe58f;
+}
+/* 错误告警列表 */
+.ds-mon-errors {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 120px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+}
+.ds-mon-errors li {
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #cf1322;
+  border-bottom: 1px solid #f5f5f5;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.ds-mon-errors li:last-child {
+  border-bottom: none;
 }
 </style>
