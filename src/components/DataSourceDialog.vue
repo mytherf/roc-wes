@@ -12,7 +12,6 @@
           <div class="ds-list-toolbar">
             <span class="ds-count">共 {{ dataSourceStore.dataSources.length }} 个数据源</span>
             <div class="ds-toolbar-actions">
-              <button class="ds-btn" @click="createBuiltinSources" title="创建 WebSocket/HTTP/SSE/MQTT/S7/OPC UA/Modbus 内置模拟数据源">⚡ 一键创建内置模拟源</button>
               <button class="ds-btn primary" @click="openAdd">＋ 新增数据源</button>
             </div>
           </div>
@@ -65,14 +64,24 @@
                 <option value="opc">OPC UA</option>
                 <option value="modbus">Modbus</option>
               </select>
-              <div class="ds-builtin-hint">
-                <span>内置模拟地址：{{ builtinUrl }}</span>
-                <button type="button" class="ds-link-btn" @click="form.url = builtinUrl">填入</button>
-              </div>
             </div>
 
-            <!-- 工业协议设备参数（S7 / OPC UA / Modbus），抽取为子组件 -->
-            <DataSourceDeviceConfig v-if="isIndustrial" :form="form" />
+            <!-- 连接模式（全类型统一：演示模式 / 真实设备） -->
+            <div class="ds-field">
+              <label class="ds-label">连接模式</label>
+              <div class="ds-radio-row">
+                <label class="ds-radio">
+                  <input type="radio" v-model="form.demo" :value="true" /> 演示模式（内置模拟服务）
+                </label>
+                <label class="ds-radio">
+                  <input type="radio" v-model="form.demo" :value="false" /> 真实设备
+                </label>
+              </div>
+              <div class="ds-cfg-hint">{{ modeHint }}</div>
+            </div>
+
+            <!-- 工业协议设备参数（S7 / OPC UA / Modbus 的真实设备模式），抽取为子组件 -->
+            <DataSourceDeviceConfig v-if="isIndustrial && !form.demo" :form="form" />
 
             <!-- HTTP 轮询间隔 -->
             <div v-if="form.type === 'http'" class="ds-field-row">
@@ -88,7 +97,8 @@
               <input
                 v-model="form.url"
                 class="ds-input"
-                placeholder="如：ws://localhost:8080/ws"
+                :readonly="urlReadonly"
+                :placeholder="urlPlaceholder"
               />
             </div>
             <div class="ds-field">
@@ -118,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import DataSourceDeviceConfig from './DataSourceDeviceConfig.vue'
 import {
   useDataSourceStore,
@@ -162,9 +172,6 @@ function typeLabel(type: DataSourceType): string {
   return DATA_SOURCE_TYPE_LABELS[type] ?? type
 }
 
-/** 当前类型对应的内置模拟服务地址 */
-const builtinUrl = computed(() => BUILTIN_MOCK_URLS[form.type])
-
 /** 是否为需配置设备参数的工业协议类型 */
 function isIndustrialType(t: DataSourceType): boolean {
   return t === 'modbus' || t === 's7' || t === 'opc'
@@ -180,71 +187,81 @@ function defaultPortFor(t: DataSourceType): number {
   return 502 // modbus
 }
 
-/** 根据演示/真实模式推导当前类型的网关地址 */
-function gatewayUrl(): string {
-  return form.demo ? BUILTIN_MOCK_URLS[form.type] : (REAL_GATEWAY_URLS[form.type] as string)
+/** 连接模式提示文案（随类型与模式变化） */
+const modeHint = computed(() => {
+  if (form.demo) {
+    return `演示模式：使用内置模拟服务（开发环境自动启动），地址自动填充为 ${BUILTIN_MOCK_URLS[form.type]}，无需真实设备`
+  }
+  switch (form.type) {
+    case 'modbus':
+      return '真实设备：需先启动独立网关（npm run gateway），并在下方填写设备参数；可用 npm run simulator 起仿真从站验证'
+    case 's7':
+      return '真实设备：需先启动独立网关（npm run s7-gateway），并在下方填写 PLC 参数；可用 npm run s7-simulator 起仿真 PLC 验证'
+    case 'opc':
+      return '真实设备：需先启动独立网关（npm run opc-gateway），并在下方填写端点参数；可用 npm run opc-simulator 起仿真服务端验证'
+    default:
+      return '真实设备：请在下方填写真实服务地址'
+  }
+})
+
+/** 地址输入框是否只读：演示模式（内置地址）或工业协议（固定网关地址）下自动填充、不可手改 */
+const urlReadonly = computed(() => form.demo || isIndustrial.value)
+
+/** 真实设备模式下非工业协议的地址占位符示例 */
+const urlPlaceholder = computed(() => {
+  switch (form.type) {
+    case 'websocket':
+      return '如：ws://192.168.0.10:9000/ws'
+    case 'mqtt':
+      return '如：ws://192.168.0.10:8083'
+    case 'http':
+      return '如：http://192.168.0.10:8081/api/data'
+    case 'sse':
+      return '如：http://192.168.0.10:8082/sse'
+    default:
+      return ''
+  }
+})
+
+/**
+ * 按「连接模式 + 类型」推导地址：
+ * - 演示模式：内置模拟服务地址；
+ * - 工业协议真实设备：固定独立网关地址（设备地址在下方设备参数中配置）；
+ * - 非工业协议真实设备：由用户手动填写（若当前仍是内置地址则清空待填）。
+ */
+function syncUrl() {
+  if (form.demo) {
+    form.url = BUILTIN_MOCK_URLS[form.type]
+  } else if (isIndustrialType(form.type)) {
+    form.url = REAL_GATEWAY_URLS[form.type] as string
+  } else if (form.url === BUILTIN_MOCK_URLS[form.type]) {
+    form.url = ''
+  }
 }
 
-// 切换类型：工业协议自动填充网关地址并重置默认端口
+/** 编辑回填期间抑制 watcher 对地址的联动覆盖 */
+let suppressUrlSync = false
+
+// 切换类型：工业协议重置默认端口，并按模式同步地址
 watch(
   () => form.type,
   (t) => {
-    if (isIndustrialType(t)) {
-      form.port = defaultPortFor(t)
-      form.url = gatewayUrl()
-    }
+    if (isIndustrialType(t)) form.port = defaultPortFor(t)
+    if (!suppressUrlSync) syncUrl()
   }
 )
-// 切换演示/真实模式：工业协议重新填充网关地址
+// 切换演示/真实模式：按类型同步地址
 watch(
   () => form.demo,
   () => {
-    if (isIndustrialType(form.type)) form.url = gatewayUrl()
+    if (!suppressUrlSync) syncUrl()
   }
 )
-
-/** 各工业协议内置模拟源的默认（演示模式）设备配置 */
-function defaultConfigFor(type: DataSourceType): Record<string, any> | undefined {
-  switch (type) {
-    case 'modbus':
-      return { demo: true, host: '127.0.0.1', port: 502, unitId: 1, pollInterval: 1000 }
-    case 's7':
-      return { demo: true, host: '127.0.0.1', port: 102, rack: 0, slot: 2, pollInterval: 1000 }
-    case 'opc':
-      return { demo: true, endpoint: 'opc.tcp://127.0.0.1:4840', pollInterval: 1000 }
-    case 'http':
-      return { interval: 2000 }
-    default:
-      return undefined
-  }
-}
-
-/** 一键创建各类型内置模拟数据源（已存在相同地址的跳过） */
-function createBuiltinSources() {
-  const types: DataSourceType[] = ['websocket', 'http', 'sse', 'mqtt', 's7', 'opc', 'modbus']
-  let created = 0
-  for (const type of types) {
-    const url = BUILTIN_MOCK_URLS[type]
-    const exists = dataSourceStore.dataSources.some((d) => d.url === url)
-    if (exists) continue
-    dataSourceStore.addDataSource({
-      name: `内置${DATA_SOURCE_TYPE_LABELS[type]}模拟源`,
-      type,
-      url,
-      description: '系统内置模拟数据服务（开发环境自动启动）',
-      config: defaultConfigFor(type),
-    })
-    created++
-  }
-  if (created === 0) {
-    alert('内置模拟数据源已存在，无需重复创建')
-  }
-}
 
 function resetForm() {
   form.name = ''
   form.type = 'websocket'
-  form.url = ''
+  form.url = BUILTIN_MOCK_URLS.websocket // 默认演示模式，预填内置地址
   form.description = ''
   form.demo = true
   form.host = '127.0.0.1'
@@ -265,12 +282,14 @@ function openAdd() {
 }
 
 function openEdit(ds: DataSource) {
+  // 抑制 watcher 联动，避免回填 type/demo 时覆盖已保存的自定义地址
+  suppressUrlSync = true
   form.name = ds.name
   form.type = ds.type
-  form.url = ds.url
   form.description = ds.description ?? ''
+  // 演示模式判定：地址等于内置模拟地址即为演示（兼容旧数据源 config.demo 字段）
   const c = ds.config || {}
-  form.demo = c.demo !== false
+  form.demo = c.demo !== false && ds.url === BUILTIN_MOCK_URLS[ds.type]
   form.host = c.host ?? '127.0.0.1'
   form.port = c.port ?? defaultPortFor(ds.type)
   form.unitId = c.unitId ?? 1
@@ -279,9 +298,13 @@ function openEdit(ds: DataSource) {
   form.endpoint = c.endpoint ?? ''
   form.pollInterval = c.pollInterval ?? 1000
   form.interval = c.interval ?? 2000
+  form.url = ds.url // 最后赋地址，保留用户保存的原始值
   formError.value = ''
   editingId.value = ds.id
   mode.value = 'edit'
+  nextTick(() => {
+    suppressUrlSync = false
+  })
 }
 
 function handleSave() {
@@ -434,33 +457,6 @@ function handleClose() {
 .ds-toolbar-actions {
   display: flex;
   gap: 8px;
-}
-/* 内置模拟地址提示行 */
-.ds-builtin-hint {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 12px;
-  color: #999;
-}
-.ds-builtin-hint span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ds-link-btn {
-  border: none;
-  background: none;
-  color: #1890ff;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 0 2px;
-  flex-shrink: 0;
-}
-.ds-link-btn:hover {
-  text-decoration: underline;
 }
 .ds-empty {
   padding: 32px 0;
