@@ -74,13 +74,13 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
 
 <style scoped>
 .sidebar {
-  width: 236px;
+  width: 240px;
   min-width: 200px;
   flex-shrink: 0;
   height: 100%;
-  background: #f0f2f5;
-  padding: 16px;
-  border-right: 1px solid #e8e8e8;
+  background: var(--sidebar-bg);
+  padding: 16px 12px;
+  border-right: 1px solid var(--sidebar-border);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -88,26 +88,29 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
 }
 
 .title {
-  margin: 0 0 4px 0;
-  font-size: 16px;
-  color: #333;
+  margin: 0 0 2px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sidebar-text);
+  letter-spacing: -0.2px;
 }
 
 .hint {
-  margin: 0 0 12px 0;
-  font-size: 12px;
-  color: #999;
+  margin: 0 0 16px 0;
+  font-size: 11px;
+  color: var(--sidebar-text-muted);
 }
 
 /* ===== 分组 ===== */
 .group + .group {
-  margin-top: 16px;
+  margin-top: 18px;
 }
 .group-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  color: #8c8c8c;
-  letter-spacing: 0.5px;
+  color: var(--sidebar-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
   margin-bottom: 8px;
   padding-left: 2px;
   display: flex;
@@ -117,52 +120,57 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
 .group-title::before {
   content: '';
   width: 3px;
-  height: 12px;
+  height: 10px;
   border-radius: 2px;
-  background: #1890ff;
+  background: var(--color-primary);
 }
 
 /* ===== 两列网格 ===== */
 .node-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 
-/* ===== 单个节点卡片（图标在上、名称在下） ===== */
+/* ===== 单个节点卡片 ===== */
 .node-item {
   padding: 10px 6px;
-  background: #fff;
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
+  background: var(--sidebar-card-bg);
+  border: 1px solid var(--sidebar-card-border);
+  border-radius: var(--radius-md);
   cursor: grab;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  transition: all 0.2s;
+  gap: 5px;
+  transition: all 0.15s ease;
   user-select: none;
   min-width: 0;
 }
 
 .node-item:hover {
-  border-color: #1890ff;
-  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
+  background: var(--sidebar-bg-hover);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary), var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .node-item:active {
   cursor: grabbing;
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .icon {
   font-size: 20px;
   line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2));
 }
 
 .label {
-  font-size: 12px;
-  color: #333;
+  font-size: 11px;
+  color: var(--sidebar-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -173,7 +181,7 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
   .sidebar {
     width: 200px;
     min-width: 180px;
-    padding: 12px;
+    padding: 12px 10px;
   }
   .title {
     font-size: 14px;
@@ -185,7 +193,7 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
     font-size: 18px;
   }
   .label {
-    font-size: 11px;
+    font-size: 10px;
   }
 }
 

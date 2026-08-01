@@ -55,11 +55,14 @@ defineExpose({
 
 <style scoped>
 .stacker-node {
-  min-width: 180px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 12px 16px;
-  background: #fff;
+  background: var(--panel-bg);
   border-radius: 8px;
-  border: 2px solid #1890ff;
+  border: 2px solid var(--color-primary);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   user-select: none;
 }
@@ -70,7 +73,7 @@ defineExpose({
   margin-bottom: 6px;
 }
 .stacker-icon { font-size: 20px; }
-.stacker-name { font-size: 14px; font-weight: 600; color: #333; }
+.stacker-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .stacker-body { font-size: 12px; }
 .stacker-status {
   display: flex;
@@ -92,23 +95,23 @@ defineExpose({
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
-.status-text { color: #666; }
+.status-text { color: var(--text-secondary); }
 .stacker-info {
   display: flex;
   gap: 12px;
-  color: #999;
+  color: var(--text-muted);
 }
-.stacker-moving .stacker-info { color: #1890ff; }
+.stacker-moving .stacker-info { color: var(--color-primary); }
 .stacker-progress {
   margin-top: 4px;
   height: 4px;
-  background: #f0f0f0;
+  background: var(--statusbar-bg);
   border-radius: 2px;
   overflow: hidden;
 }
 .progress-bar {
   height: 100%;
-  background: #1890ff;
+  background: var(--color-primary);
   border-radius: 2px;
   transition: width 0.3s;
 }

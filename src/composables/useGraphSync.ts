@@ -120,11 +120,11 @@ export function useGraphSync(options: GraphSyncOptions) {
 
     graph.on('cell:change', () => {
       if (isUpdatingFromStore || isSyncingPosition || isSyncingSize || isSyncSuppressed) return
+      // 缩放拖拽期间完全跳过同步，避免 store→canvas watcher 反向 setSize 打断拖拽
+      // 最终同步由 node:resized 统一处理
+      if (isResizing) return
       syncGraphToStore()
-      // 拖拽调整大小期间不逐步推历史，由 node:resized 统一推送
-      if (!isResizing) {
-        editorStore.pushHistory()
-      }
+      editorStore.pushHistory()
     })
 
     graph.on('cell:added', ({ cell }) => {

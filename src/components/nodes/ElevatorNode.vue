@@ -41,11 +41,14 @@ const { statusClass, statusText } = useNodeStatus(status)
 
 <style scoped>
 .elevator-node {
-  min-width: 100px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 12px 16px;
-  background: #fff;
+  background: var(--panel-bg);
   border-radius: 8px;
-  border: 2px solid #1890ff;
+  border: 2px solid var(--color-primary);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   user-select: none;
 }
@@ -53,10 +56,10 @@ const { statusClass, statusText } = useNodeStatus(status)
   height: 120px;
   width: 40px;
   margin: 0 auto;
-  background: #f0f0f0;
+  background: var(--statusbar-bg);
   border-radius: 4px;
   position: relative;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-color);
 }
 .elevator-car {
   position: absolute;
@@ -64,7 +67,7 @@ const { statusClass, statusText } = useNodeStatus(status)
   transform: translateX(-50%);
   width: 28px;
   height: 16px;
-  background: #1890ff;
+  background: var(--color-primary);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -84,21 +87,21 @@ const { statusClass, statusText } = useNodeStatus(status)
 }
 .level-marker {
   font-size: 8px;
-  color: #ccc;
-  background: #fff;
+  color: var(--text-muted);
+  background: var(--panel-bg);
   padding: 0 2px;
   border-radius: 2px;
 }
-.level-active { color: #1890ff; font-weight: 600; }
+.level-active { color: var(--color-primary); font-weight: 600; }
 .elevator-info {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
   margin-top: 8px;
 }
-.elevator-name { font-weight: 500; color: #333; }
+.elevator-name { font-weight: 500; color: var(--text-primary); }
 .elevator-status { padding: 0 8px; border-radius: 10px; font-size: 11px; }
-.status-idle { color: #999; }
+.status-idle { color: var(--text-muted); }
 .status-running { color: #52c41a; }
 .status-error { color: #ff4d4f; }
 </style>

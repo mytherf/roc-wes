@@ -42,9 +42,12 @@ const { statusClass, statusText } = useNodeStatus(status)
 
 <style scoped>
 .agv-node {
-  min-width: 140px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 8px 12px;
-  background: #fff;
+  background: var(--panel-bg);
   border-radius: 12px;
   border: 2px solid #722ed1;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -74,7 +77,7 @@ const { statusClass, statusText } = useNodeStatus(status)
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #f0f0f0;
+  background: var(--statusbar-bg);
   border-radius: 6px;
   position: relative;
 }
@@ -99,9 +102,9 @@ const { statusClass, statusText } = useNodeStatus(status)
   font-size: 12px;
   margin-top: 4px;
 }
-.agv-name { font-weight: 500; color: #333; }
+.agv-name { font-weight: 500; color: var(--text-primary); }
 .agv-status { padding: 0 8px; border-radius: 10px; font-size: 11px; }
-.status-idle { color: #999; }
+.status-idle { color: var(--text-muted); }
 .status-running { color: #52c41a; }
 .status-charging { color: #faad14; }
 .status-error { color: #ff4d4f; }

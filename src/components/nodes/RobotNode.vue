@@ -39,9 +39,12 @@ const { statusClass, statusText } = useNodeStatus(status)
 
 <style scoped>
 .robot-node {
-  min-width: 120px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 12px 16px;
-  background: #fff;
+  background: var(--panel-bg);
   border-radius: 8px;
   border: 2px solid #eb2f96;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -72,7 +75,7 @@ const { statusClass, statusText } = useNodeStatus(status)
 .arm-link {
   width: 4px;
   height: 30px;
-  background: #1890ff;
+  background: var(--color-primary);
   margin: 0 auto;
   border-radius: 2px;
 }
@@ -91,9 +94,9 @@ const { statusClass, statusText } = useNodeStatus(status)
   font-size: 12px;
   margin-top: 8px;
 }
-.robot-name { font-weight: 500; color: #333; }
+.robot-name { font-weight: 500; color: var(--text-primary); }
 .robot-status { padding: 0 8px; border-radius: 10px; font-size: 11px; }
-.status-idle { color: #999; }
+.status-idle { color: var(--text-muted); }
 .status-running { color: #eb2f96; }
 .status-error { color: #ff4d4f; }
 </style>

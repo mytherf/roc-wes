@@ -119,24 +119,30 @@
             </div>
           </template>
 
-          <!-- 位置 -->
-          <div class="field">
-            <label>X</label>
-            <input type="number" v-model.number="posX" @input="onPositionInput" />
-          </div>
-          <div class="field">
-            <label>Y</label>
-            <input type="number" v-model.number="posY" @input="onPositionInput" />
+          <!-- 位置（一行两列） -->
+          <div class="section-divider">位置</div>
+          <div class="field-row">
+            <div class="field">
+              <label>X</label>
+              <input type="number" v-model.number="posX" @input="onPositionInput" />
+            </div>
+            <div class="field">
+              <label>Y</label>
+              <input type="number" v-model.number="posY" @input="onPositionInput" />
+            </div>
           </div>
 
-          <!-- 尺寸 -->
-          <div class="field">
-            <label>宽度</label>
-            <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
-          </div>
-          <div class="field">
-            <label>高度</label>
-            <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
+          <!-- 尺寸（一行两列） -->
+          <div class="section-divider">大小</div>
+          <div class="field-row">
+            <div class="field">
+              <label>宽度</label>
+              <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
+            </div>
+            <div class="field">
+              <label>高度</label>
+              <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
+            </div>
           </div>
         </div>
 
@@ -295,7 +301,7 @@ const nodeCount = computed(() => editorStore.graphData.nodes.length)
 const edgeCount = computed(() => editorStore.graphData.edges.length)
 
 // 画布设置的本地状态（与 X6Canvas 的初始配置保持一致）
-const canvasBgColor = ref('#f5f5f5')
+const canvasBgColor = ref('#f8fafc')
 const canvasGridVisible = ref(true)
 const canvasGridSize = ref(10)
 const canvasGridType = ref<'dot' | 'mesh' | 'fixedDot' | 'doubleMesh'>('dot')
@@ -619,74 +625,89 @@ function stopPositionPolling() {
 <style scoped>
 /* ===================== 面板整体样式 ===================== */
 .property-panel {
-  width: 220px;
-  min-width: 180px;
+  width: 240px;
+  min-width: 200px;
   flex-shrink: 0;
   height: 100%;
-  background: #fafafa;
-  padding: 16px;
-  border-left: 1px solid #e8e8e8;
+  background: var(--panel-bg);
+  padding: 18px;
+  border-left: 1px solid var(--border-color);
   box-sizing: border-box;
   overflow-y: auto;
 }
 .property-panel h3 {
-  margin-top: 0;
-  font-size: 16px;
-  color: #333;
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 .empty {
-  color: #999;
+  color: var(--text-muted);
   text-align: center;
   margin-top: 40px;
+  font-size: 13px;
 }
 
 /* ===================== 字段样式 ===================== */
 .field {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+}
+.field-row {
+  display: flex;
+  gap: 10px;
+}
+.field-row .field {
+  flex: 1;
+  min-width: 0;
 }
 .field label {
   display: block;
-  font-size: 12px;
-  color: #666;
-  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 .field .hint {
   font-weight: normal;
-  color: #999;
+  color: var(--text-muted);
   font-size: 11px;
 }
 .field input,
 .field select {
   width: 100%;
-  padding: 4px 8px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 12px;
   box-sizing: border-box;
   min-width: 0;
-  background: #fff;
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .field input:focus,
 .field select:focus {
-  border-color: #1890ff;
+  border-color: var(--color-primary);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
 }
 .field input:disabled,
 .field select:disabled {
-  background: #f5f5f5;
-  color: #bbb;
+  background: var(--statusbar-bg);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
 /* ===================== 画布属性区块样式 ===================== */
 .section-divider {
-  margin: 16px 0 10px;
-  padding-top: 8px;
-  border-top: 1px solid #e8e8e8;
-  font-size: 13px;
+  margin: 18px 0 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+  font-size: 12px;
   font-weight: 600;
-  color: #555;
+  color: var(--text-secondary);
 }
 .field .color-input {
   padding: 2px;
@@ -699,55 +720,60 @@ function stopPositionPolling() {
   gap: 6px;
   cursor: pointer;
   margin-bottom: 0;
-  color: #333;
-  font-size: 13px;
+  color: var(--text-primary);
+  font-size: 12px;
 }
 .checkbox-field .checkbox-label input[type='checkbox'] {
   width: auto;
   margin: 0;
   cursor: pointer;
+  accent-color: var(--color-primary);
 }
 
 /* ===================== 标签页栏 ===================== */
 .panel-tabs {
   display: flex;
-  border-bottom: 1px solid #e8e8e8;
-  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 14px;
+  gap: 2px;
 }
 .panel-tab {
   flex: 1;
   text-align: center;
   padding: 8px 4px;
-  font-size: 13px;
-  color: #666;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
   border-bottom: 2px solid transparent;
-  transition: color 0.2s, border-color 0.2s;
+  transition: color 0.15s, border-color 0.15s;
   white-space: nowrap;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 .panel-tab:hover {
-  color: #1890ff;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 .panel-tab.active {
-  color: #1890ff;
+  color: var(--color-primary);
   font-weight: 600;
-  border-bottom-color: #1890ff;
+  border-bottom-color: var(--color-primary);
 }
 
 /* ===================== 事件规则 ===================== */
 .empty-hint {
-  color: #999;
+  color: var(--text-muted);
   font-size: 12px;
   text-align: center;
   padding: 16px 0;
 }
 .event-rule {
-  border: 1px solid #e8e8e8;
-  border-radius: 6px;
-  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 12px;
   margin-bottom: 12px;
-  background: #fff;
+  background: var(--statusbar-bg);
 }
 .rule-header {
   display: flex;
@@ -760,25 +786,28 @@ function stopPositionPolling() {
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  font-size: 13px;
-  color: #333;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 .rule-header .checkbox-label input[type='checkbox'] {
   width: auto;
   margin: 0;
   cursor: pointer;
+  accent-color: var(--color-primary);
 }
 .rule-remove {
   border: none;
   background: none;
-  color: #ff4d4f;
-  font-size: 12px;
+  color: var(--color-danger);
+  font-size: 11px;
   cursor: pointer;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
 }
 .rule-remove:hover {
-  background: #fff1f0;
+  background: rgba(239, 68, 68, 0.08);
 }
 .event-rule .field {
   margin-bottom: 8px;
@@ -786,59 +815,61 @@ function stopPositionPolling() {
 .add-event-btn {
   width: 100%;
   padding: 8px;
-  border: 1px dashed #1890ff;
-  border-radius: 6px;
-  background: #fff;
-  color: #1890ff;
-  font-size: 13px;
+  border: 1px dashed var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--panel-bg);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.15s;
 }
 .add-event-btn:hover {
-  background: #e6f7ff;
+  background: var(--color-primary-light);
 }
 .binding-status {
   margin-top: 8px;
-  font-size: 13px;
+  font-size: 12px;
 }
 .status-active {
-  color: #52c41a;
+  color: var(--color-success);
 }
 .status-inactive {
-  color: #999;
+  color: var(--text-muted);
 }
-/* 数据源信息展示（选中数据源后显示地址与备注） */
+/* 数据源信息展示 */
 .source-info {
   margin: -4px 0 12px;
-  padding: 6px 8px;
-  background: #f0f7ff;
-  border: 1px solid #d6e8fa;
-  border-radius: 4px;
+  padding: 8px 10px;
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-primary-ring);
+  border-radius: var(--radius-md);
 }
 .source-url {
-  font-size: 12px;
-  color: #1890ff;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-primary);
   word-break: break-all;
 }
 .source-desc {
-  margin-top: 2px;
-  font-size: 12px;
-  color: #999;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 /* ===================== 响应式适配 ===================== */
 @media (max-width: 768px) {
   .property-panel {
-    width: 180px;
+    width: 200px;
     padding: 12px;
   }
   .field label {
-    font-size: 11px;
+    font-size: 10px;
   }
   .field input,
   .field select {
-    font-size: 12px;
-    padding: 3px 6px;
+    font-size: 11px;
+    padding: 4px 8px;
   }
 }
 @media (max-width: 480px) {
@@ -846,14 +877,13 @@ function stopPositionPolling() {
     position: fixed;
     right: 0;
     top: 0;
-    width: 200px;
+    width: 220px;
     height: 100%;
     z-index: 100;
-    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-lg);
     transform: translateX(100%);
     transition: transform 0.3s ease;
     border-left: none;
-    border-radius: 0;
   }
   .property-panel:hover {
     transform: translateX(0);

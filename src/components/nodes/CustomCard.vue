@@ -63,11 +63,14 @@ const minimalStatus = computed(() => {
 <style scoped>
 /* 卡片样式 —— 模拟 SCADA 工业卡片 */
 .custom-card {
-  width: 150px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 10px 12px;
-  background: #ffffff;
+  background: var(--panel-bg);
   border-radius: 8px;
-  border: 2px solid #d9d9d9;
+  border: 2px solid var(--border-color);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   font-family: 'Segoe UI', sans-serif;
   transition: all 0.2s;
@@ -102,7 +105,7 @@ const minimalStatus = computed(() => {
 
 .card-body {
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 8px;
   min-height: 18px;
 }

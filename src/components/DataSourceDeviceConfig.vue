@@ -75,9 +75,9 @@ const isOpc = computed(() => props.form.type === 'opc')
   flex-direction: column;
   gap: 12px;
   padding: 12px;
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
-  border-radius: 6px;
+  background: var(--statusbar-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
 }
 .ds-field {
   display: flex;
@@ -89,22 +89,24 @@ const isOpc = computed(() => props.form.type === 'opc')
 }
 .ds-label {
   font-size: 13px;
-  color: #333;
+  color: var(--text-primary);
 }
 .ds-label .required {
-  color: #ff4d4f;
+  color: var(--color-danger);
 }
 .ds-input {
   padding: 6px 10px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   font-size: 13px;
   outline: none;
+  background: var(--panel-bg);
+  color: var(--text-primary);
   transition: border-color 0.2s;
 }
 .ds-input:focus {
-  border-color: #1890ff;
-  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-ring);
 }
 .ds-input.num {
   width: 100%;

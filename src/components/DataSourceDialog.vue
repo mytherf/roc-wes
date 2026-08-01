@@ -549,9 +549,9 @@ function handleClose() {
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.2);
+  background: var(--panel-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
 }
 .ds-header {
@@ -559,24 +559,25 @@ function handleClose() {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--border-color);
 }
 .ds-title {
   font-size: 15px;
   font-weight: 600;
+  color: var(--text-primary);
 }
 .ds-close {
   border: none;
   background: transparent;
   cursor: pointer;
   font-size: 14px;
-  color: #999;
+  color: var(--text-muted);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .ds-close:hover {
-  color: #333;
-  background: #f0f0f0;
+  color: var(--text-primary);
+  background: var(--statusbar-bg);
 }
 .ds-body {
   flex: 1;
@@ -591,7 +592,7 @@ function handleClose() {
 }
 .ds-count {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
 }
 .ds-toolbar-actions {
   display: flex;
@@ -600,7 +601,7 @@ function handleClose() {
 .ds-empty {
   padding: 32px 0;
   text-align: center;
-  color: #999;
+  color: var(--text-muted);
   font-size: 13px;
 }
 .ds-list {
@@ -614,12 +615,12 @@ function handleClose() {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid #e8e8e8;
-  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   transition: border-color 0.2s;
 }
 .ds-item:hover {
-  border-color: #1890ff;
+  border-color: var(--color-primary);
 }
 .ds-item-main {
   flex: 1;
@@ -628,6 +629,7 @@ function handleClose() {
 .ds-item-name {
   font-size: 14px;
   font-weight: 500;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -635,9 +637,9 @@ function handleClose() {
 .ds-type-tag {
   font-size: 11px;
   font-weight: 400;
-  color: #1890ff;
-  background: #e6f7ff;
-  border: 1px solid #91d5ff;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-primary-ring);
   border-radius: 3px;
   padding: 0 5px;
   line-height: 16px;
@@ -645,7 +647,7 @@ function handleClose() {
 .ds-item-url {
   margin-top: 3px;
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -653,7 +655,7 @@ function handleClose() {
 .ds-item-desc {
   margin-top: 2px;
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
 }
 .ds-item-actions {
   display: flex;
@@ -662,25 +664,26 @@ function handleClose() {
 }
 .ds-btn {
   padding: 4px 14px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--panel-bg);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 13px;
   transition: all 0.2s;
 }
 .ds-btn:hover {
-  border-color: #1890ff;
-  color: #1890ff;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 .ds-btn.primary {
-  background: #1890ff;
+  background: var(--color-primary);
   color: #fff;
-  border-color: #1890ff;
+  border-color: var(--color-primary);
 }
 .ds-btn.primary:hover {
-  background: #40a9ff;
-  border-color: #40a9ff;
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
   color: #fff;
 }
 .ds-btn.small {
@@ -688,8 +691,8 @@ function handleClose() {
   font-size: 12px;
 }
 .ds-btn.danger:hover {
-  border-color: #ff4d4f;
-  color: #ff4d4f;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 .ds-form {
   display: flex;
@@ -703,25 +706,27 @@ function handleClose() {
 }
 .ds-label {
   font-size: 13px;
-  color: #333;
+  color: var(--text-primary);
 }
 .ds-label .required {
-  color: #ff4d4f;
+  color: var(--color-danger);
 }
 .ds-input {
   padding: 6px 10px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   font-size: 13px;
   outline: none;
+  background: var(--panel-bg);
+  color: var(--text-primary);
   transition: border-color 0.2s;
 }
 .ds-input:focus {
-  border-color: #1890ff;
-  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-ring);
 }
 .ds-error {
-  color: #ff4d4f;
+  color: var(--color-danger);
   font-size: 13px;
 }
 .ds-footer {
@@ -729,7 +734,7 @@ function handleClose() {
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 16px;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--border-color);
 }
 /* 工业协议设备参数区块（S7 / OPC UA / Modbus） */
 .ds-proto-cfg {
@@ -737,9 +742,9 @@ function handleClose() {
   flex-direction: column;
   gap: 12px;
   padding: 12px;
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
-  border-radius: 6px;
+  background: var(--statusbar-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
 }
 .ds-radio-row {
   display: flex;
@@ -751,13 +756,13 @@ function handleClose() {
   align-items: center;
   gap: 5px;
   font-size: 13px;
-  color: #333;
+  color: var(--text-primary);
   cursor: pointer;
 }
 .ds-cfg-hint {
   margin-top: 4px;
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 .ds-field-row {
@@ -782,23 +787,23 @@ function handleClose() {
 .ds-row .ds-item {
   cursor: pointer;
 }
-/* 状态徽标圆点 */
+/* 状态徽标圆点（语义色，不随主题变化） */
 .ds-status-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: #bfbfbf; /* idle 灰 */
+  background: #bfbfbf;
 }
 .ds-status-dot.st-connecting {
-  background: #faad14; /* 连接中 黄 */
+  background: #faad14;
   animation: ds-pulse 1s ease-in-out infinite;
 }
 .ds-status-dot.st-online {
-  background: #52c41a; /* 在线 绿 */
+  background: #52c41a;
 }
 .ds-status-dot.st-offline {
-  background: #ff4d4f; /* 离线 红 */
+  background: #ff4d4f;
 }
 @keyframes ds-pulse {
   0%, 100% { opacity: 1; }
@@ -806,23 +811,23 @@ function handleClose() {
 }
 /* 监控中的按钮高亮 */
 .ds-btn.active {
-  border-color: #52c41a;
-  color: #52c41a;
+  border-color: var(--color-success);
+  color: var(--color-success);
 }
 /* 状态文字配色 */
 .st-text-online { color: #52c41a; }
 .st-text-offline { color: #ff4d4f; }
 .st-text-connecting { color: #faad14; }
-.st-text-idle { color: #999; }
+.st-text-idle { color: var(--text-muted); }
 
 /* 展开的监控详情面板 */
 .ds-monitor-detail {
   margin: -4px 0 8px;
   padding: 12px 14px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-color);
   border-top: none;
-  border-radius: 0 0 6px 6px;
-  background: #fafafa;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--statusbar-bg);
   cursor: default;
 }
 .ds-mon-grid {
@@ -842,69 +847,69 @@ function handleClose() {
 }
 .ds-mon-k {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
 }
 .ds-mon-v {
   font-size: 13px;
-  color: #333;
+  color: var(--text-primary);
   font-weight: 500;
 }
 .ds-mon-devmsg {
   margin-bottom: 8px;
   padding: 6px 10px;
   font-size: 12px;
-  color: #666;
-  background: #fff;
-  border: 1px solid #f0f0f0;
-  border-radius: 4px;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
 }
 .ds-mon-demo-note {
   margin-bottom: 8px;
   padding: 5px 10px;
   font-size: 12px;
-  color: #1890ff;
-  background: #e6f7ff;
-  border: 1px solid #91d5ff;
-  border-radius: 4px;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-primary-ring);
+  border-radius: var(--radius-sm);
 }
 .ds-mon-title {
   margin: 10px 0 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #555;
+  color: var(--text-secondary);
 }
 .ds-mon-empty {
   padding: 8px 0;
   font-size: 12px;
-  color: #bbb;
+  color: var(--text-muted);
 }
 .ds-mon-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
-  background: #fff;
-  border: 1px solid #f0f0f0;
-  border-radius: 4px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 .ds-mon-table th,
 .ds-mon-table td {
   padding: 5px 8px;
   text-align: left;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--border-light);
 }
 .ds-mon-table th {
-  background: #fafafa;
-  color: #888;
+  background: var(--statusbar-bg);
+  color: var(--text-muted);
   font-weight: 500;
 }
 .ds-mon-table tr:last-child td {
   border-bottom: none;
 }
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--font-mono);
 }
-/* 质量码徽标 */
+/* 质量码徽标（语义色） */
 .ds-q {
   display: inline-block;
   padding: 0 6px;
@@ -914,18 +919,18 @@ function handleClose() {
 }
 .ds-q.q-good {
   color: #52c41a;
-  background: #f6ffed;
-  border: 1px solid #b7eb8f;
+  background: rgba(82, 196, 26, 0.08);
+  border: 1px solid rgba(82, 196, 26, 0.3);
 }
 .ds-q.q-bad {
   color: #ff4d4f;
-  background: #fff2f0;
-  border: 1px solid #ffccc7;
+  background: rgba(255, 77, 79, 0.08);
+  border: 1px solid rgba(255, 77, 79, 0.3);
 }
 .ds-q.q-uncertain {
   color: #faad14;
-  background: #fffbe6;
-  border: 1px solid #ffe58f;
+  background: rgba(250, 173, 20, 0.08);
+  border: 1px solid rgba(250, 173, 20, 0.3);
 }
 /* 错误告警列表 */
 .ds-mon-errors {
@@ -934,16 +939,16 @@ function handleClose() {
   list-style: none;
   max-height: 120px;
   overflow-y: auto;
-  background: #fff;
-  border: 1px solid #f0f0f0;
-  border-radius: 4px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
 }
 .ds-mon-errors li {
   padding: 4px 8px;
   font-size: 12px;
-  color: #cf1322;
-  border-bottom: 1px solid #f5f5f5;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: var(--color-danger);
+  border-bottom: 1px solid var(--border-light);
+  font-family: var(--font-mono);
 }
 .ds-mon-errors li:last-child {
   border-bottom: none;

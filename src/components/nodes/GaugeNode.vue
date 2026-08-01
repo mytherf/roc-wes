@@ -135,9 +135,13 @@ function setupDataWatcher() {
       if (newData.value !== undefined) {
         updateValue(newData.value)
       }
-      // 如果尺寸变化，重新适配
       chart?.resize()
     }
+  })
+
+  // 监听节点尺寸变化（缩放拖拽），同步 ECharts 画布大小
+  props.node.on('change:size', () => {
+    nextTick(() => chart?.resize())
   })
 }
 
@@ -171,29 +175,34 @@ defineExpose({ updateValue })
 
 <style scoped>
 .gauge-node {
-  width: 200px;
-  height: 180px;
-  background: #fff;
+  width: 100%;
+  height: 100%;
+  background: var(--panel-bg);
   border-radius: 8px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-color);
   padding: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   user-select: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .gauge-title {
   text-align: center;
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
   font-weight: 500;
+  flex-shrink: 0;
 }
 .gauge-chart {
   width: 100%;
-  height: 120px;
+  flex: 1;
+  min-height: 0;
 }
 .gauge-value {
   text-align: center;
   font-size: 13px;
-  color: #333;
-  margin-top: -10px;
+  color: var(--text-primary);
+  flex-shrink: 0;
 }
 </style>

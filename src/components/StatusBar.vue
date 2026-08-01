@@ -55,25 +55,28 @@ onBeforeUnmount(() => {
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 6px 20px;
-  background: #f5f5f5;
-  border-top: 1px solid #e8e8e8;
-  font-size: 13px;
-  color: #333;
+  gap: 16px;
+  padding: 0 16px;
+  background: var(--statusbar-bg);
+  border-top: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-secondary);
   flex-shrink: 0;
-  height: 36px;
+  height: 32px;
   user-select: none;
 }
 .status-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 .status-icon {
-  font-size: 16px;
+  font-size: 14px;
 }
 .status-text {
   font-weight: 500;
+  color: var(--text-primary);
 }
 </style>

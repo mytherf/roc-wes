@@ -50,9 +50,12 @@ const { statusClass, statusText } = useNodeStatus(status)
 
 <style scoped>
 .sorter-node {
-  min-width: 220px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 12px 16px;
-  background: #fff;
+  background: var(--panel-bg);
   border-radius: 8px;
   border: 2px solid #faad14;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -65,7 +68,7 @@ const { statusClass, statusText } = useNodeStatus(status)
   margin-bottom: 8px;
 }
 .sorter-icon { font-size: 20px; }
-.sorter-name { font-size: 14px; font-weight: 600; color: #333; }
+.sorter-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .sorter-chutes {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -75,14 +78,14 @@ const { statusClass, statusText } = useNodeStatus(status)
 .sorter-chute {
   text-align: center;
   padding: 4px;
-  background: #fafafa;
+  background: var(--statusbar-bg);
   border-radius: 4px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--border-light);
   transition: all 0.3s;
 }
-.chute-active { border-color: #1890ff; background: #e6f7ff; }
-.chute-label { font-size: 11px; color: #666; display: block; }
-.chute-count { font-size: 14px; font-weight: 600; color: #333; }
+.chute-active { border-color: var(--color-primary); background: #e6f7ff; }
+.chute-label { font-size: 11px; color: var(--text-secondary); display: block; }
+.chute-count { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .sorter-status {
   display: flex;
   align-items: center;
@@ -98,5 +101,5 @@ const { statusClass, statusText } = useNodeStatus(status)
 .status-idle { background: #d9d9d9; }
 .status-running { background: #52c41a; animation: pulse 1s infinite; }
 .status-error { background: #ff4d4f; animation: pulse 0.5s infinite; }
-.sorter-speed { margin-left: auto; color: #999; }
+.sorter-speed { margin-left: auto; color: var(--text-muted); }
 </style>

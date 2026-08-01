@@ -35,6 +35,10 @@ import PropertyPanel from '@/components/PropertyPanel.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import NodeDetailDialog from '@/components/NodeDetailDialog.vue'
+import { useThemeStore } from '@/stores/theme'
+
+// 初始化主题（读取 localStorage 并设置 data-theme 属性）
+useThemeStore()
 
 const canvasRef = ref<InstanceType<typeof X6Canvas>>()
 const graphInstance = ref(null)
@@ -59,6 +63,152 @@ const onNodeDblClick = (payload: { nodeId: string; shape: string }) => {
 </script>
 
 <style>
+/* ═══════════════════════════════════════════════
+   主题 1：暗色工业（默认）
+   深色侧边栏 + 亮色工作区，沉稳专业
+   ═══════════════════════════════════════════════ */
+:root,
+[data-theme='industrial'] {
+  --color-primary: #2563eb;
+  --color-primary-hover: #3b82f6;
+  --color-primary-light: rgba(37, 99, 235, 0.08);
+  --color-primary-ring: rgba(37, 99, 235, 0.15);
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  --sidebar-bg: #1e293b;
+  --sidebar-bg-hover: #334155;
+  --sidebar-text: #e2e8f0;
+  --sidebar-text-muted: #94a3b8;
+  --sidebar-border: #334155;
+  --sidebar-card-bg: #273548;
+  --sidebar-card-border: #3b4f66;
+
+  --canvas-bg: #f8fafc;
+  --canvas-grid: #e2e8f0;
+  --panel-bg: #ffffff;
+  --toolbar-bg: #ffffff;
+  --statusbar-bg: #f1f5f9;
+
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --font-sans: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+}
+
+/* ═══════════════════════════════════════════════
+   主题 2：亮色现代
+   全亮色设计，清爽通透，适合日间办公
+   ═══════════════════════════════════════════════ */
+[data-theme='light'] {
+  --color-primary: #0ea5e9;
+  --color-primary-hover: #38bdf8;
+  --color-primary-light: rgba(14, 165, 233, 0.06);
+  --color-primary-ring: rgba(14, 165, 233, 0.15);
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  --sidebar-bg: #f8fafc;
+  --sidebar-bg-hover: #f1f5f9;
+  --sidebar-text: #334155;
+  --sidebar-text-muted: #94a3b8;
+  --sidebar-border: #e2e8f0;
+  --sidebar-card-bg: #ffffff;
+  --sidebar-card-border: #e2e8f0;
+
+  --canvas-bg: #ffffff;
+  --canvas-grid: #f1f5f9;
+  --panel-bg: #ffffff;
+  --toolbar-bg: #ffffff;
+  --statusbar-bg: #f8fafc;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 20px -4px rgba(0, 0, 0, 0.08);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --scrollbar-thumb: #e2e8f0;
+  --scrollbar-thumb-hover: #cbd5e1;
+}
+
+/* ═══════════════════════════════════════════════
+   主题 3：深蓝科技
+   深蓝底色 + 青蓝高亮，沉浸式科技监控风
+   ═══════════════════════════════════════════════ */
+[data-theme='ocean'] {
+  --color-primary: #06b6d4;
+  --color-primary-hover: #22d3ee;
+  --color-primary-light: rgba(6, 182, 212, 0.1);
+  --color-primary-ring: rgba(6, 182, 212, 0.2);
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+
+  --sidebar-bg: #0c1929;
+  --sidebar-bg-hover: #162a42;
+  --sidebar-text: #cbd5e1;
+  --sidebar-text-muted: #64748b;
+  --sidebar-border: #1e3a5f;
+  --sidebar-card-bg: #12263e;
+  --sidebar-card-border: #1e3a5f;
+
+  --canvas-bg: #0f1f33;
+  --canvas-grid: #1e3a5f;
+  --panel-bg: #132a44;
+  --toolbar-bg: #0f2137;
+  --statusbar-bg: #0c1929;
+
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --border-color: #1e3a5f;
+  --border-light: #162a42;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.4);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --scrollbar-thumb: #1e3a5f;
+  --scrollbar-thumb-hover: #2d5a8a;
+}
+
+/* ═══════════════════════════════════════════════
+   全局基础样式
+   ═══════════════════════════════════════════════ */
+* {
+  box-sizing: border-box;
+}
+
 html,
 body,
 #app {
@@ -67,13 +217,25 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 主题切换过渡（仅颜色属性） */
+.app-container,
+.editor-toolbar,
+.sidebar,
+.property-panel,
+.status-bar {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
 }
 
 .app-container {
   display: flex;
   width: 100vw;
   height: 100vh;
+  background: var(--canvas-bg);
 }
 
 .right-area {
@@ -96,5 +258,22 @@ body,
   min-width: 0;
   height: 100%;
   overflow: hidden;
+  background: var(--canvas-bg);
+}
+
+/* 全局滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
 </style>

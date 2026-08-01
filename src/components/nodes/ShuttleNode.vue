@@ -41,9 +41,12 @@ const positionPercent = computed(() => Math.min(100, Math.max(0, position.value)
 
 <style scoped>
 .shuttle-node {
-  min-width: 180px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 10px 14px;
-  background: #fff;
+  background: var(--panel-bg);
   border-radius: 8px;
   border: 2px solid #13c2c2;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -52,10 +55,10 @@ const positionPercent = computed(() => Math.min(100, Math.max(0, position.value)
 .shuttle-body { padding: 8px 0; }
 .shuttle-track {
   height: 30px;
-  background: #f0f0f0;
+  background: var(--statusbar-bg);
   border-radius: 15px;
   position: relative;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-color);
 }
 .shuttle-car {
   position: absolute;
@@ -70,9 +73,9 @@ const positionPercent = computed(() => Math.min(100, Math.max(0, position.value)
   font-size: 12px;
   margin-top: 4px;
 }
-.shuttle-name { font-weight: 500; color: #333; }
+.shuttle-name { font-weight: 500; color: var(--text-primary); }
 .shuttle-status { padding: 0 8px; border-radius: 10px; font-size: 11px; }
-.status-idle { color: #999; }
+.status-idle { color: var(--text-muted); }
 .status-running { color: #13c2c2; }
 .status-error { color: #ff4d4f; }
 </style>

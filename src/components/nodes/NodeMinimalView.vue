@@ -41,12 +41,16 @@ const statusTitle = computed(() => STATUS_TITLES[props.status || ''] || props.st
 
 <style scoped>
 .node-minimal {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: #fff;
-  border: 1.5px solid #d9d9d9;
+  background: var(--panel-bg);
+  border: 1.5px solid var(--border-color);
   border-radius: 6px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   user-select: none;
@@ -60,8 +64,9 @@ const statusTitle = computed(() => STATUS_TITLES[props.status || ''] || props.st
 .minimal-name {
   font-size: 12px;
   font-weight: 500;
-  color: #333;
-  max-width: 90px;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }

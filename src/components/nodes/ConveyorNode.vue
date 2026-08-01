@@ -44,11 +44,14 @@ const directionClass = computed(() => ({
 
 <style scoped>
 .conveyor-node {
-  min-width: 200px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 8px 12px;
-  background: #fafafa;
+  background: var(--statusbar-bg);
   border-radius: 6px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-color);
   user-select: none;
 }
 .conveyor-track {
@@ -71,7 +74,7 @@ const directionClass = computed(() => ({
   border-radius: 3px;
 }
 .belt-running .belt-segment {
-  background: #1890ff;
+  background: var(--color-primary);
   animation: beltMove 0.5s linear infinite;
 }
 .conveyor-left .belt-running .belt-segment { animation-direction: reverse; }
@@ -86,9 +89,9 @@ const directionClass = computed(() => ({
   font-size: 12px;
   margin-top: 4px;
 }
-.conveyor-name { font-weight: 500; color: #333; }
+.conveyor-name { font-weight: 500; color: var(--text-primary); }
 .conveyor-status { padding: 0 8px; border-radius: 10px; }
-.status-idle { color: #999; }
+.status-idle { color: var(--text-muted); }
 .status-running { color: #52c41a; }
 .status-error { color: #ff4d4f; }
 </style>

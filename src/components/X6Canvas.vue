@@ -37,6 +37,9 @@ const dndRef = ref<Dnd | null>(null)
 // ResizeObserver 实例（用于画布自适应）
 let resizeObserver: ResizeObserver | null = null
 
+// MutationObserver 实例（监听主题切换）
+let themeObserver: MutationObserver | null = null
+
 // 节点动画服务
 let animationService: AnimationService | null = null
 
@@ -45,6 +48,19 @@ const editorStore = useEditorStore()
 
 // 数据服务管理（数据源创建、缓存、节点订阅绑定与清理）
 const dataService = useDataService()
+
+/** 读取当前主题的 CSS 变量值 */
+function getCssVar(name: string, fallback: string): string {
+  const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return val || fallback
+}
+
+/** 主题切换时同步更新画布背景与网格颜色 */
+function applyThemeToCanvas() {
+  if (!graph) return
+  graph.drawBackground({ color: getCssVar('--canvas-bg', '#f8fafc') })
+  graph.drawGrid({ type: 'dot', args: { color: getCssVar('--canvas-grid', '#e2e8f0'), thickness: 1 } })
+}
 
 // 画布 ↔ Store 双向同步（防循环标志、事件监听、watcher）
 const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, syncGraphToStore, setSyncSuppressed} = useGraphSync({
@@ -128,8 +144,12 @@ onMounted(() => {
   graph = new Graph({
     container: containerRef.value,
     autoResize: true,
-    grid: true,
-    background: {color: '#f5f5f5'},
+    grid: {
+      visible: true,
+      type: 'dot',
+      args: { color: getCssVar('--canvas-grid', '#e2e8f0'), thickness: 1 },
+    },
+    background: { color: getCssVar('--canvas-bg', '#f8fafc') },
     panning: {
       enabled: true,
       eventTypes: ['rightMouseDown'],
@@ -214,8 +234,10 @@ onMounted(() => {
           enabled: true,
           minWidth: 40,
           minHeight: 40,
+          maxWidth: 2000,
+          maxHeight: 2000,
           orthogonal: true,
-          allowReverse: true,
+          allowReverse: false,
           preserveAspectRatio: false,
         },
       })
@@ -340,6 +362,18 @@ onMounted(() => {
     dnd: dnd as Dnd,
   })
 
+  // 监听主题切换（data-theme 属性变化），同步更新画布背景与网格
+  themeObserver = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.attributeName === 'data-theme') {
+        // 等待 CSS 变量生效后再读取
+        requestAnimationFrame(applyThemeToCanvas)
+        break
+      }
+    }
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+
   // 监听容器尺寸变化，自适应画布
   resizeObserver = new ResizeObserver((entries) => {
     if (!graph) return
@@ -439,6 +473,9 @@ onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
 
+  themeObserver?.disconnect()
+  themeObserver = null
+
   dataService.dispose()
 
   animationService?.dispose()
@@ -468,20 +505,20 @@ onBeforeUnmount(() => {
 }
 
 #x6-container :deep(::-webkit-scrollbar-track) {
-  background: #f0f0f0;
+  background: var(--border-light);
   border-radius: 4px;
 }
 
 #x6-container :deep(::-webkit-scrollbar-thumb) {
-  background: #c1c1c1;
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 #x6-container :deep(::-webkit-scrollbar-thumb:hover) {
-  background: #a8a8a8;
+  background: var(--scrollbar-thumb-hover);
 }
 
 #x6-container :deep(::-webkit-scrollbar-corner) {
-  background: #f0f0f0;
+  background: var(--border-light);
 }
 </style>

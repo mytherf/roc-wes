@@ -35,11 +35,13 @@ defineExpose({ setStatus: (s: string) => { status.value = s } })
 
 <style scoped>
 .indicator-node {
-  width: 120px;
-  height: 70px;
-  background: #fff;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--panel-bg);
   border-radius: 8px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-color);
   padding: 10px 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   display: flex;
@@ -49,7 +51,7 @@ defineExpose({ setStatus: (s: string) => { status.value = s } })
 }
 .indicator-label {
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 6px;
 }
 .indicator-body {
@@ -83,7 +85,7 @@ defineExpose({ setStatus: (s: string) => { status.value = s } })
 }
 .indicator-status {
   font-size: 13px;
-  color: #333;
+  color: var(--text-primary);
 }
 @keyframes blink {
   0%, 100% { opacity: 1; }
