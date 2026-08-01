@@ -3,10 +3,47 @@
   <div id="x6-container" ref="containerRef"></div>
   <!-- 【关键】TeleportContainer 必须放在画布容器同级，Vue 节点才能正确渲染 -->
   <TeleportContainer/>
+
+  <!-- 节点右键菜单：单独切换显示模式 -->
+  <Teleport to="body">
+    <div
+      v-if="ctxMenu.visible"
+      class="node-ctx-menu"
+      :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+      @click.stop
+    >
+      <div class="ctx-menu-title">显示模式</div>
+      <div
+        class="ctx-menu-item"
+        :class="{ active: ctxMenu.currentMode === 'icon' }"
+        @click="setNodeDisplayMode('icon')"
+      >
+        <span class="ctx-icon">🖼️</span> 图标模式
+        <span v-if="ctxMenu.currentMode === 'icon'" class="ctx-check">✓</span>
+      </div>
+      <div
+        class="ctx-menu-item"
+        :class="{ active: ctxMenu.currentMode === 'full' }"
+        @click="setNodeDisplayMode('full')"
+      >
+        <span class="ctx-icon">🔲</span> 极简模式
+        <span v-if="ctxMenu.currentMode === 'full'" class="ctx-check">✓</span>
+      </div>
+      <div class="ctx-menu-divider"></div>
+      <div
+        class="ctx-menu-item"
+        :class="{ active: ctxMenu.currentMode === undefined }"
+        @click="setNodeDisplayMode(undefined)"
+      >
+        <span class="ctx-icon">🌐</span> 跟随全局
+        <span v-if="ctxMenu.currentMode === undefined" class="ctx-check">✓</span>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import {onBeforeUnmount, onMounted, ref, watch, nextTick} from 'vue'
+import {onBeforeUnmount, onMounted, ref, reactive, watch, nextTick} from 'vue'
 import {Clipboard, Dnd, Graph, Keyboard, Selection, Transform} from '@antv/x6'
 import {getTeleport} from '@antv/x6-vue-shape';
 import type {GraphData} from '@/stores/editor'
@@ -43,6 +80,64 @@ let themeObserver: MutationObserver | null = null
 // 节点动画服务
 let animationService: AnimationService | null = null
 
+// ===================== 2.5 节点右键菜单状态 =====================
+const ctxMenu = reactive({
+  visible: false,
+  x: 0,
+  y: 0,
+  nodeId: '' as string,
+  currentMode: undefined as string | undefined,
+})
+
+function hideCtxMenu() {
+  ctxMenu.visible = false
+}
+
+/** 设置单个节点的显示模式覆盖，并调整尺寸 */
+function setNodeDisplayMode(mode: 'icon' | 'full' | undefined) {
+  if (!graph || !ctxMenu.nodeId) return
+  const node = graph.getCellById(ctxMenu.nodeId)
+  if (!node || !node.isNode()) return
+
+  // 构造新 data：mode 为 undefined 时设为 null（X6 浅合并不会删除 key，必须用显式值覆盖）
+  const data = { ...(node.getData() || {}) }
+  data.displayMode = mode ?? null
+
+  // 抑制 cell:change 自动同步，避免重复 pushHistory
+  setSyncSuppressed(true)
+  node.setData(data, { deep: false })
+
+  // 计算有效模式（节点覆盖 ?? 全局）
+  const effectiveMode = mode ?? editorStore.displayMode
+
+  if (isMinimalShape(node)) {
+    if (effectiveMode === 'icon') {
+      // 切到图标模式：保存原始尺寸（如果还没保存）并压缩
+      if (!originalSizes.has(node.id)) {
+        originalSizes.set(node.id, { ...node.getSize() })
+      }
+      node.setSize(ICON_MODE_SIZE)
+    } else {
+      // 切到完整模式：恢复原始尺寸
+      const original = originalSizes.get(node.id)
+      if (original) {
+        node.setSize(original)
+        originalSizes.delete(node.id)
+      }
+    }
+  }
+
+  syncGraphToStore()
+  editorStore.pushHistory()
+  nextTick(() => setSyncSuppressed(false))
+  hideCtxMenu()
+}
+
+// 点击任意位置关闭右键菜单
+function onDocClick() {
+  hideCtxMenu()
+}
+
 // ===================== 3. 使用 Store 与 Composables =====================
 const editorStore = useEditorStore()
 
@@ -73,8 +168,9 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, s
       dataService.bindNodeData(cell)
     }
     applyNodeAnimation(cell)
-    // 图标模式下新增的节点也需压缩尺寸
-    if (editorStore.displayMode === 'icon' && cell.isNode() && isMinimalShape(cell)) {
+    // 图标模式下新增的节点也需压缩尺寸（全局或节点级覆盖）
+    const effectiveMode = data?.displayMode ?? editorStore.displayMode
+    if (effectiveMode === 'icon' && cell.isNode() && isMinimalShape(cell)) {
       originalSizes.set(cell.id, { ...cell.getSize() })
       cell.setSize(ICON_MODE_SIZE)
     }
@@ -347,6 +443,23 @@ onMounted(() => {
     emit('node-dblclick', {nodeId: node.id, shape: node.shape})
   })
 
+  // 右键节点：弹出显示模式切换菜单
+  graph.on('node:contextmenu', ({e, node}) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const nodeData = node.getData() || {}
+    ctxMenu.nodeId = node.id
+    ctxMenu.currentMode = nodeData.displayMode ?? undefined // null → undefined（跟随全局）
+    ctxMenu.x = e.clientX
+    ctxMenu.y = e.clientY
+    ctxMenu.visible = true
+  })
+
+  // 点击画布空白处关闭右键菜单
+  graph.on('blank:click', () => {
+    hideCtxMenu()
+  })
+
   graph.on('edge:connected', ({edge}) => {
     console.log(
         '连线完成:',
@@ -388,6 +501,9 @@ onMounted(() => {
     }
   })
   resizeObserver.observe(containerRef.value)
+
+  // 全局点击关闭右键菜单
+  document.addEventListener('click', onDocClick)
 });
 
 // ===================== 6. 辅助函数 =====================
@@ -397,25 +513,40 @@ function isMinimalShape(node: any): boolean {
   return MINIMAL_SHAPES.has(node.shape)
 }
 
-/** 图标模式：保存原始尺寸并压缩所有极简视图节点 */
+/** 图标模式：保存原始尺寸并压缩所有极简视图节点（跳过有节点级覆盖的） */
 function applyIconModeSizes(g: Graph) {
   for (const node of g.getNodes()) {
     if (!isMinimalShape(node)) continue
-    originalSizes.set(node.id, { ...node.getSize() })
+    const nodeData = node.getData() || {}
+    // 有节点级覆盖且不是 icon 的，不受全局切换影响（null 表示跟随全局，不算覆盖）
+    if (nodeData.displayMode != null && nodeData.displayMode !== 'icon') continue
+    // 仅在尚未记录原始尺寸时保存，防止已压缩节点的 140x36 覆盖真实原始尺寸
+    if (!originalSizes.has(node.id)) {
+      originalSizes.set(node.id, { ...node.getSize() })
+    }
     node.setSize(ICON_MODE_SIZE)
   }
 }
 
-/** 切回完整模式：恢复各节点原始尺寸 */
+/** 切回完整模式：恢复各节点原始尺寸（跳过有节点级 icon 覆盖的） */
 function restoreFullModeSizes(g: Graph) {
   for (const node of g.getNodes()) {
     if (!isMinimalShape(node)) continue
+    const nodeData = node.getData() || {}
+    // 节点级覆盖为 icon 的，不受全局切回 full 影响
+    if (nodeData.displayMode === 'icon') continue
     const original = originalSizes.get(node.id)
     if (original) {
       node.setSize(original)
     }
   }
-  originalSizes.clear()
+  // 只清除已恢复的条目，保留仍被覆盖的
+  for (const node of g.getNodes()) {
+    const nodeData = node.getData() || {}
+    if (nodeData.displayMode !== 'icon') {
+      originalSizes.delete(node.id)
+    }
+  }
 }
 
 /**
@@ -465,11 +596,28 @@ function loadGraphData(data: GraphData) {
   if (editorStore.displayMode === 'icon') {
     applyIconModeSizes(g)
     syncGraphToStore()
+  } else {
+    // 全局为 full 时，仍需压缩有节点级 icon 覆盖的节点
+    let changed = false
+    for (const node of g.getNodes()) {
+      if (!isMinimalShape(node)) continue
+      const nodeData = node.getData() || {}
+      if (nodeData.displayMode === 'icon') {
+        if (!originalSizes.has(node.id)) {
+          originalSizes.set(node.id, { ...node.getSize() })
+        }
+        node.setSize(ICON_MODE_SIZE)
+        changed = true
+      }
+    }
+    if (changed) syncGraphToStore()
   }
 }
 
 // ===================== 7. 组件卸载前清理 =====================
 onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
+
   resizeObserver?.disconnect()
   resizeObserver = null
 
@@ -519,6 +667,57 @@ onBeforeUnmount(() => {
 }
 
 #x6-container :deep(::-webkit-scrollbar-corner) {
+  background: var(--border-light);
+}
+
+/* ===== 节点右键菜单 ===== */
+.node-ctx-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 150px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,.12));
+  padding: 4px 0;
+  user-select: none;
+}
+.ctx-menu-title {
+  padding: 6px 14px 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.ctx-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background .15s;
+}
+.ctx-menu-item:hover {
+  background: var(--border-light);
+}
+.ctx-menu-item.active {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+.ctx-icon {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+}
+.ctx-check {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-primary);
+}
+.ctx-menu-divider {
+  height: 1px;
+  margin: 4px 8px;
   background: var(--border-light);
 }
 </style>

@@ -24,7 +24,7 @@ const props = defineProps<{
   node: any
 }>()
 
-const { isMinimal } = useDisplayMode()
+const { isMinimal } = useDisplayMode(props.node)
 
 const { name, direction, isRunning, status } = useNodeData(props.node, {
   name: '输送线-01',

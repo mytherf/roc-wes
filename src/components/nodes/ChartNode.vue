@@ -15,7 +15,7 @@ import NodeMinimalView from './NodeMinimalView.vue'
 
 const props = defineProps<{ node: any }>()
 
-const { isMinimal } = useDisplayMode()
+const { isMinimal } = useDisplayMode(props.node)
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: ECharts | null = null

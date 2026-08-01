@@ -25,7 +25,7 @@ const props = defineProps<{
   node: any
 }>()
 
-const { isMinimal } = useDisplayMode()
+const { isMinimal } = useDisplayMode(props.node)
 
 const { name, jointAngle, isOpen, status } = useNodeData(props.node, {
   name: '机械手-01',

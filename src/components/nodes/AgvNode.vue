@@ -28,7 +28,7 @@ const props = defineProps<{
   node: any
 }>()
 
-const { isMinimal } = useDisplayMode()
+const { isMinimal } = useDisplayMode(props.node)
 
 const { name, battery, isMoving, status } = useNodeData(props.node, {
   name: 'AGV-01',

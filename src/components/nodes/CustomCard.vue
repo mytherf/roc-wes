@@ -29,7 +29,7 @@ const props = defineProps<{
   node: any; // X6 Node 实例
 }>();
 
-const { isMinimal } = useDisplayMode()
+const { isMinimal } = useDisplayMode(props.node)
 
 // 从节点数据中读取自定义属性
 const data = computed(() => props.node.getData());

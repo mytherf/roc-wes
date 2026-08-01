@@ -24,7 +24,7 @@ const props = defineProps<{
   node: any // X6 Node 实例
 }>()
 
-const { isMinimal } = useDisplayMode()
+const { isMinimal } = useDisplayMode(props.node)
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: ECharts | null = null

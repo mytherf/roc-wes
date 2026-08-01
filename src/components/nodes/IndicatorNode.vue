@@ -17,7 +17,7 @@ import NodeMinimalView from './NodeMinimalView.vue'
 
 const props = defineProps<{ node: any }>()
 
-const { isMinimal } = useDisplayMode()
+const { isMinimal } = useDisplayMode(props.node)
 
 const { label, status } = useNodeData(props.node, {
   label: '指示灯',

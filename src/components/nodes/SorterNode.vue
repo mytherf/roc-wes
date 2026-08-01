@@ -31,7 +31,7 @@ const props = defineProps<{
   node: any
 }>()
 
-const { isMinimal } = useDisplayMode()
+const { isMinimal } = useDisplayMode(props.node)
 
 const { name, speed, status, chutes } = useNodeData(props.node, {
   name: '分拣机-01',

@@ -78,7 +78,7 @@ const props = defineProps<{
   graph: any
 }>()
 
-const { isMinimal } = useDisplayMode()
+const { isMinimal } = useDisplayMode(props.node)
 
 /**
  * 货架三维模型：
