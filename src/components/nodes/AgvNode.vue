@@ -7,6 +7,7 @@
       <div class="agv-center">
         <span class="agv-icon">🤖</span>
         <span class="agv-battery" :style="{ width: battery + '%' }"></span>
+        <span v-if="isMoving" class="agv-direction" :style="{ transform: `rotate(${routeAngle}deg)` }">➤</span>
       </div>
       <div class="agv-wheel agv-wheel-bl"></div>
       <div class="agv-wheel agv-wheel-br"></div>
@@ -30,11 +31,12 @@ const props = defineProps<{
 
 const { isMinimal } = useDisplayMode(props.node)
 
-const { name, battery, isMoving, status } = useNodeData(props.node, {
+const { name, battery, isMoving, status, routeAngle } = useNodeData(props.node, {
   name: 'AGV-01',
   battery: 85,
   isMoving: false,
   status: 'idle',
+  routeAngle: 0,
 })
 
 const { statusClass, statusText } = useNodeStatus(status)
@@ -90,6 +92,14 @@ const { statusClass, statusText } = useNodeStatus(status)
   background: #52c41a;
   border-radius: 2px;
   transition: width 0.5s;
+}
+.agv-direction {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 10px;
+  color: #722ed1;
+  transition: transform 0.1s linear;
 }
 .agv-moving .agv-center { animation: agvShake 0.3s infinite alternate; }
 @keyframes agvShake {

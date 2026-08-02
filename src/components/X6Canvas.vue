@@ -48,8 +48,10 @@ import {Clipboard, Dnd, Graph, Keyboard, Selection, Transform} from '@antv/x6'
 import {getTeleport} from '@antv/x6-vue-shape';
 import type {GraphData} from '@/stores/editor'
 import {useEditorStore} from '@/stores/editor'
+import {useRouteStore} from '@/stores/route'
 
 import {AnimationService} from '@/services/AnimationService'
+import {RouteService, type RouteConfig, type RouteWaypoint} from '@/services/RouteService'
 import {PointIdGenerator} from '@/services/PointIdGenerator'
 
 import {useDataService} from '@/composables/useDataService'
@@ -79,6 +81,9 @@ let themeObserver: MutationObserver | null = null
 
 // 节点动画服务
 let animationService: AnimationService | null = null
+
+// 路线运动服务
+let routeService: RouteService | null = null
 
 // ===================== 2.5 节点右键菜单状态 =====================
 const ctxMenu = reactive({
@@ -140,6 +145,7 @@ function onDocClick() {
 
 // ===================== 3. 使用 Store 与 Composables =====================
 const editorStore = useEditorStore()
+const routeStore = useRouteStore()
 
 // 数据服务管理（数据源创建、缓存、节点订阅绑定与清理）
 const dataService = useDataService()
@@ -209,6 +215,232 @@ const emit = defineEmits<{
   (e: 'node-dblclick', payload: { nodeId: string; shape: string }): void
 }>()
 
+// ===================== 3.5 路线可视化与编辑 =====================
+
+/** 路线覆盖层边的 ID 前缀 */
+const ROUTE_OVERLAY_PREFIX = '__route_overlay_'
+
+/** 路线级持久路径覆盖层的 ID 前缀（独立于节点，随刷新/关闭编辑器保持） */
+const ROUTE_PATH_PREFIX = '__route_path_'
+
+/** 清除指定节点的路线覆盖层（虚线路径 + 航点标记） */
+function clearRouteOverlay(nodeId: string) {
+  if (!graph) return
+  const prefix = ROUTE_OVERLAY_PREFIX + nodeId
+  const toRemove = graph.getCells().filter(c => c.id?.startsWith(prefix))
+  if (toRemove.length) graph.removeCells(toRemove)
+}
+
+/** 渲染节点的路线覆盖层（虚线折线 + 方向箭头 + 航点标记） */
+function renderRouteOverlay(nodeId: string, points: RouteWaypoint[]) {
+  if (!graph) return
+  clearRouteOverlay(nodeId)
+  if (points.length < 1) return
+
+  const node = graph.getCellById(nodeId)
+  const routeData = node?.getData()?.route
+  const smooth = routeData?.smooth ?? false
+  const segments = routeData?.segments || []
+  const isLoop = routeData?.loop && points.length > 2
+
+  // 绘制航点之间的虚线段（带方向箭头）
+  const segCount = points.length - 1 + (isLoop ? 1 : 0)
+  for (let i = 0; i < segCount; i++) {
+    const fromIdx = i
+    const toIdx = (i + 1) % points.length
+    const from = points[fromIdx]
+    const to = points[toIdx]
+    if (!from || !to) continue
+
+    const isLoopSeg = i >= points.length - 1
+    const seg = segments[i]
+    const dir = seg?.direction || 'forward'
+
+    // 根据方向决定箭头
+    const targetMarker = dir === 'backward' ? null : { name: 'block', width: 8, height: 6 }
+    const sourceMarker = (dir === 'backward' || dir === 'both') ? { name: 'block', width: 8, height: 6 } : null
+
+    const edgeConfig: any = {
+      id: `${ROUTE_OVERLAY_PREFIX}${nodeId}_seg${i}`,
+      source: { x: from.x, y: from.y },
+      target: { x: to.x, y: to.y },
+      attrs: {
+        line: {
+          stroke: isLoopSeg ? '#b37feb' : '#722ed1',
+          strokeWidth: 2,
+          strokeDasharray: isLoopSeg ? '4 4' : '8 4',
+          targetMarker,
+          sourceMarker,
+        },
+      },
+      data: { isRouteOverlay: true },
+      zIndex: -1,
+    }
+
+    // 贝塞尔平滑
+    if (smooth && points.length > 2) {
+      edgeConfig.connector = { name: 'smooth' }
+    }
+
+    graph.addEdge(edgeConfig)
+  }
+
+  // 绘制航点标记（站点用方形，普通用圆形）
+  for (let i = 0; i < points.length; i++) {
+    const wp = points[i]
+    const isStation = wp.type === 'station'
+    const isStart = i === 0
+    const size = isStation ? 14 : 12
+
+    graph.addNode({
+      id: `${ROUTE_OVERLAY_PREFIX}${nodeId}_wp${i}`,
+      shape: isStation ? 'rect' : 'circle',
+      x: wp.x - size / 2,
+      y: wp.y - size / 2,
+      width: size,
+      height: size,
+      attrs: {
+        body: {
+          fill: isStart ? '#52c41a' : isStation ? '#faad14' : '#722ed1',
+          stroke: '#fff',
+          strokeWidth: 2,
+          rx: isStation ? 2 : undefined,
+          ry: isStation ? 2 : undefined,
+        },
+      },
+      data: { isRouteOverlay: true },
+      zIndex: 100,
+    })
+  }
+}
+
+/** 清除所有路线级持久路径覆盖层 */
+function clearAllRoutePaths() {
+  if (!graph) return
+  const toRemove = graph.getCells().filter(c => c.id?.startsWith(ROUTE_PATH_PREFIX))
+  if (toRemove.length) graph.removeCells(toRemove)
+}
+
+/**
+ * 渲染所有「显示中」的路线持久路径（独立于节点，关闭编辑器/刷新后保持）。
+ * 每次调用先清空旧的持久路径，再根据 routeStore 中 visible===true 的路线重绘。
+ */
+function renderVisibleRoutes() {
+  if (!graph) return
+  clearAllRoutePaths()
+
+  for (const route of routeStore.routes) {
+    if (!route.visible) continue
+    const points = route.points || []
+    if (points.length < 1) continue
+
+    const smooth = route.smooth ?? false
+    const segments = route.segments || []
+    const isLoop = route.loop && points.length > 2
+
+    // 航点之间的虚线段（带方向箭头）
+    const segCount = points.length - 1 + (isLoop ? 1 : 0)
+    for (let i = 0; i < segCount; i++) {
+      const from = points[i]
+      const to = points[(i + 1) % points.length]
+      if (!from || !to) continue
+
+      const isLoopSeg = i >= points.length - 1
+      const seg = segments[i]
+      const dir = seg?.direction || 'forward'
+      const targetMarker = dir === 'backward' ? null : { name: 'block', width: 8, height: 6 }
+      const sourceMarker = (dir === 'backward' || dir === 'both') ? { name: 'block', width: 8, height: 6 } : null
+
+      const edgeConfig: any = {
+        id: `${ROUTE_PATH_PREFIX}${route.id}_seg${i}`,
+        source: { x: from.x, y: from.y },
+        target: { x: to.x, y: to.y },
+        attrs: {
+          line: {
+            stroke: isLoopSeg ? '#b37feb' : '#722ed1',
+            strokeWidth: 2,
+            strokeDasharray: isLoopSeg ? '4 4' : '8 4',
+            targetMarker,
+            sourceMarker,
+          },
+        },
+        data: { isRouteOverlay: true, isRoutePath: true },
+        zIndex: -1,
+      }
+      if (smooth && points.length > 2) {
+        edgeConfig.connector = { name: 'smooth' }
+      }
+      graph.addEdge(edgeConfig)
+    }
+
+    // 航点标记（站点方形 / 普通圆形）
+    for (let i = 0; i < points.length; i++) {
+      const wp = points[i]
+      const isStation = wp.type === 'station'
+      const isStart = i === 0
+      const size = isStation ? 14 : 12
+      graph.addNode({
+        id: `${ROUTE_PATH_PREFIX}${route.id}_wp${i}`,
+        shape: isStation ? 'rect' : 'circle',
+        x: wp.x - size / 2,
+        y: wp.y - size / 2,
+        width: size,
+        height: size,
+        attrs: {
+          body: {
+            fill: isStart ? '#52c41a' : isStation ? '#faad14' : '#722ed1',
+            stroke: '#fff',
+            strokeWidth: 2,
+            rx: isStation ? 2 : undefined,
+            ry: isStation ? 2 : undefined,
+          },
+        },
+        data: { isRouteOverlay: true, isRoutePath: true },
+        zIndex: 100,
+      })
+    }
+  }
+}
+
+/** 更新路线配置（速度、循环等） */
+function updateRouteConfig(nodeId: string, updates: Partial<RouteConfig>) {
+  if (!graph) return
+  const node = graph.getCellById(nodeId)
+  if (!node?.isNode()) return
+
+  const data = { ...(node.getData() || {}) }
+  const route: RouteConfig = data.route || { points: [], speed: 80, loop: true }
+  Object.assign(route, updates)
+  data.route = route
+  setSyncSuppressed(true)
+  node.setData(data, { deep: false })
+  renderRouteOverlay(nodeId, route.points)
+  setSyncSuppressed(false)
+
+  syncGraphToStore()
+
+  // 如果正在移动，实时更新速度
+  if (routeService?.isMoving(nodeId) && updates.speed != null) {
+    routeService.setSpeed(nodeId, updates.speed)
+  }
+}
+
+/** 开始/停止路线运动 */
+function toggleRouteMovement(nodeId: string) {
+  if (!graph || !routeService) return
+  const node = graph.getCellById(nodeId)
+  if (!node?.isNode()) return
+
+  if (routeService.isMoving(nodeId)) {
+    routeService.stopRoute(nodeId)
+  } else {
+    const route: RouteConfig | undefined = node.getData()?.route
+    if (route && route.points.length >= 2) {
+      routeService.startRoute(nodeId, route)
+    }
+  }
+}
+
 // ===================== 4. 暴露实例给父组件 =====================
 defineExpose({
   graph: graphRef,
@@ -217,6 +449,11 @@ defineExpose({
   unbindNodeData: dataService.unbindNodeData,
   updateNodePosition,
   updateNodeSize,
+  // 路线相关
+  updateRouteConfig,
+  toggleRouteMovement,
+  clearRouteOverlay,
+  renderRouteOverlay,
 })
 
 // ===================== 4.6 监听显示模式切换 =====================
@@ -230,6 +467,17 @@ watch(() => editorStore.displayMode, (mode, oldMode) => {
     restoreFullModeSizes(graph)
   }
   syncGraphToStore()
+  nextTick(() => setSyncSuppressed(false))
+})
+
+// ===================== 4.7 监听路线数据变化，重绘持久路径 =====================
+// 路线新增/删除/显隐切换/航点编辑时，重新渲染画布上的持久路线路径。
+// 注意：store 的 routes 经由 computed 返回，元素替换时数组引用不变，直接 deep watch 不触发；
+// 改用 JSON 签名作为监听源，任意路线变化都会产生新字符串从而可靠触发重绘。
+watch(() => JSON.stringify(routeStore.routes), () => {
+  if (!graph) return
+  setSyncSuppressed(true)
+  renderVisibleRoutes()
   nextTick(() => setSyncSuppressed(false))
 })
 
@@ -260,6 +508,11 @@ onMounted(() => {
       zoomAtMousePosition: true,
       minScale: 0.2,
       maxScale: 3,
+    },
+
+    // 路线级持久路径覆盖层不可交互（不可拖动/缩放），其余单元正常
+    interacting: (cellView) => {
+      return !cellView.cell.getData()?.isRoutePath
     },
 
     connecting: {
@@ -311,6 +564,15 @@ onMounted(() => {
 
   animationService = new AnimationService(graph)
 
+  routeService = new RouteService(graph)
+  routeService.onStateChange = (nodeId, moving, angle) => {
+    const cell = graph?.getCellById(nodeId)
+    if (cell?.isNode()) {
+      const data = cell.getData() || {}
+      cell.setData({ ...data, isMoving: moving, routeAngle: angle }, { deep: false })
+    }
+  }
+
   graph.use(
       new Selection({
         enabled: true,
@@ -320,6 +582,8 @@ onMounted(() => {
         strict: false,
         showNodeSelectionBox: true,
         modifiers: ['shift'],
+        // 路线级持久路径不可选中
+        filter: (cell) => !cell.getData()?.isRoutePath,
       })
   )
 
@@ -424,6 +688,11 @@ onMounted(() => {
   // ---------- 注册画布 ↔ Store 同步（事件 + watcher） ----------
   bindGraphEvents(graph)
   bindStoreWatchers()
+
+  // ---------- 渲染持久路线路径（刷新后保持显示） ----------
+  setSyncSuppressed(true)
+  renderVisibleRoutes()
+  nextTick(() => setSyncSuppressed(false))
 
   // ---------- 其余画布事件 ----------
 
@@ -612,6 +881,12 @@ function loadGraphData(data: GraphData) {
     }
     if (changed) syncGraphToStore()
   }
+
+  // 全量重载会清空所有单元（含路线覆盖层），重载完成后重新绘制持久路线路径。
+  // 抑制同步，避免添加覆盖层单元触发 store 回写进而再次重载。
+  setSyncSuppressed(true)
+  renderVisibleRoutes()
+  nextTick(() => setSyncSuppressed(false))
 }
 
 // ===================== 7. 组件卸载前清理 =====================
@@ -627,6 +902,7 @@ onBeforeUnmount(() => {
   dataService.dispose()
 
   animationService?.dispose()
+  routeService?.dispose()
 
   if (graph) {
     graph.dispose()

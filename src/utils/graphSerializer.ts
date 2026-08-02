@@ -17,14 +17,14 @@ export interface SerializedGraphData {
 export function serializeGraph(graph: Graph): SerializedGraphData {
   const raw = graph.toJSON()
   const nodes = raw.cells
-    .filter((cell: any) => !('source' in cell && 'target' in cell))
+    .filter((cell: any) => !('source' in cell && 'target' in cell) && !cell.data?.isRouteOverlay)
     .map((node: any) => ({
       ...node,
       x: node.position?.x ?? node.x ?? 0,
       y: node.position?.y ?? node.y ?? 0,
     }))
   const edges = raw.cells.filter(
-    (cell: any) => 'source' in cell && 'target' in cell
+    (cell: any) => 'source' in cell && 'target' in cell && !cell.data?.isRouteOverlay
   )
   return { nodes, edges }
 }

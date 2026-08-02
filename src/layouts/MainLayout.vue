@@ -24,6 +24,13 @@
       :graph="graphInstance"
       @close="detailNodeId = null"
     />
+
+    <!-- 路线管理弹窗 -->
+    <RouteEditorDialog
+      v-if="routeStore.showEditor"
+      :canvas-ref="canvasRef"
+      @close="routeStore.closeEditor()"
+    />
   </div>
 </template>
 
@@ -35,11 +42,14 @@ import PropertyPanel from '@/components/PropertyPanel.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import NodeDetailDialog from '@/components/NodeDetailDialog.vue'
+import RouteEditorDialog from '@/components/RouteEditorDialog.vue'
 import { useThemeStore } from '@/stores/theme'
+import { useRouteStore } from '@/stores/route'
 
 // 初始化主题（读取 localStorage 并设置 data-theme 属性）
 useThemeStore()
 
+const routeStore = useRouteStore()
 const canvasRef = ref<InstanceType<typeof X6Canvas>>()
 const graphInstance = ref(null)
 const dndInstance = ref(null)

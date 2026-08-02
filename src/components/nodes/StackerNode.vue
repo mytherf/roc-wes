@@ -4,6 +4,7 @@
     <div class="stacker-header">
       <span class="stacker-icon">🏗️</span>
       <span class="stacker-name">{{ name }}</span>
+      <span v-if="isMoving" class="stacker-direction" :style="{ transform: `rotate(${routeAngle}deg)` }">➤</span>
     </div>
     <div class="stacker-body">
       <div class="stacker-status">
@@ -33,13 +34,14 @@ const props = defineProps<{
 
 const { isMinimal } = useDisplayMode(props.node)
 
-const { name, lane, position, status, isMoving, progress } = useNodeData(props.node, {
+const { name, lane, position, status, isMoving, progress, routeAngle } = useNodeData(props.node, {
   name: '堆垛机-01',
   lane: 'A01',
   position: '05-12-03',
   status: 'idle',
   isMoving: false,
   progress: 0,
+  routeAngle: 0,
 })
 
 const { statusClass, statusText } = useNodeStatus(status, {
@@ -74,6 +76,12 @@ defineExpose({
 }
 .stacker-icon { font-size: 20px; }
 .stacker-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.stacker-direction {
+  font-size: 10px;
+  color: var(--color-primary);
+  transition: transform 0.1s linear;
+  margin-left: auto;
+}
 .stacker-body { font-size: 12px; }
 .stacker-status {
   display: flex;

@@ -1,10 +1,11 @@
 <template>
   <NodeMinimalView v-if="isMinimal" icon="🚗" :name="name" :status="status" />
-  <div v-else class="shuttle-node">
+  <div v-else class="shuttle-node" :class="{ 'shuttle-moving': isMoving }">
     <div class="shuttle-body">
       <div class="shuttle-track">
         <div class="shuttle-car" :style="{ left: positionPercent + '%' }">
           <span class="shuttle-icon">🚗</span>
+          <span v-if="isMoving" class="shuttle-direction" :style="{ transform: `rotate(${routeAngle}deg)` }">➤</span>
         </div>
       </div>
     </div>
@@ -28,10 +29,12 @@ const props = defineProps<{
 
 const { isMinimal } = useDisplayMode(props.node)
 
-const { name, position, status } = useNodeData(props.node, {
+const { name, position, status, isMoving, routeAngle } = useNodeData(props.node, {
   name: '穿梭车-01',
   position: 50, // 0-100
   status: 'idle',
+  isMoving: false,
+  routeAngle: 0,
 })
 
 const { statusClass, statusText } = useNodeStatus(status)
@@ -67,6 +70,18 @@ const positionPercent = computed(() => Math.min(100, Math.max(0, position.value)
   transition: left 0.5s ease;
 }
 .shuttle-icon { font-size: 20px; }
+.shuttle-direction {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  font-size: 9px;
+  color: #13c2c2;
+  transition: transform 0.1s linear;
+}
+.shuttle-moving .shuttle-track {
+  border-color: #13c2c2;
+  box-shadow: 0 0 6px rgba(19, 194, 194, 0.3);
+}
 .shuttle-info {
   display: flex;
   justify-content: space-between;

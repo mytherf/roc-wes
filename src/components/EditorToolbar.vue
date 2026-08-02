@@ -23,6 +23,9 @@
       <button class="toolbar-btn" @click="showDataSourceDialog = true" title="管理数据源实例">
         🔌 数据源
       </button>
+      <button class="toolbar-btn" @click="routeStore.openEditor()" title="管理路线">
+        🛤️ 路线
+      </button>
     </div>
 
     <div class="toolbar-separator" />
@@ -77,6 +80,7 @@
 import { ref, computed } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { useDataSourceStore } from '@/stores/dataSource'
+import { useRouteStore } from '@/stores/route'
 import { serializeGraph } from '@/utils/graphSerializer'
 import DataSourceDialog from '@/components/DataSourceDialog.vue'
 import { useThemeStore, THEMES } from '@/stores/theme'
@@ -87,6 +91,7 @@ const props = defineProps<{
 
 const editorStore = useEditorStore()
 const themeStore = useThemeStore()
+const routeStore = useRouteStore()
 // 数据源管理对话框显隐
 const showDataSourceDialog = ref(false)
 // 「已保存」提示（保存成功后短暂显示）
@@ -150,12 +155,14 @@ function handleRun() {
 }
 
 /**
- * 导出画布为 JSON（Store 格式：{ nodes: [], edges: [] }）
+ * 导出画布为 JSON（Store 格式：{ nodes: [], edges: [], routes: [] }）
+ * 路线数据随画布一并导出
  */
 function handleExport() {
   if (!props.graph) return
   const data = serializeGraph(props.graph)
-  const json = JSON.stringify(data, null, 2)
+  const payload = { ...data, routes: routeStore.routes }
+  const json = JSON.stringify(payload, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -199,6 +206,12 @@ function handleImport() {
             }
           }
           console.log(`✅ 导入数据源：新增 ${added} 个，跳过 ${json.dataSources.length - added} 个已存在`)
+        }
+
+        // 模板文件可携带 routes，导入时自动合并（按 id 去重）
+        if (Array.isArray(json.routes) && json.routes.length > 0) {
+          const res = routeStore.importRoutes(JSON.stringify(json.routes))
+          console.log(`✅ 导入路线：新增 ${res.added} 条，跳过 ${res.skipped} 条已存在`)
         }
 
         console.log(`✅ 导入成功：${json.nodes.length} 个节点，${json.edges.length} 条边`)

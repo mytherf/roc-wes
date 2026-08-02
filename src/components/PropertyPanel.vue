@@ -56,8 +56,9 @@
       <template v-if="element.type === 'node'">
         <!-- 标签栏 -->
         <div class="panel-tabs">
-          <div class="panel-tab" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">基础属性</div>
-          <div class="panel-tab" :class="{ active: activeTab === 'binding' }" @click="activeTab = 'binding'">数据绑定</div>
+          <div class="panel-tab" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">基础</div>
+          <div class="panel-tab" :class="{ active: activeTab === 'binding' }" @click="activeTab = 'binding'">绑定</div>
+          <div class="panel-tab" :class="{ active: activeTab === 'route' }" @click="activeTab = 'route'">路线</div>
           <div class="panel-tab" :class="{ active: activeTab === 'events' }" @click="activeTab = 'events'">事件</div>
         </div>
 
@@ -65,7 +66,7 @@
         <div v-show="activeTab === 'basic'">
           <div class="field">
             <label>ID</label>
-            <span>{{ element.data.id }}</span>
+            <span class="id-value" :title="element.data.id">{{ element.data.id }}</span>
           </div>
           <div class="field">
             <label>类型</label>
@@ -143,6 +144,42 @@
               <label>高度</label>
               <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
             </div>
+          </div>
+
+        </div>
+
+        <!-- ====== 路线 tab（所有节点通用） ====== -->
+        <div v-show="activeTab === 'route'">
+          <div class="field checkbox-field">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="routeEnabled" @change="onRouteEnabledChange" />
+              <span>启用路线运动</span>
+            </label>
+          </div>
+
+          <template v-if="routeEnabled">
+            <div class="field">
+              <label>选择路线</label>
+              <select v-model="nodeRouteId" @change="onRouteSelect">
+                <option value="">未设置</option>
+                <option v-for="r in routeStore.routes" :key="r.id" :value="r.id">{{ r.name }}（{{ r.points.length }} 航点）</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>移动速度 <span class="hint">({{ routeSpeed }} px/s)</span></label>
+              <input type="range" min="20" max="300" step="10" v-model.number="routeSpeed" @input="onRouteSpeedChange" />
+            </div>
+
+            <div class="route-actions">
+              <button class="route-btn" :class="{ running: routeMoving }" @click="toggleRouteMove" :disabled="!nodeRouteId">
+                {{ routeMoving ? '⏹ 停止' : '▶ 运行' }}
+              </button>
+            </div>
+          </template>
+
+          <div v-else class="route-disabled-hint">
+            勾选「启用路线运动」后可为节点绑定路线并控制运动。
           </div>
         </div>
 
@@ -249,7 +286,7 @@
       <template v-else-if="element.type === 'edge'">
         <div class="field">
           <label>ID</label>
-          <span>{{ element.data.id }}</span>
+          <span class="id-value" :title="element.data.id">{{ element.data.id }}</span>
         </div>
         <div class="field">
           <label>类型</label>
@@ -344,8 +381,8 @@ function updateGridType() {
   getGraph()?.drawGrid({ type: canvasGridType.value })
 }
 
-// ===================== 标签页状态（基础属性 / 数据绑定 / 事件） =====================
-type PanelTab = 'basic' | 'binding' | 'events'
+// ===================== 标签页状态（基础属性 / 数据绑定 / 路线 / 事件） =====================
+type PanelTab = 'basic' | 'binding' | 'route' | 'events'
 const activeTab = ref<PanelTab>('basic')
 
 // ===================== 数据绑定配置的本地状态 =====================
@@ -620,6 +657,135 @@ function stopPositionPolling() {
   }
 }
 
+// ===================== 路线配置（所有节点通用） =====================
+import { useRouteStore } from '@/stores/route'
+
+const routeStore = useRouteStore()
+
+const routeEnabled = ref(false)
+const nodeRouteId = ref('')
+const routeSpeed = ref(80)
+const routeMoving = ref(false)
+
+/** 启用/禁用路线功能 */
+function onRouteEnabledChange() {
+  if (!element.value || element.value.type !== 'node') return
+  const graph = getGraph()
+  if (!graph) return
+  const node = graph.getCellById(element.value.data.id)
+  if (!node?.isNode()) return
+
+  const data = { ...(node.getData() || {}) }
+  data.routeEnabled = routeEnabled.value
+  if (!routeEnabled.value) {
+    // 禁用时停止运动
+    if (data.isMoving) {
+      props.canvasRef?.toggleRouteMovement?.(element.value.data.id)
+    }
+  }
+  node.setData(data, { deep: false })
+
+  // 同步到 store
+  const storeNode = editorStore.graphData.nodes.find(n => n.id === element.value!.data.id)
+  if (storeNode) {
+    editorStore.updateNode(element.value.data.id, { data: { ...(storeNode.data || {}), routeEnabled: routeEnabled.value } })
+  }
+}
+
+/** 从选中节点同步路线配置到本地状态 */
+function syncRouteFromNode() {
+  const graph = getGraph()
+  if (!graph || !element.value || element.value.type !== 'node') {
+    routeEnabled.value = false
+    nodeRouteId.value = ''
+    return
+  }
+  const node = graph.getCellById(element.value.data.id)
+  if (!node?.isNode()) return
+  const data = node.getData() || {}
+  routeEnabled.value = data.routeEnabled ?? false
+  nodeRouteId.value = data.routeId || ''
+  // 速度：优先节点覆盖，否则取路线默认
+  const route = data.routeId ? routeStore.getRoute(data.routeId) : null
+  routeSpeed.value = data.routeSpeed ?? route?.speed ?? 80
+  routeMoving.value = data.isMoving ?? false
+}
+
+// 选中元素变化时同步路线状态
+watch(() => element.value?.data?.id, () => {
+  syncRouteFromNode()
+}, { immediate: true })
+
+function onRouteSelect() {
+  if (!element.value || element.value.type !== 'node') return
+  const graph = getGraph()
+  if (!graph) return
+  const node = graph.getCellById(element.value.data.id)
+  if (!node?.isNode()) return
+
+  const data = { ...(node.getData() || {}) }
+  data.routeId = nodeRouteId.value || null
+  // 设置路线时同步默认速度
+  const route = nodeRouteId.value ? routeStore.getRoute(nodeRouteId.value) : null
+  if (route) {
+    data.routeSpeed = route.speed
+    routeSpeed.value = route.speed
+  }
+  node.setData(data, { deep: false })
+
+  // 同步到 store
+  const storeNode = editorStore.graphData.nodes.find(n => n.id === element.value!.data.id)
+  if (storeNode) {
+    editorStore.updateNode(element.value.data.id, { data: { ...(storeNode.data || {}), routeId: data.routeId, routeSpeed: data.routeSpeed } })
+  }
+}
+
+function onRouteSpeedChange() {
+  if (!element.value || element.value.type !== 'node') return
+  const graph = getGraph()
+  if (!graph) return
+  const node = graph.getCellById(element.value.data.id)
+  if (!node?.isNode()) return
+
+  const data = { ...(node.getData() || {}) }
+  data.routeSpeed = routeSpeed.value
+  node.setData(data, { deep: false })
+
+  // 如果正在移动，实时更新速度
+  props.canvasRef?.updateRouteConfig?.(element.value.data.id, { speed: routeSpeed.value })
+}
+
+function toggleRouteMove() {
+  if (!element.value || element.value.type !== 'node') return
+  const nodeId = element.value.data.id
+  const graph = getGraph()
+  if (!graph) return
+  const node = graph.getCellById(nodeId)
+  if (!node?.isNode()) return
+
+  const data = node.getData() || {}
+  const isCurrentlyMoving = data.isMoving ?? false
+
+  if (isCurrentlyMoving) {
+    // 停止
+    props.canvasRef?.toggleRouteMovement?.(nodeId)
+  } else {
+    // 启动：从 route store 获取路线，写入 node.data.route 供 X6Canvas 使用
+    const route = nodeRouteId.value ? routeStore.getRoute(nodeRouteId.value) : null
+    if (route && route.points.length >= 2) {
+      // 将路线配置写入节点 data（供 RouteService 使用）
+      const updatedData = { ...data, route: { points: route.points, segments: route.segments, speed: routeSpeed.value, loop: route.loop, smooth: route.smooth } }
+      node.setData(updatedData, { deep: false })
+      props.canvasRef?.toggleRouteMovement?.(nodeId)
+    }
+  }
+
+  setTimeout(() => {
+    const n = graph.getCellById(nodeId)
+    routeMoving.value = n?.getData()?.isMoving ?? false
+  }, 50)
+}
+
 </script>
 
 <style scoped>
@@ -673,6 +839,19 @@ function stopPositionPolling() {
   font-weight: normal;
   color: var(--text-muted);
   font-size: 11px;
+}
+/* ID 值：缩小字体并强制单行显示（标准 UUID 可完整单行展示，超长时省略号，完整值见 title 提示） */
+.field .id-value {
+  display: block;
+  max-width: 100%;
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: -0.5px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .field input,
 .field select {
@@ -888,5 +1067,54 @@ function stopPositionPolling() {
   .property-panel:hover {
     transform: translateX(0);
   }
+}
+
+/* ===================== AGV 路线配置 ===================== */
+.route-actions {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+.route-btn {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--statusbar-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.route-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.route-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+.route-btn.running {
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+  color: #fff;
+}
+.route-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.route-disabled-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 16px 0;
+  text-align: center;
+  line-height: 1.6;
+}
+input[type='range'] {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
 }
 </style>
