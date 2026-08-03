@@ -13,6 +13,8 @@
         </div>
         <PropertyPanel :canvas-ref="canvasRef" />
       </div>
+      <!-- 底部：路线面板（可折叠） -->
+      <BottomPanel :canvas-ref="canvasRef" />
       <!-- 底部：状态栏 -->
       <StatusBar :graph="graphInstance" />
     </div>
@@ -24,13 +26,6 @@
       :graph="graphInstance"
       @close="detailNodeId = null"
     />
-
-    <!-- 路线管理弹窗 -->
-    <RouteEditorDialog
-      v-if="routeStore.showEditor"
-      :canvas-ref="canvasRef"
-      @close="routeStore.closeEditor()"
-    />
   </div>
 </template>
 
@@ -39,17 +34,15 @@ import { ref } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import X6Canvas from '@/components/X6Canvas.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
+import BottomPanel from '@/components/BottomPanel.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import NodeDetailDialog from '@/components/NodeDetailDialog.vue'
-import RouteEditorDialog from '@/components/RouteEditorDialog.vue'
 import { useThemeStore } from '@/stores/theme'
-import { useRouteStore } from '@/stores/route'
 
 // 初始化主题（读取 localStorage 并设置 data-theme 属性）
 useThemeStore()
 
-const routeStore = useRouteStore()
 const canvasRef = ref<InstanceType<typeof X6Canvas>>()
 const graphInstance = ref(null)
 const dndInstance = ref(null)

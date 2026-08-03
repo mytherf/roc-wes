@@ -322,15 +322,14 @@ function clearAllRoutePaths() {
 }
 
 /**
- * 渲染所有「显示中」的路线持久路径（独立于节点，关闭编辑器/刷新后保持）。
- * 每次调用先清空旧的持久路径，再根据 routeStore 中 visible===true 的路线重绘。
+ * 渲染所有路线的持久路径（独立于节点，关闭编辑器/刷新后保持）。
+ * 每次调用先清空旧的持久路径，再根据 routeStore 中的全部路线重绘。
  */
-function renderVisibleRoutes() {
+function renderRoutePaths() {
   if (!graph) return
   clearAllRoutePaths()
 
   for (const route of routeStore.routes) {
-    if (!route.visible) continue
     const points = route.points || []
     if (points.length < 1) continue
 
@@ -477,7 +476,7 @@ watch(() => editorStore.displayMode, (mode, oldMode) => {
 watch(() => JSON.stringify(routeStore.routes), () => {
   if (!graph) return
   setSyncSuppressed(true)
-  renderVisibleRoutes()
+  renderRoutePaths()
   nextTick(() => setSyncSuppressed(false))
 })
 
@@ -510,9 +509,10 @@ onMounted(() => {
       maxScale: 3,
     },
 
-    // 路线级持久路径覆盖层不可交互（不可拖动/缩放），其余单元正常
+    // 路线级持久路径覆盖层、坐标标签覆盖层不可交互（不可拖动/缩放），其余单元正常
     interacting: (cellView) => {
-      return !cellView.cell.getData()?.isRoutePath
+      const data = cellView.cell.getData()
+      return !data?.isRoutePath && !data?.isCoordLabel
     },
 
     connecting: {
@@ -582,8 +582,11 @@ onMounted(() => {
         strict: false,
         showNodeSelectionBox: true,
         modifiers: ['shift'],
-        // 路线级持久路径不可选中
-        filter: (cell) => !cell.getData()?.isRoutePath,
+        // 路线级持久路径、坐标标签不可选中
+        filter: (cell) => {
+          const data = cell.getData()
+          return !data?.isRoutePath && !data?.isCoordLabel
+        },
       })
   )
 
@@ -691,7 +694,7 @@ onMounted(() => {
 
   // ---------- 渲染持久路线路径（刷新后保持显示） ----------
   setSyncSuppressed(true)
-  renderVisibleRoutes()
+  renderRoutePaths()
   nextTick(() => setSyncSuppressed(false))
 
   // ---------- 其余画布事件 ----------
@@ -885,7 +888,7 @@ function loadGraphData(data: GraphData) {
   // 全量重载会清空所有单元（含路线覆盖层），重载完成后重新绘制持久路线路径。
   // 抑制同步，避免添加覆盖层单元触发 store 回写进而再次重载。
   setSyncSuppressed(true)
-  renderVisibleRoutes()
+  renderRoutePaths()
   nextTick(() => setSyncSuppressed(false))
 }
 

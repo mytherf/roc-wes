@@ -1,30 +1,6 @@
 <template>
-  <Teleport to="body">
-    <!-- 非模态停靠面板层：pointer-events:none 让画布全程可交互，无暗色遮罩 -->
-    <div class="route-panel-layer" :class="{ drawing: drawing, collapsed: collapsed }">
-      <!-- 绘制模式悬浮提示 -->
-      <div v-if="drawing" class="route-draw-hint">
-        🎯 点击画布添加航点 · 按 <b>ESC</b> 或 <b>右键</b> 结束
-      </div>
-
-      <!-- 收起时的浮动展开按钮 -->
-      <button v-if="collapsed" class="route-expand-btn" @click="collapsed = false" title="展开路线面板">
-        <span class="expand-icon">🛤️</span>
-        <span class="expand-label">路线</span>
-      </button>
-
-      <!-- 右侧停靠面板 -->
-      <div class="route-panel">
-        <!-- 头部 -->
-        <div class="route-header">
-          <span class="route-title">🛤️ 路线管理</span>
-          <div class="route-header-actions">
-            <button class="route-icon-btn" @click="collapsed = true" title="收起面板">»</button>
-            <button class="route-icon-btn" @click="handleClose" title="关闭">×</button>
-          </div>
-        </div>
-
-        <div class="route-body">
+  <div class="route-editor">
+    <div class="route-body">
           <!-- 路线列表（顶部） -->
           <div class="route-list-panel">
             <div class="route-list-header">
@@ -39,23 +15,6 @@
                 :class="{ active: selectedId === r.id }"
                 @click="selectRoute(r.id)"
               >
-                <button
-                  class="route-vis-btn"
-                  :class="{ on: r.visible }"
-                  :title="r.visible ? '点击隐藏画布上的路线' : '点击在画布上显示路线'"
-                  @click.stop="onToggleVisible(r.id)"
-                >
-                  <!-- 显示中：眼睛图标 -->
-                  <svg v-if="r.visible" class="vis-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                  <!-- 已隐藏：划线眼睛图标 -->
-                  <svg v-else class="vis-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
-                </button>
                 <span class="route-item-name">{{ r.name }}</span>
                 <span class="route-item-info">{{ r.points.length }} 航点</span>
               </div>
@@ -90,6 +49,10 @@
                 <input type="checkbox" v-model="gridSnap" />
                 <span>网格吸附</span>
               </label>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="showCoordLabels" @change="onCoordLabelsChange" />
+                <span>显示坐标</span>
+              </label>
             </div>
 
             <!-- 航点编辑 -->
@@ -106,7 +69,21 @@
                 <span class="wp-idx" :class="{ start: idx === 0, station: wp.type === 'station' }">
                   {{ wp.type === 'station' ? '⬛' : idx + 1 }}
                 </span>
-                <span class="wp-xy">({{ wp.x }}, {{ wp.y }})</span>
+                <span class="wp-xy">
+                  <input
+                    class="wp-coord"
+                    type="number"
+                    :value="wp.x"
+                    title="X 坐标"
+                    @change="onCoordChange(idx, 'x', $event)"
+                  /><span class="wp-comma">,</span><input
+                    class="wp-coord"
+                    type="number"
+                    :value="wp.y"
+                    title="Y 坐标"
+                    @change="onCoordChange(idx, 'y', $event)"
+                  />
+                </span>
                 <span v-if="wp.type === 'station'" class="wp-station-tag">{{ wp.stationName || '站点' }}</span>
                 <button class="wp-remove" @click="removePoint(idx)">×</button>
               </div>
@@ -156,45 +133,48 @@
           <div class="route-edit-panel route-placeholder" v-else>
             <span>选择或新建一条路线进行编辑</span>
           </div>
-        </div>
-      </div>
     </div>
 
-    <!-- 右键菜单 -->
-    <div
-      v-if="ctxMenu.visible"
-      class="route-ctx-menu"
-      :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
-      @click.stop
-    >
-      <template v-if="ctxMenu.type === 'waypoint'">
-        <div class="ctx-item" @click="ctxInsertAfter">➕ 在此之后插入</div>
-        <div class="ctx-item" @click="ctxToggleStation">
-          {{ ctxMenu.wpType === 'station' ? '⚪ 取消站点' : '⬛ 设为站点' }}
-        </div>
-        <div class="ctx-item danger" @click="ctxDeleteWaypoint">🗑 删除航点</div>
-      </template>
-      <template v-else-if="ctxMenu.type === 'segment'">
-        <div class="ctx-item" @click="ctxInsertMidpoint">➕ 插入中间点</div>
-      </template>
-      <template v-else-if="ctxMenu.type === 'blank'">
-        <div class="ctx-item" @click="ctxAddWaypoint">➕ 添加航点</div>
-      </template>
-    </div>
-  </Teleport>
+    <!-- 绘制提示 + 右键菜单：teleport 到 body，用 fixed 定位覆盖在画布之上 -->
+    <Teleport to="body">
+      <div v-if="drawing" class="route-draw-hint">
+        🎯 点击画布添加航点 · 按 <b>ESC</b> 或 <b>右键</b> 结束
+      </div>
+      <div
+        v-if="ctxMenu.visible"
+        class="route-ctx-menu"
+        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+        @click.stop
+      >
+        <template v-if="ctxMenu.type === 'waypoint'">
+          <div class="ctx-item" @click="ctxInsertAfter">➕ 在此之后插入</div>
+          <div class="ctx-item" @click="ctxToggleStation">
+            {{ ctxMenu.wpType === 'station' ? '⚪ 取消站点' : '⬛ 设为站点' }}
+          </div>
+          <div class="ctx-item danger" @click="ctxDeleteWaypoint">🗑 删除航点</div>
+        </template>
+        <template v-else-if="ctxMenu.type === 'segment'">
+          <div class="ctx-item" @click="ctxInsertMidpoint">➕ 插入中间点</div>
+        </template>
+        <template v-else-if="ctxMenu.type === 'blank'">
+          <div class="ctx-item" @click="ctxAddWaypoint">➕ 添加航点</div>
+        </template>
+      </div>
+    </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouteStore, type RouteWaypoint, type RouteSegment } from '@/stores/route'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   canvasRef: any
-}>()
-
-const emit = defineEmits<{
-  (e: 'close'): void
-}>()
+  /** 路线 tab 是否处于激活（激活且面板展开）状态，决定是否接管画布交互 */
+  active?: boolean
+}>(), {
+  active: false,
+})
 
 const routeStore = useRouteStore()
 
@@ -211,8 +191,8 @@ const editLoop = ref(true)
 const editSmooth = ref(false)
 const drawing = ref(false)
 const gridSnap = ref(true)
+const showCoordLabels = ref(false)
 const previewing = ref(false)
-const collapsed = ref(false)
 
 // 分段显示（确保长度匹配）
 const displaySegments = computed<RouteSegment[]>(() => {
@@ -302,7 +282,7 @@ function renderOverlay(points: RouteWaypoint[]) {
     const isStart = i === 0
     const size = isStation ? 14 : 12
 
-    graph.addNode({
+    const wpNode: any = {
       id: `${PREFIX}wp${i}`,
       shape: isStation ? 'rect' : 'circle',
       x: wp.x - size / 2,
@@ -320,7 +300,41 @@ function renderOverlay(points: RouteWaypoint[]) {
       },
       data: { isRouteOverlay: true, wpIndex: i, wpType: wp.type || 'waypoint' },
       zIndex: 100,
-    })
+    }
+
+    graph.addNode(wpNode)
+
+    // 显示坐标标签（开关控制）：在航点标记下方用一个独立的圆角小标签标注 "(x, y)"。
+    // 说明：内置 circle/rect 的 labels 数组在本项目不会渲染文本，故改用独立 rect 节点，
+    // 借助其内置 label（居中文本）实现；id 用 'lbl' 前缀避开航点拖拽逻辑，
+    // data.isCoordLabel 供画布排除选中/交互。
+    if (showCoordLabels.value) {
+      graph.addNode({
+        id: `${PREFIX}lbl${i}`,
+        shape: 'rect',
+        x: wp.x - 32,
+        y: wp.y + 8,
+        width: 64,
+        height: 16,
+        attrs: {
+          body: {
+            fill: 'rgba(255, 255, 255, 0.92)',
+            stroke: '#d3adf7',
+            strokeWidth: 1,
+            rx: 4,
+            ry: 4,
+          },
+          label: {
+            text: `(${wp.x}, ${wp.y})`,
+            fill: '#722ed1',
+            fontSize: 10,
+            fontFamily: 'monospace',
+          },
+        },
+        data: { isRouteOverlay: true, isCoordLabel: true },
+        zIndex: 99,
+      })
+    }
   }
 }
 
@@ -436,6 +450,7 @@ function bindContextMenu() {
 
   // 右键空白
   blankCtxHandler = ({ e }: any) => {
+    if (!props.active) return
     if (drawing.value) { e.preventDefault(); stopDrawing(); return }
     e.preventDefault()
     const point = graph.clientToLocal(e.clientX, e.clientY)
@@ -745,27 +760,11 @@ function selectRoute(id: string) {
   stopPreview()
   selectedId.value = id
   const route = routeStore.getRoute(id)
+  // 选中路线后，只要有航点就在画布上绘制编辑器覆盖层。
   if (route && route.points.length > 0) {
     renderOverlay(route.points)
   } else {
     clearOverlay()
-  }
-}
-
-/**
- * 切换路线画布显隐。
- * 若切换的是当前选中路线，同步刷新编辑器覆盖层，避免编辑器自身的预览覆盖层
- * 遮住持久路径导致「选中后点显隐按钮无效果」的问题。
- */
-function onToggleVisible(routeId: string) {
-  const nowVisible = routeStore.toggleVisible(routeId)
-  if (routeId === selectedId.value && !drawing.value) {
-    const route = routeStore.getRoute(routeId)
-    if (nowVisible && route && route.points.length > 0) {
-      renderOverlay(route.points)
-    } else {
-      clearOverlay()
-    }
   }
 }
 
@@ -811,15 +810,30 @@ function removePoint(idx: number) {
   renderOverlay(newPoints)
 }
 
+/** 手动编辑航点坐标（X/Y 数字输入框），提交后更新 store 并重绘覆盖层 */
+function onCoordChange(idx: number, axis: 'x' | 'y', e: Event) {
+  const route = selectedRoute.value
+  if (!route) return
+  const val = Math.round(Number((e.target as HTMLInputElement).value))
+  if (Number.isNaN(val)) return
+  const newPoints = route.points.map((p, i) => (i === idx ? { ...p, [axis]: val } : p))
+  routeStore.updateRoute(route.id, { points: newPoints })
+  renderOverlay(newPoints)
+}
+
+/** 切换「显示坐标」：重绘覆盖层以显示/隐藏航点坐标标签 */
+function onCoordLabelsChange() {
+  const route = selectedRoute.value
+  if (route && route.points.length > 0) renderOverlay(route.points)
+}
+
 function clearPoints() {
   const route = selectedRoute.value
   if (!route) return
-  // 与关闭弹窗的清理逻辑保持一致：先退出绘制模式、停止预览动画，
-  // 再清空航点/分段，并将 visible 复位为 false（空路线不应继续保持「显示」状态，
-  // 否则列表眼睛图标仍点亮，留下一条空的可见路线）。
+  // 与关闭弹窗的清理逻辑保持一致：先退出绘制模式、停止预览动画，再清空航点/分段。
   stopDrawing()
   stopPreview()
-  routeStore.updateRoute(route.id, { points: [], segments: [], visible: false })
+  routeStore.updateRoute(route.id, { points: [], segments: [] })
   clearOverlay()
 }
 
@@ -855,14 +869,21 @@ function onSegDwellChange(idx: number, e: Event) {
   }
 }
 
-function handleClose() {
-  stopDrawing()
-  stopPreview()
-  clearOverlay()
-  unbindWaypointDrag()
-  unbindContextMenu()
-  emit('close')
-}
+// 路线 tab 激活状态变化：离开时清理画布上的编辑器覆盖层与交互态，
+// 回到时按当前选中路线重绘覆盖层。保证属性 tab 下画布干净、路线 tab 下即时可见。
+watch(() => props.active, (on) => {
+  if (on) {
+    const route = selectedRoute.value
+    if (route && route.points.length > 0) {
+      nextTick(() => renderOverlay(route.points))
+    }
+  } else {
+    stopDrawing()
+    stopPreview()
+    clearOverlay()
+    hideCtxMenu()
+  }
+})
 
 // ===================== 绘制模式增强：ESC 退出 + 十字光标 =====================
 function onKeydown(e: KeyboardEvent) {
@@ -896,17 +917,19 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* ===== 非模态停靠面板层：不遮挡画布交互，无暗色遮罩 ===== */
-.route-panel-layer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1000;
+/* ===== 路线编辑器根容器：填满底部面板 tab 内容区 ===== */
+.route-editor {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  overflow: hidden;
 }
 
 /* 绘制模式悬浮提示（顶部居中） */
 .route-draw-hint {
-  position: absolute;
+  position: fixed;
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
@@ -927,102 +950,23 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
-/* 收起后的浮动展开按钮（右侧居中竖排） */
-.route-expand-btn {
-  position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-  pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 8px;
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 8px 0 0 8px;
-  box-shadow: var(--shadow-md);
-  cursor: pointer;
-  z-index: 1001;
-}
-.route-expand-btn:hover { background: var(--color-primary-hover); }
-.route-expand-btn .expand-icon { font-size: 18px; }
-.route-expand-btn .expand-label {
-  writing-mode: vertical-rl;
-  font-size: 12px;
-  letter-spacing: 2px;
-}
-
-/* ===== 右侧停靠面板 ===== */
-.route-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  height: 100%;
-  width: 380px;
-  max-width: 90vw;
-  pointer-events: auto;
-  background: var(--panel-bg);
-  border-left: 1px solid var(--border-color);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.25s ease;
-}
-.route-panel-layer.collapsed .route-panel {
-  transform: translateX(100%);
-}
-
-.route-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-.route-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.route-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.route-icon-btn {
-  border: none;
-  background: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  font-size: 18px;
-  color: var(--text-muted);
-  cursor: pointer;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.route-icon-btn:hover { background: var(--statusbar-bg); color: var(--text-primary); }
-
+/* ===== 主体：左右结构（左列表 / 右编辑） ===== */
 .route-body {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
-/* 路线列表（顶部，限高可滚动） */
+/* 路线列表（左侧，定宽可滚动） */
 .route-list-panel {
   flex-shrink: 0;
-  max-height: 200px;
-  border-bottom: 1px solid var(--border-color);
+  width: 220px;
+  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .route-list-header {
   display: flex;
@@ -1063,25 +1007,6 @@ onBeforeUnmount(() => {
   background: var(--color-primary-light, rgba(24, 144, 255, 0.1));
   border: 1px solid var(--color-primary);
 }
-.route-vis-btn {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-  line-height: 1;
-  color: var(--text-muted);
-  opacity: 0.7;
-  transition: all 0.15s;
-}
-.route-vis-btn:hover { background: var(--color-primary-light, rgba(24,144,255,0.12)); opacity: 1; }
-.route-vis-btn.on { opacity: 1; color: var(--color-primary); }
-.vis-icon { width: 15px; height: 15px; display: block; }
 .route-item-name {
   flex: 1;
   font-size: 13px;
@@ -1106,6 +1031,7 @@ onBeforeUnmount(() => {
 /* 右侧编辑 */
 .route-edit-panel {
   flex: 1;
+  min-width: 0;
   padding: 16px 20px;
   overflow-y: auto;
 }
@@ -1225,9 +1151,41 @@ onBeforeUnmount(() => {
 .wp-idx.station { background: #faad14; border-radius: 3px; }
 .wp-xy {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
   font-family: monospace;
   font-size: 11px;
   color: var(--text-secondary);
+}
+.wp-coord {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  padding: 1px 4px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.wp-coord:focus {
+  border-color: var(--color-primary);
+  color: var(--text-primary);
+  background: transparent;
+}
+.wp-coord::-webkit-outer-spin-button,
+.wp-coord::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.wp-comma {
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 .wp-station-tag {
   font-size: 10px;

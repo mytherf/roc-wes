@@ -45,8 +45,6 @@ export interface RouteDefinition {
   loop: boolean
   /** 是否贝塞尔平滑 */
   smooth: boolean
-  /** 是否在画布上持久显示路线路径（独立于编辑器，刷新后保持） */
-  visible?: boolean
 }
 
 /**
@@ -60,11 +58,6 @@ export const useRouteStore = defineStore('route', () => {
   const routes = ref<RouteDefinition[]>([])
   const STORAGE_KEY = 'roc-wes-routes'
 
-  /** 路线编辑器弹窗显隐（全局状态，任何组件可直接控制） */
-  const showEditor = ref(false)
-  function openEditor() { showEditor.value = true }
-  function closeEditor() { showEditor.value = false }
-
   // 初始化：从 localStorage 加载
   function loadFromStorage() {
     try {
@@ -76,7 +69,6 @@ export const useRouteStore = defineStore('route', () => {
           ...r,
           segments: r.segments || [],
           smooth: r.smooth ?? false,
-          visible: r.visible ?? false,
           points: (r.points || []).map((p: any) => ({
             x: p.x,
             y: p.y,
@@ -169,22 +161,6 @@ export const useRouteStore = defineStore('route', () => {
     updateRoute(routeId, { segments })
   }
 
-  // ---------- 画布显示控制 ----------
-
-  /** 设置路线在画布上的持久显示状态 */
-  function setVisible(routeId: string, visible: boolean) {
-    updateRoute(routeId, { visible })
-  }
-
-  /** 切换路线在画布上的持久显示状态，返回切换后的值 */
-  function toggleVisible(routeId: string): boolean {
-    const route = getRoute(routeId)
-    if (!route) return false
-    const next = !route.visible
-    updateRoute(routeId, { visible: next })
-    return next
-  }
-
   // ---------- 导入/导出 ----------
 
   /** 导出所有路线为 JSON 字符串 */
@@ -204,7 +180,6 @@ export const useRouteStore = defineStore('route', () => {
         ...r,
         segments: r.segments || [],
         smooth: r.smooth ?? false,
-        visible: r.visible ?? false,
         points: (r.points || []).map((p: any) => ({
           x: p.x, y: p.y,
           type: p.type || 'waypoint',
@@ -219,9 +194,6 @@ export const useRouteStore = defineStore('route', () => {
 
   return {
     routes: routeList,
-    showEditor,
-    openEditor,
-    closeEditor,
     getRoute,
     createRoute,
     updateRoute,
@@ -229,8 +201,6 @@ export const useRouteStore = defineStore('route', () => {
     getSegment,
     updateSegment,
     syncSegments,
-    setVisible,
-    toggleVisible,
     exportRoutes,
     importRoutes,
     saveToStorage,

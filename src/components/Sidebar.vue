@@ -1,36 +1,54 @@
 <template>
-  <div class="sidebar">
-    <h3 class="title">📦 组件库</h3>
-    <p class="hint">拖拽到画布</p>
+  <div class="sidebar" :class="{ collapsed: editorStore.sidebarCollapsed }">
+    <!-- 折叠态：窄条 + 展开按钮 -->
+    <template v-if="editorStore.sidebarCollapsed">
+      <button class="sidebar-expand-btn" @click="editorStore.toggleSidebarCollapsed()" title="展开组件库">
+        📦
+      </button>
+    </template>
 
-    <!-- 按分组渲染：每组一个标题 + 两列网格 -->
-    <div v-for="group in groups" :key="group.name" class="group">
-      <div class="group-title">{{ group.name }}</div>
-      <div class="node-grid">
-        <div
-            v-for="item in group.items"
-            :key="item.type"
-            class="node-item"
-            :title="item.label"
-            @mousedown="handleDragStart($event, item)"
-        >
-          <span class="icon">{{ item.icon }}</span>
-          <span class="label">{{ item.label }}</span>
+    <!-- 展开态：完整组件库 -->
+    <template v-else>
+      <div class="sidebar-header">
+        <h3 class="title">📦 组件库</h3>
+        <button class="sidebar-collapse-btn" @click="editorStore.toggleSidebarCollapsed()" title="折叠组件库">
+          ◀
+        </button>
+      </div>
+      <p class="hint">拖拽到画布</p>
+
+      <!-- 按分组渲染：每组一个标题 + 两列网格 -->
+      <div v-for="group in groups" :key="group.name" class="group">
+        <div class="group-title">{{ group.name }}</div>
+        <div class="node-grid">
+          <div
+              v-for="item in group.items"
+              :key="item.type"
+              class="node-item"
+              :title="item.label"
+              @mousedown="handleDragStart($event, item)"
+          >
+            <span class="icon">{{ item.icon }}</span>
+            <span class="label">{{ item.label }}</span>
+          </div>
         </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { nodeTemplates, buildNodeConfig, type NodeTemplate } from '@/components/nodes/nodeTemplates'
+import { useEditorStore } from '@/stores/editor'
 
 // 从父组件接收 graph 和 dnd 实例
 const props = defineProps<{
   graph: any // Graph 实例
   dnd: any   // Dnd 实例
 }>()
+
+const editorStore = useEditorStore()
 
 /** 分组展示顺序（未列出的分组追加在末尾） */
 const GROUP_ORDER = ['基础', 'WCS 设备', 'IoT 监控']
@@ -85,6 +103,61 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease;
+}
+
+/* ===== 折叠态 ===== */
+.sidebar.collapsed {
+  width: 36px;
+  min-width: 36px;
+  padding: 8px 4px;
+  align-items: center;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.sidebar-collapse-btn {
+  border: none;
+  background: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--sidebar-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.sidebar-collapse-btn:hover {
+  background: var(--sidebar-bg-hover);
+  color: var(--sidebar-text);
+}
+
+.sidebar-expand-btn {
+  border: none;
+  background: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  margin-top: 4px;
+}
+.sidebar-expand-btn:hover {
+  background: var(--sidebar-bg-hover);
+  transform: scale(1.1);
 }
 
 .title {
@@ -183,6 +256,11 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
     min-width: 180px;
     padding: 12px 10px;
   }
+  .sidebar.collapsed {
+    width: 36px;
+    min-width: 36px;
+    padding: 8px 4px;
+  }
   .title {
     font-size: 14px;
   }
@@ -203,6 +281,10 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
     min-width: 64px;
     padding: 8px;
     align-items: center;
+  }
+  .sidebar.collapsed {
+    width: 36px;
+    min-width: 36px;
   }
   .title,
   .hint,

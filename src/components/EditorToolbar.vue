@@ -23,7 +23,7 @@
       <button class="toolbar-btn" @click="showDataSourceDialog = true" title="管理数据源实例">
         🔌 数据源
       </button>
-      <button class="toolbar-btn" @click="routeStore.openEditor()" title="管理路线">
+      <button class="toolbar-btn" @click="openRoutePanel" title="管理路线">
         🛤️ 路线
       </button>
     </div>
@@ -117,6 +117,11 @@ function handleSave() {
 
 // 节点显示模式（图标模式 ↔ 极简模式）
 const displayMode = computed(() => editorStore.displayMode)
+
+// 展开底部路线面板
+function openRoutePanel() {
+  editorStore.setBottomCollapsed(false)
+}
 
 /**
  * 运行模式：导出数据到 sessionStorage，在新窗口打开运行态页面

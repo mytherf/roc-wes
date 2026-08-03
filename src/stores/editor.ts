@@ -31,6 +31,12 @@ export const useEditorStore = defineStore(
         const canvasSelected = ref(false)
         // 节点显示模式（默认完整渲染）
         const displayMode = ref<DisplayMode>('full')
+        // 底部路线面板是否折叠（折叠后仅显示标题条）
+        const bottomCollapsed = ref(false)
+        // 左侧组件库面板是否折叠
+        const sidebarCollapsed = ref(false)
+        // 右侧属性面板是否折叠
+        const propertyCollapsed = ref(false)
         // 历史记录（存储过去的状态快照）
         const history = ref<GraphData[]>([])
         // 当前历史索引（-1 表示无历史）
@@ -100,6 +106,48 @@ export const useEditorStore = defineStore(
          */
         function setDisplayMode(mode: DisplayMode) {
             displayMode.value = mode
+        }
+
+        /**
+         * 设置底部面板折叠状态
+         */
+        function setBottomCollapsed(collapsed: boolean) {
+            bottomCollapsed.value = collapsed
+        }
+
+        /**
+         * 切换底部面板折叠/展开
+         */
+        function toggleBottomCollapsed() {
+            bottomCollapsed.value = !bottomCollapsed.value
+        }
+
+        /**
+         * 设置左侧组件库面板折叠状态
+         */
+        function setSidebarCollapsed(collapsed: boolean) {
+            sidebarCollapsed.value = collapsed
+        }
+
+        /**
+         * 切换左侧组件库面板折叠/展开
+         */
+        function toggleSidebarCollapsed() {
+            sidebarCollapsed.value = !sidebarCollapsed.value
+        }
+
+        /**
+         * 设置右侧属性面板折叠状态
+         */
+        function setPropertyCollapsed(collapsed: boolean) {
+            propertyCollapsed.value = collapsed
+        }
+
+        /**
+         * 切换右侧属性面板折叠/展开
+         */
+        function togglePropertyCollapsed() {
+            propertyCollapsed.value = !propertyCollapsed.value
         }
 
         /**
@@ -227,6 +275,9 @@ export const useEditorStore = defineStore(
             selectedId,
             canvasSelected,
             displayMode,
+            bottomCollapsed,
+            sidebarCollapsed,
+            propertyCollapsed,
             selectedElement,
             canUndo,
             canRedo,
@@ -234,6 +285,12 @@ export const useEditorStore = defineStore(
             updateNode,
             updateEdge,
             setDisplayMode,
+            setBottomCollapsed,
+            toggleBottomCollapsed,
+            setSidebarCollapsed,
+            toggleSidebarCollapsed,
+            setPropertyCollapsed,
+            togglePropertyCollapsed,
             setSelected,
             selectCanvas,
             pushHistory,

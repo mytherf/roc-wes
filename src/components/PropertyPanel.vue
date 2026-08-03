@@ -1,303 +1,318 @@
 <template>
-  <div class="property-panel">
-    <h3>属性面板</h3>
+  <div class="property-panel" :class="{ collapsed: editorStore.propertyCollapsed }">
+    <!-- 折叠态：窄条 + 展开标签 -->
+    <template v-if="editorStore.propertyCollapsed">
+      <button class="panel-expand-tab" @click="editorStore.togglePropertyCollapsed()" title="展开属性面板">
+        <span class="panel-expand-label">属性</span>
+      </button>
+    </template>
 
-    <!-- 未选中任何元素 -->
-    <div v-if="!element && !canvasSelected" class="empty">请选择一个元素</div>
-
-    <!-- ====== 画布属性（点击画布空白处） ====== -->
-    <div v-else-if="canvasSelected">
-      <div class="field">
-        <label>类型</label>
-        <span>画布</span>
-      </div>
-      <div class="field">
-        <label>节点数量</label>
-        <span>{{ nodeCount }}</span>
-      </div>
-      <div class="field">
-        <label>连线数量</label>
-        <span>{{ edgeCount }}</span>
+    <!-- 展开态：完整属性面板 -->
+    <template v-else>
+      <div class="panel-header">
+        <h3>属性面板</h3>
+        <button class="panel-collapse-btn" @click="editorStore.togglePropertyCollapsed()" title="折叠属性面板">
+          ▶
+        </button>
       </div>
 
-      <div class="section-divider">画布设置</div>
+      <!-- 未选中任何元素 -->
+      <div v-if="!element && !canvasSelected" class="empty">请选择一个元素</div>
 
-      <div class="field">
-        <label>背景颜色</label>
-        <input type="color" class="color-input" v-model="canvasBgColor" @input="updateCanvasBackground" />
-      </div>
-
-      <div class="field checkbox-field">
-        <label class="checkbox-label">
-          <input type="checkbox" v-model="canvasGridVisible" @change="updateGridVisible" />
-          <span>显示网格</span>
-        </label>
-      </div>
-
-      <div class="field">
-        <label>网格大小</label>
-        <input type="number" min="1" v-model.number="canvasGridSize" @input="updateGridSize" :disabled="!canvasGridVisible" />
-      </div>
-
-      <div class="field">
-        <label>网格类型</label>
-        <select v-model="canvasGridType" @change="updateGridType" :disabled="!canvasGridVisible">
-          <option value="dot">点状</option>
-          <option value="mesh">网格线</option>
-          <option value="fixedDot">固定点</option>
-          <option value="doubleMesh">双层网格</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- 已选中元素 -->
-    <div v-else-if="element">
-      <!-- ====== 节点：三个标签页 ====== -->
-      <template v-if="element.type === 'node'">
-        <!-- 标签栏 -->
-        <div class="panel-tabs">
-          <div class="panel-tab" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">基础</div>
-          <div class="panel-tab" :class="{ active: activeTab === 'binding' }" @click="activeTab = 'binding'">绑定</div>
-          <div class="panel-tab" :class="{ active: activeTab === 'route' }" @click="activeTab = 'route'">路线</div>
-          <div class="panel-tab" :class="{ active: activeTab === 'events' }" @click="activeTab = 'events'">事件</div>
+      <!-- ====== 画布属性（点击画布空白处） ====== -->
+      <div v-else-if="canvasSelected">
+        <div class="field">
+          <label>类型</label>
+          <span>画布</span>
+        </div>
+        <div class="field">
+          <label>节点数量</label>
+          <span>{{ nodeCount }}</span>
+        </div>
+        <div class="field">
+          <label>连线数量</label>
+          <span>{{ edgeCount }}</span>
         </div>
 
-        <!-- ====== 基础属性 tab ====== -->
-        <div v-show="activeTab === 'basic'">
+        <div class="section-divider">画布设置</div>
+
+        <div class="field">
+          <label>背景颜色</label>
+          <input type="color" class="color-input" v-model="canvasBgColor" @input="updateCanvasBackground" />
+        </div>
+
+        <div class="field checkbox-field">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="canvasGridVisible" @change="updateGridVisible" />
+            <span>显示网格</span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label>网格大小</label>
+          <input type="number" min="1" v-model.number="canvasGridSize" @input="updateGridSize" :disabled="!canvasGridVisible" />
+        </div>
+
+        <div class="field">
+          <label>网格类型</label>
+          <select v-model="canvasGridType" @change="updateGridType" :disabled="!canvasGridVisible">
+            <option value="dot">点状</option>
+            <option value="mesh">网格线</option>
+            <option value="fixedDot">固定点</option>
+            <option value="doubleMesh">双层网格</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 已选中元素 -->
+      <div v-else-if="element">
+        <!-- ====== 节点：三个标签页 ====== -->
+        <template v-if="element.type === 'node'">
+          <!-- 标签栏 -->
+          <div class="panel-tabs">
+            <div class="panel-tab" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">基础</div>
+            <div class="panel-tab" :class="{ active: activeTab === 'binding' }" @click="activeTab = 'binding'">绑定</div>
+            <div class="panel-tab" :class="{ active: activeTab === 'route' }" @click="activeTab = 'route'">路线</div>
+            <div class="panel-tab" :class="{ active: activeTab === 'events' }" @click="activeTab = 'events'">事件</div>
+          </div>
+
+          <!-- ====== 基础属性 tab ====== -->
+          <div v-show="activeTab === 'basic'">
+            <div class="field">
+              <label>ID</label>
+              <span class="id-value" :title="element.data.id">{{ element.data.id }}</span>
+            </div>
+            <div class="field">
+              <label>类型</label>
+              <span>节点</span>
+            </div>
+            <div class="field">
+              <label>标签</label>
+              <input v-model="element.data.label" @input="updateNodeLabel" />
+            </div>
+
+            <!-- 设备名称（货架、堆垛机等 WCS 设备节点） -->
+            <div v-if="element.data.name !== undefined" class="field">
+              <label>名称</label>
+              <input v-model="element.data.name" @input="updateNodeName" />
+            </div>
+
+            <!-- 货架维度属性：排/列/层 -->
+            <template v-if="element.data.rows !== undefined">
+              <div class="field">
+                <label>排 (rows)</label>
+                <input type="number" min="1" v-model.number="element.data.rows" @input="updateNodeDataField('rows')" />
+              </div>
+            </template>
+            <template v-if="element.data.cols !== undefined">
+              <div class="field">
+                <label>列 (cols)</label>
+                <input type="number" min="1" v-model.number="element.data.cols" @input="updateNodeDataField('cols')" />
+              </div>
+            </template>
+            <template v-if="element.data.floors !== undefined">
+              <div class="field">
+                <label>层 (floors)</label>
+                <input type="number" min="1" v-model.number="element.data.floors" @input="updateNodeDataField('floors')" />
+              </div>
+            </template>
+
+            <!-- 自定义数据（卡片节点等） -->
+            <template v-if="element.data.data">
+              <div class="field">
+                <label>标题</label>
+                <input v-model="element.data.data.title" @input="updateNodeData" />
+              </div>
+              <div class="field">
+                <label>状态</label>
+                <select v-model="element.data.data.status" @change="updateNodeData">
+                  <option value="正常">正常</option>
+                  <option value="告警">告警</option>
+                  <option value="故障">故障</option>
+                  <option value="停止">停止</option>
+                </select>
+              </div>
+            </template>
+
+            <!-- 位置（一行两列） -->
+            <div class="section-divider">位置</div>
+            <div class="field-row">
+              <div class="field">
+                <label>X</label>
+                <input type="number" v-model.number="posX" @input="onPositionInput" />
+              </div>
+              <div class="field">
+                <label>Y</label>
+                <input type="number" v-model.number="posY" @input="onPositionInput" />
+              </div>
+            </div>
+
+            <!-- 尺寸（一行两列） -->
+            <div class="section-divider">大小</div>
+            <div class="field-row">
+              <div class="field">
+                <label>宽度</label>
+                <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
+              </div>
+              <div class="field">
+                <label>高度</label>
+                <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ====== 路线 tab（所有节点通用） ====== -->
+          <div v-show="activeTab === 'route'">
+            <div class="field checkbox-field">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="routeEnabled" @change="onRouteEnabledChange" />
+                <span>启用路线运动</span>
+              </label>
+            </div>
+
+            <template v-if="routeEnabled">
+              <div class="field">
+                <label>选择路线</label>
+                <select v-model="nodeRouteId" @change="onRouteSelect">
+                  <option value="">未设置</option>
+                  <option v-for="r in routeStore.routes" :key="r.id" :value="r.id">{{ r.name }}（{{ r.points.length }} 航点）</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label>移动速度 <span class="hint">({{ routeSpeed }} px/s)</span></label>
+                <input type="range" min="20" max="300" step="10" v-model.number="routeSpeed" @input="onRouteSpeedChange" />
+              </div>
+
+              <div class="route-actions">
+                <button class="route-btn" :class="{ running: routeMoving }" @click="toggleRouteMove" :disabled="!nodeRouteId">
+                  {{ routeMoving ? '⏹ 停止' : '▶ 运行' }}
+                </button>
+              </div>
+            </template>
+
+            <div v-else class="route-disabled-hint">
+              勾选「启用路线运动」后可为节点绑定路线并控制运动。
+            </div>
+          </div>
+
+          <!-- ====== 数据绑定 tab ====== -->
+          <div v-show="activeTab === 'binding'">
+            <div class="field">
+              <label>数据源 <span class="hint">（不选则使用模拟数据）</span></label>
+              <select v-model="bindingSourceId" @change="updateBinding">
+                <option value="">模拟数据</option>
+                <option
+                  v-for="ds in dataSourceStore.dataSources"
+                  :key="ds.id"
+                  :value="ds.id"
+                >{{ ds.name }}（{{ typeLabel(ds.type) }}）</option>
+              </select>
+            </div>
+            <div v-if="selectedDataSource" class="source-info">
+              <div class="source-url" :title="selectedDataSource.url">{{ selectedDataSource.url }}</div>
+              <div v-if="selectedDataSource.description" class="source-desc">{{ selectedDataSource.description }}</div>
+            </div>
+            <div class="field">
+              <label>点ID <span class="hint">（填写即启用数据绑定）</span></label>
+              <input v-model="bindingPointId" @input="updateBinding" placeholder="例如: sensor.temp.001" />
+            </div>
+            <div class="field">
+              <label>转换函数 (可选)</label>
+              <input v-model="bindingTransform" @input="updateBinding" placeholder="(raw) => Math.round(raw)" />
+            </div>
+            <div class="binding-status">
+              <span v-if="bindingPointId.trim()" class="status-active">✅ 已启用数据绑定</span>
+              <span v-else class="status-inactive">⏸ 未启用（请填写点ID）</span>
+            </div>
+          </div>
+
+          <!-- ====== 事件 tab ====== -->
+          <div v-show="activeTab === 'events'">
+            <div v-if="eventsDraft.length === 0" class="empty-hint">暂无事件规则，点击下方按钮添加。</div>
+
+            <div v-for="(rule, idx) in eventsDraft" :key="rule.id" class="event-rule">
+              <div class="rule-header">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="rule.enabled" />
+                  <span>启用</span>
+                </label>
+                <button class="rule-remove" @click="removeEventRule(idx)">删除</button>
+              </div>
+              <div class="field">
+                <label>规则名称</label>
+                <input v-model="rule.name" placeholder="例如：温度越限告警" />
+              </div>
+              <div class="field">
+                <label>监听字段 <span class="hint">（留空监听 value）</span></label>
+                <input v-model="rule.field" placeholder="value" />
+              </div>
+              <div class="field">
+                <label>触发条件</label>
+                <select v-model="rule.condition">
+                  <option value="changed">值变化</option>
+                  <option value="gt">大于 (&gt;)</option>
+                  <option value="lt">小于 (&lt;)</option>
+                  <option value="gte">大于等于 (≥)</option>
+                  <option value="lte">小于等于 (≤)</option>
+                  <option value="eq">等于 (=)</option>
+                  <option value="neq">不等于 (≠)</option>
+                </select>
+              </div>
+              <div v-if="rule.condition !== 'changed'" class="field">
+                <label>阈值</label>
+                <input v-model="rule.threshold" placeholder="例如：80" />
+              </div>
+              <div class="field">
+                <label>触发动作</label>
+                <select v-model="rule.actionType">
+                  <option value="console">控制台日志</option>
+                  <option value="alert">弹出告警</option>
+                  <option value="http">HTTP 请求</option>
+                </select>
+              </div>
+              <div v-if="rule.actionType === 'alert'" class="field">
+                <label>告警内容</label>
+                <input v-model="rule.message" placeholder="例如：设备温度越限！" />
+              </div>
+              <template v-if="rule.actionType === 'http'">
+                <div class="field">
+                  <label>请求地址</label>
+                  <input v-model="rule.url" placeholder="http://localhost:8080/api/alarm" />
+                </div>
+                <div class="field">
+                  <label>请求方法</label>
+                  <select v-model="rule.method">
+                    <option value="POST">POST</option>
+                    <option value="GET">GET</option>
+                    <option value="PUT">PUT</option>
+                  </select>
+                </div>
+              </template>
+            </div>
+
+            <button class="add-event-btn" @click="addEventRule">＋ 添加事件规则</button>
+          </div>
+        </template>
+
+        <!-- ====== 边：仅基础属性 ====== -->
+        <template v-else-if="element.type === 'edge'">
           <div class="field">
             <label>ID</label>
             <span class="id-value" :title="element.data.id">{{ element.data.id }}</span>
           </div>
           <div class="field">
             <label>类型</label>
-            <span>节点</span>
+            <span>连线</span>
           </div>
           <div class="field">
             <label>标签</label>
-            <input v-model="element.data.label" @input="updateNodeLabel" />
+            <input v-model="element.data.label" @input="updateEdgeLabel" />
           </div>
-
-          <!-- 设备名称（货架、堆垛机等 WCS 设备节点） -->
-          <div v-if="element.data.name !== undefined" class="field">
-            <label>名称</label>
-            <input v-model="element.data.name" @input="updateNodeName" />
-          </div>
-
-          <!-- 货架维度属性：排/列/层 -->
-          <template v-if="element.data.rows !== undefined">
-            <div class="field">
-              <label>排 (rows)</label>
-              <input type="number" min="1" v-model.number="element.data.rows" @input="updateNodeDataField('rows')" />
-            </div>
-          </template>
-          <template v-if="element.data.cols !== undefined">
-            <div class="field">
-              <label>列 (cols)</label>
-              <input type="number" min="1" v-model.number="element.data.cols" @input="updateNodeDataField('cols')" />
-            </div>
-          </template>
-          <template v-if="element.data.floors !== undefined">
-            <div class="field">
-              <label>层 (floors)</label>
-              <input type="number" min="1" v-model.number="element.data.floors" @input="updateNodeDataField('floors')" />
-            </div>
-          </template>
-
-          <!-- 自定义数据（卡片节点等） -->
-          <template v-if="element.data.data">
-            <div class="field">
-              <label>标题</label>
-              <input v-model="element.data.data.title" @input="updateNodeData" />
-            </div>
-            <div class="field">
-              <label>状态</label>
-              <select v-model="element.data.data.status" @change="updateNodeData">
-                <option value="正常">正常</option>
-                <option value="告警">告警</option>
-                <option value="故障">故障</option>
-                <option value="停止">停止</option>
-              </select>
-            </div>
-          </template>
-
-          <!-- 位置（一行两列） -->
-          <div class="section-divider">位置</div>
-          <div class="field-row">
-            <div class="field">
-              <label>X</label>
-              <input type="number" v-model.number="posX" @input="onPositionInput" />
-            </div>
-            <div class="field">
-              <label>Y</label>
-              <input type="number" v-model.number="posY" @input="onPositionInput" />
-            </div>
-          </div>
-
-          <!-- 尺寸（一行两列） -->
-          <div class="section-divider">大小</div>
-          <div class="field-row">
-            <div class="field">
-              <label>宽度</label>
-              <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
-            </div>
-            <div class="field">
-              <label>高度</label>
-              <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
-            </div>
-          </div>
-
-        </div>
-
-        <!-- ====== 路线 tab（所有节点通用） ====== -->
-        <div v-show="activeTab === 'route'">
-          <div class="field checkbox-field">
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="routeEnabled" @change="onRouteEnabledChange" />
-              <span>启用路线运动</span>
-            </label>
-          </div>
-
-          <template v-if="routeEnabled">
-            <div class="field">
-              <label>选择路线</label>
-              <select v-model="nodeRouteId" @change="onRouteSelect">
-                <option value="">未设置</option>
-                <option v-for="r in routeStore.routes" :key="r.id" :value="r.id">{{ r.name }}（{{ r.points.length }} 航点）</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label>移动速度 <span class="hint">({{ routeSpeed }} px/s)</span></label>
-              <input type="range" min="20" max="300" step="10" v-model.number="routeSpeed" @input="onRouteSpeedChange" />
-            </div>
-
-            <div class="route-actions">
-              <button class="route-btn" :class="{ running: routeMoving }" @click="toggleRouteMove" :disabled="!nodeRouteId">
-                {{ routeMoving ? '⏹ 停止' : '▶ 运行' }}
-              </button>
-            </div>
-          </template>
-
-          <div v-else class="route-disabled-hint">
-            勾选「启用路线运动」后可为节点绑定路线并控制运动。
-          </div>
-        </div>
-
-        <!-- ====== 数据绑定 tab ====== -->
-        <div v-show="activeTab === 'binding'">
-          <div class="field">
-            <label>数据源 <span class="hint">（不选则使用模拟数据）</span></label>
-            <select v-model="bindingSourceId" @change="updateBinding">
-              <option value="">模拟数据</option>
-              <option
-                v-for="ds in dataSourceStore.dataSources"
-                :key="ds.id"
-                :value="ds.id"
-              >{{ ds.name }}（{{ typeLabel(ds.type) }}）</option>
-            </select>
-          </div>
-          <div v-if="selectedDataSource" class="source-info">
-            <div class="source-url" :title="selectedDataSource.url">{{ selectedDataSource.url }}</div>
-            <div v-if="selectedDataSource.description" class="source-desc">{{ selectedDataSource.description }}</div>
-          </div>
-          <div class="field">
-            <label>点ID <span class="hint">（填写即启用数据绑定）</span></label>
-            <input v-model="bindingPointId" @input="updateBinding" placeholder="例如: sensor.temp.001" />
-          </div>
-          <div class="field">
-            <label>转换函数 (可选)</label>
-            <input v-model="bindingTransform" @input="updateBinding" placeholder="(raw) => Math.round(raw)" />
-          </div>
-          <div class="binding-status">
-            <span v-if="bindingPointId.trim()" class="status-active">✅ 已启用数据绑定</span>
-            <span v-else class="status-inactive">⏸ 未启用（请填写点ID）</span>
-          </div>
-        </div>
-
-        <!-- ====== 事件 tab ====== -->
-        <div v-show="activeTab === 'events'">
-          <div v-if="eventsDraft.length === 0" class="empty-hint">暂无事件规则，点击下方按钮添加。</div>
-
-          <div v-for="(rule, idx) in eventsDraft" :key="rule.id" class="event-rule">
-            <div class="rule-header">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="rule.enabled" />
-                <span>启用</span>
-              </label>
-              <button class="rule-remove" @click="removeEventRule(idx)">删除</button>
-            </div>
-            <div class="field">
-              <label>规则名称</label>
-              <input v-model="rule.name" placeholder="例如：温度越限告警" />
-            </div>
-            <div class="field">
-              <label>监听字段 <span class="hint">（留空监听 value）</span></label>
-              <input v-model="rule.field" placeholder="value" />
-            </div>
-            <div class="field">
-              <label>触发条件</label>
-              <select v-model="rule.condition">
-                <option value="changed">值变化</option>
-                <option value="gt">大于 (&gt;)</option>
-                <option value="lt">小于 (&lt;)</option>
-                <option value="gte">大于等于 (≥)</option>
-                <option value="lte">小于等于 (≤)</option>
-                <option value="eq">等于 (=)</option>
-                <option value="neq">不等于 (≠)</option>
-              </select>
-            </div>
-            <div v-if="rule.condition !== 'changed'" class="field">
-              <label>阈值</label>
-              <input v-model="rule.threshold" placeholder="例如：80" />
-            </div>
-            <div class="field">
-              <label>触发动作</label>
-              <select v-model="rule.actionType">
-                <option value="console">控制台日志</option>
-                <option value="alert">弹出告警</option>
-                <option value="http">HTTP 请求</option>
-              </select>
-            </div>
-            <div v-if="rule.actionType === 'alert'" class="field">
-              <label>告警内容</label>
-              <input v-model="rule.message" placeholder="例如：设备温度越限！" />
-            </div>
-            <template v-if="rule.actionType === 'http'">
-              <div class="field">
-                <label>请求地址</label>
-                <input v-model="rule.url" placeholder="http://localhost:8080/api/alarm" />
-              </div>
-              <div class="field">
-                <label>请求方法</label>
-                <select v-model="rule.method">
-                  <option value="POST">POST</option>
-                  <option value="GET">GET</option>
-                  <option value="PUT">PUT</option>
-                </select>
-              </div>
-            </template>
-          </div>
-
-          <button class="add-event-btn" @click="addEventRule">＋ 添加事件规则</button>
-        </div>
-      </template>
-
-      <!-- ====== 边：仅基础属性 ====== -->
-      <template v-else-if="element.type === 'edge'">
-        <div class="field">
-          <label>ID</label>
-          <span class="id-value" :title="element.data.id">{{ element.data.id }}</span>
-        </div>
-        <div class="field">
-          <label>类型</label>
-          <span>连线</span>
-        </div>
-        <div class="field">
-          <label>标签</label>
-          <input v-model="element.data.label" @input="updateEdgeLabel" />
-        </div>
-      </template>
-    </div>
+        </template>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -800,7 +815,80 @@ function toggleRouteMove() {
   border-left: 1px solid var(--border-color);
   box-sizing: border-box;
   overflow-y: auto;
+  transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease;
 }
+
+/* ===== 折叠态 ===== */
+.property-panel.collapsed {
+  width: 32px;
+  min-width: 32px;
+  padding: 8px 2px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.panel-header h3 {
+  margin: 0;
+}
+
+.panel-collapse-btn {
+  border: none;
+  background: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.panel-collapse-btn:hover {
+  background: var(--statusbar-bg);
+  color: var(--text-primary);
+}
+
+.panel-expand-tab {
+  border: none;
+  background: none;
+  width: 28px;
+  padding: 8px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  transition: all 0.15s ease;
+  margin-top: 4px;
+}
+.panel-expand-tab:hover {
+  background: var(--statusbar-bg);
+}
+
+.panel-expand-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 2px;
+}
+.panel-expand-tab:hover .panel-expand-label {
+  color: var(--color-primary);
+}
+
 .property-panel h3 {
   margin: 0 0 12px 0;
   font-size: 14px;
