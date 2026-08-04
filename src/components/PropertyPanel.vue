@@ -134,30 +134,26 @@
               </div>
             </template>
 
-            <!-- 位置（一行两列） -->
+            <!-- 位置 -->
             <div class="section-divider">位置</div>
-            <div class="field-row">
-              <div class="field">
-                <label>X</label>
-                <input type="number" v-model.number="posX" @input="onPositionInput" />
-              </div>
-              <div class="field">
-                <label>Y</label>
-                <input type="number" v-model.number="posY" @input="onPositionInput" />
-              </div>
+            <div class="field">
+              <label>X</label>
+              <input type="number" v-model.number="posX" @input="onPositionInput" />
+            </div>
+            <div class="field">
+              <label>Y</label>
+              <input type="number" v-model.number="posY" @input="onPositionInput" />
             </div>
 
-            <!-- 尺寸（一行两列） -->
+            <!-- 尺寸 -->
             <div class="section-divider">大小</div>
-            <div class="field-row">
-              <div class="field">
-                <label>宽度</label>
-                <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
-              </div>
-              <div class="field">
-                <label>高度</label>
-                <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
-              </div>
+            <div class="field">
+              <label>宽度</label>
+              <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
+            </div>
+            <div class="field">
+              <label>高度</label>
+              <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
             </div>
 
           </div>
@@ -904,7 +900,11 @@ function toggleRouteMove() {
 
 /* ===================== 字段样式 ===================== */
 .field {
-  margin-bottom: 14px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
 }
 .field-row {
   display: flex;
@@ -915,23 +915,30 @@ function toggleRouteMove() {
   min-width: 0;
 }
 .field label {
-  display: block;
+  flex-shrink: 0;
+  width: 64px;
   font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
-  margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+  line-height: 1.2;
 }
 .field .hint {
   font-weight: normal;
   color: var(--text-muted);
   font-size: 11px;
 }
+.field > span {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-primary);
+}
 /* ID 值：缩小字体并强制单行显示（标准 UUID 可完整单行展示，超长时省略号，完整值见 title 提示） */
 .field .id-value {
-  display: block;
-  max-width: 100%;
+  flex: 1;
+  min-width: 0;
   font-size: 10px;
   line-height: 1.4;
   letter-spacing: -0.5px;
@@ -943,13 +950,13 @@ function toggleRouteMove() {
 }
 .field input,
 .field select {
-  width: 100%;
-  padding: 6px 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   font-size: 12px;
   box-sizing: border-box;
-  min-width: 0;
   background: var(--panel-bg);
   color: var(--text-primary);
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -981,12 +988,15 @@ function toggleRouteMove() {
   height: 32px;
   cursor: pointer;
 }
-.checkbox-field .checkbox-label {
+.checkbox-field {
+  gap: 0;
+}
+.checkbox-field label {
+  width: auto;
   display: flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  margin-bottom: 0;
   color: var(--text-primary);
   font-size: 12px;
 }

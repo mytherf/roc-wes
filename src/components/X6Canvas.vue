@@ -321,17 +321,51 @@ function clearAllRoutePaths() {
   if (toRemove.length) graph.removeCells(toRemove)
 }
 
+// ---------- 路线高亮（与路线列表选中状态联动） ----------
+/** 当前高亮的路线 ID（null 表示无高亮，所有路线正常样式） */
+let highlightedRouteId: string | null = null
+
+/**
+ * 路线路径渲染代号：每次重绘自增并拼入单元格 id，保证同一路线的单元格
+ * 在「删除 → 重新添加」时 id 唯一。X6 渲染调度器的任务队列按单元格 id 合并
+ * 待处理任务，同 id 先删后加会让渲染任务顶替删除任务，导致旧视图残留在 DOM。
+ */
+let pathRenderGen = 0
+
+/**
+ * 高亮画布中的指定路线：
+ * - 选中路线：更亮的颜色 + 更粗的线宽 + 半透明光晕底衬 + 放大航点并加光环
+ * - 其他路线：整体降低不透明度，弱化显示以突出选中路线
+ * 传 null 恢复所有路线为正常样式。
+ */
+function highlightRoute(routeId: string | null) {
+  if (highlightedRouteId === routeId) return
+  highlightedRouteId = routeId
+  renderRoutePaths()
+}
+
 /**
  * 渲染所有路线的持久路径（独立于节点，关闭编辑器/刷新后保持）。
- * 每次调用先清空旧的持久路径，再根据 routeStore 中的全部路线重绘。
+ * 每次调用先清空旧的持久路径，再根据 routeStore 中的全部路线重绘；
+ * 若存在高亮路线（highlightedRouteId），选中路线强调显示、其余路线淡化。
  */
 function renderRoutePaths() {
   if (!graph) return
   clearAllRoutePaths()
+  pathRenderGen += 1
+  const gen = pathRenderGen
 
   for (const route of routeStore.routes) {
     const points = route.points || []
     if (points.length < 1) continue
+
+    // 高亮状态：无高亮 → 正常；选中 → 强调；其余 → 淡化
+    const state: 'normal' | 'highlighted' | 'dimmed' =
+      highlightedRouteId === null
+        ? 'normal'
+        : route.id === highlightedRouteId
+          ? 'highlighted'
+          : 'dimmed'
 
     const smooth = route.smooth ?? false
     const segments = route.segments || []
@@ -347,17 +381,42 @@ function renderRoutePaths() {
       const isLoopSeg = i >= points.length - 1
       const seg = segments[i]
       const dir = seg?.direction || 'forward'
-      const targetMarker = dir === 'backward' ? null : { name: 'block', width: 8, height: 6 }
-      const sourceMarker = (dir === 'backward' || dir === 'both') ? { name: 'block', width: 8, height: 6 } : null
+      const markerOpacity = state === 'dimmed' ? 0.18 : 1
+      const targetMarker = dir === 'backward' ? null : { name: 'block', width: 8, height: 6, opacity: markerOpacity }
+      const sourceMarker = (dir === 'backward' || dir === 'both') ? { name: 'block', width: 8, height: 6, opacity: markerOpacity } : null
+
+      // 高亮路线：先铺一层半透明光晕底衬，让路线在画布中更醒目
+      if (state === 'highlighted') {
+        const glowConfig: any = {
+          id: `${ROUTE_PATH_PREFIX}${route.id}_g${gen}_glow${i}`,
+          source: { x: from.x, y: from.y },
+          target: { x: to.x, y: to.y },
+          attrs: {
+            line: {
+              stroke: '#9254de',
+              strokeWidth: 10,
+              strokeOpacity: 0.16,
+              strokeLinecap: 'round',
+            },
+          },
+          data: { isRouteOverlay: true, isRoutePath: true },
+          zIndex: -2,
+        }
+        if (smooth && points.length > 2) {
+          glowConfig.connector = { name: 'smooth' }
+        }
+        graph.addEdge(glowConfig)
+      }
 
       const edgeConfig: any = {
-        id: `${ROUTE_PATH_PREFIX}${route.id}_seg${i}`,
+        id: `${ROUTE_PATH_PREFIX}${route.id}_g${gen}_seg${i}`,
         source: { x: from.x, y: from.y },
         target: { x: to.x, y: to.y },
         attrs: {
           line: {
-            stroke: isLoopSeg ? '#b37feb' : '#722ed1',
-            strokeWidth: 2,
+            stroke: isLoopSeg ? '#b37feb' : state === 'highlighted' ? '#9254de' : '#722ed1',
+            strokeWidth: state === 'highlighted' ? 3.5 : 2,
+            strokeOpacity: state === 'dimmed' ? 0.18 : 1,
             strokeDasharray: isLoopSeg ? '4 4' : '8 4',
             targetMarker,
             sourceMarker,
@@ -377,9 +436,33 @@ function renderRoutePaths() {
       const wp = points[i]
       const isStation = wp.type === 'station'
       const isStart = i === 0
-      const size = isStation ? 14 : 12
+      const baseSize = isStation ? 14 : 12
+      const size = state === 'highlighted' ? baseSize + 4 : baseSize
+
+      // 高亮路线：航点下方叠加半透明光环
+      if (state === 'highlighted') {
+        const haloSize = size + 14
+        graph.addNode({
+          id: `${ROUTE_PATH_PREFIX}${route.id}_g${gen}_halo${i}`,
+          shape: 'circle',
+          x: wp.x - haloSize / 2,
+          y: wp.y - haloSize / 2,
+          width: haloSize,
+          height: haloSize,
+          attrs: {
+            body: {
+              fill: 'rgba(146, 84, 222, 0.12)',
+              stroke: 'rgba(146, 84, 222, 0.45)',
+              strokeWidth: 1.5,
+            },
+          },
+          data: { isRouteOverlay: true, isRoutePath: true },
+          zIndex: 99,
+        })
+      }
+
       graph.addNode({
-        id: `${ROUTE_PATH_PREFIX}${route.id}_wp${i}`,
+        id: `${ROUTE_PATH_PREFIX}${route.id}_g${gen}_wp${i}`,
         shape: isStation ? 'rect' : 'circle',
         x: wp.x - size / 2,
         y: wp.y - size / 2,
@@ -389,7 +472,8 @@ function renderRoutePaths() {
           body: {
             fill: isStart ? '#52c41a' : isStation ? '#faad14' : '#722ed1',
             stroke: '#fff',
-            strokeWidth: 2,
+            strokeWidth: state === 'highlighted' ? 2.5 : 2,
+            opacity: state === 'dimmed' ? 0.18 : 1,
             rx: isStation ? 2 : undefined,
             ry: isStation ? 2 : undefined,
           },
@@ -453,6 +537,7 @@ defineExpose({
   toggleRouteMovement,
   clearRouteOverlay,
   renderRouteOverlay,
+  highlightRoute,
 })
 
 // ===================== 4.6 监听显示模式切换 =====================

@@ -218,6 +218,13 @@ function getGraph(): any {
 
 const PREFIX = '__route_editor_'
 
+/**
+ * 覆盖层渲染代号：每次重绘自增并拼入单元格 id（置于索引之后，
+ * 保证现有 parseInt 解析逻辑不受影响）。X6 渲染调度器按 id 合并待处理任务，
+ * 同 id 先删后加会让渲染任务顶替删除任务，造成旧视图残留。
+ */
+let overlayGen = 0
+
 /** 网格吸附坐标 */
 function snapCoord(val: number): number {
   if (!gridSnap.value) return Math.round(val)
@@ -229,6 +236,8 @@ function renderOverlay(points: RouteWaypoint[]) {
   const graph = getGraph()
   if (!graph) return
   clearOverlay()
+  overlayGen += 1
+  const g = overlayGen
 
   const route = selectedRoute.value
   const smooth = route?.smooth ?? false
@@ -251,7 +260,7 @@ function renderOverlay(points: RouteWaypoint[]) {
     const sourceMarker = dir === 'backward' ? { name: 'block', width: 8, height: 6 } : (dir === 'both' ? { name: 'block', width: 8, height: 6 } : null)
 
     const edgeConfig: any = {
-      id: `${PREFIX}seg${i}`,
+      id: `${PREFIX}seg${i}_g${g}`,
       source: { x: from.x, y: from.y },
       target: { x: to.x, y: to.y },
       attrs: {
@@ -283,7 +292,7 @@ function renderOverlay(points: RouteWaypoint[]) {
     const size = isStation ? 14 : 12
 
     const wpNode: any = {
-      id: `${PREFIX}wp${i}`,
+      id: `${PREFIX}wp${i}_g${g}`,
       shape: isStation ? 'rect' : 'circle',
       x: wp.x - size / 2,
       y: wp.y - size / 2,
@@ -310,7 +319,7 @@ function renderOverlay(points: RouteWaypoint[]) {
     // data.isCoordLabel 供画布排除选中/交互。
     if (showCoordLabels.value) {
       graph.addNode({
-        id: `${PREFIX}lbl${i}`,
+        id: `${PREFIX}lbl${i}_g${g}`,
         shape: 'rect',
         x: wp.x - 32,
         y: wp.y + 8,
@@ -611,8 +620,9 @@ function previewAnimation() {
   const loop = route.loop
   const smooth = route.smooth
 
-  // 创建预览小圆点
-  previewDotId = `${PREFIX}preview_dot`
+  // 创建预览小圆点（带渲染代号后缀，避免同 id 先删后加导致旧视图残留）
+  overlayGen += 1
+  previewDotId = `${PREFIX}preview_dot_g${overlayGen}`
   graph.addNode({
     id: previewDotId,
     shape: 'circle',
@@ -753,6 +763,8 @@ function catmullRomPoint(points: RouteWaypoint[], segIndex: number, t: number, l
 function createNew() {
   const route = routeStore.createRoute(`路线-${routeStore.routes.length + 1}`)
   selectedId.value = route.id
+  // 新建路线同样高亮（此时无航点，其他路线淡化以提示编辑焦点已切换）
+  props.canvasRef?.highlightRoute?.(route.id)
 }
 
 function selectRoute(id: string) {
@@ -763,9 +775,41 @@ function selectRoute(id: string) {
   // 选中路线后，只要有航点就在画布上绘制编辑器覆盖层。
   if (route && route.points.length > 0) {
     renderOverlay(route.points)
+    focusOnRoute(route.points)
   } else {
     clearOverlay()
   }
+  // 联动画布高亮：选中路线加粗提亮 + 光晕，其余路线淡化
+  props.canvasRef?.highlightRoute?.(id)
+}
+
+/**
+ * 将视口聚焦到路线范围：
+ * 路线超出当前视口时缩小到可见，否则保持当前缩放（最多放大到 100%）并居中。
+ */
+function focusOnRoute(points: RouteWaypoint[]) {
+  const graph = getGraph()
+  if (!graph || points.length === 0) return
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const p of points) {
+    if (p.x < minX) minX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.x > maxX) maxX = p.x
+    if (p.y > maxY) maxY = p.y
+  }
+  graph.zoomToRect(
+    {
+      x: minX,
+      y: minY,
+      width: Math.max(maxX - minX, 1),
+      height: Math.max(maxY - minY, 1),
+    },
+    {
+      padding: 80,
+      minScale: 0.2,
+      maxScale: Math.max(graph.zoom(), 1),
+    },
+  )
 }
 
 function onNameChange() {
@@ -842,6 +886,8 @@ function deleteCurrent() {
   routeStore.deleteRoute(selectedId.value)
   clearOverlay()
   selectedId.value = null
+  // 删除后无选中路线，恢复画布所有路线为正常样式
+  props.canvasRef?.highlightRoute?.(null)
 }
 
 // 分段配置操作
@@ -877,11 +923,17 @@ watch(() => props.active, (on) => {
     if (route && route.points.length > 0) {
       nextTick(() => renderOverlay(route.points))
     }
+    // 恢复选中路线的高亮
+    if (selectedId.value) {
+      props.canvasRef?.highlightRoute?.(selectedId.value)
+    }
   } else {
     stopDrawing()
     stopPreview()
     clearOverlay()
     hideCtxMenu()
+    // 收起面板时取消高亮，恢复所有路线的正常样式
+    props.canvasRef?.highlightRoute?.(null)
   }
 })
 
@@ -913,6 +965,8 @@ onBeforeUnmount(() => {
   unbindContextMenu()
   window.removeEventListener('keydown', onKeydown)
   document.body.classList.remove('route-drawing-cursor')
+  // 卸载时恢复画布所有路线为正常样式
+  props.canvasRef?.highlightRoute?.(null)
 })
 </script>
 
