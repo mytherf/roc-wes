@@ -1,9 +1,9 @@
 <template>
-  <NodeMinimalView v-if="isMinimal" icon="🔼" :name="name" :status="status" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="elevator-node">
     <div class="elevator-shaft">
       <div class="elevator-car" :style="{ bottom: (position / maxLevel * 100) + '%' }">
-        <span class="elevator-icon">🔼</span>
+        <NodeIcon class="elevator-icon" :icon="displayIcon" :size="Math.min(iconSize, 24)" alt="提升机" />
       </div>
       <div class="elevator-level" v-for="i in maxLevel" :key="i" :style="{ bottom: ((i-1) / maxLevel * 100) + '%' }">
         <span class="level-marker" :class="{ 'level-active': i === currentLevel }">{{ i }}</span>
@@ -20,13 +20,16 @@
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
 import { useDisplayMode } from '@/composables/useDisplayMode'
+import { useNodeIcon } from '@/composables/useNodeIcon'
 import NodeMinimalView from './NodeMinimalView.vue'
+import NodeIcon from './NodeIcon.vue'
 
 const props = defineProps<{
   node: any
 }>()
 
 const { isMinimal } = useDisplayMode(props.node)
+const { displayIcon, iconSize } = useNodeIcon(props.node, 'elevator-node')
 
 const { name, maxLevel, currentLevel, position, status } = useNodeData(props.node, {
   name: '提升机-01',

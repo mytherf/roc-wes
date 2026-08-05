@@ -91,6 +91,63 @@
               <input v-model="element.data.label" @input="updateNodeLabel" />
             </div>
 
+            <!-- ====== 节点图标（默认图标 / 预设 / 上传自定义 / 尺寸） ====== -->
+            <template v-if="iconEditable">
+              <div class="section-divider">图标</div>
+              <div class="icon-current">
+                <div class="icon-preview" aria-hidden="true">
+                  <NodeIcon :icon="currentIcon" :size="Math.min(iconSizeModel, 36)" />
+                </div>
+                <div class="icon-current-info">
+                  <span class="icon-current-label">
+                    {{ isCustomImage ? '自定义图片' : isDefaultIcon ? '默认图标' : '预设图标' }}
+                  </span>
+                  <button v-if="!isDefaultIcon" class="icon-reset-btn" @click="resetIcon">恢复默认</button>
+                </div>
+              </div>
+
+              <div class="icon-grid" role="radiogroup" aria-label="选择预设图标">
+                <button
+                  v-for="ic in PRESET_ICONS"
+                  :key="ic"
+                  type="button"
+                  class="icon-grid-item"
+                  :class="{ active: element.data.icon === ic }"
+                  :title="'选择图标 ' + ic"
+                  :aria-pressed="element.data.icon === ic"
+                  @click="selectIcon(ic)"
+                >{{ ic }}</button>
+              </div>
+
+              <input
+                ref="iconFileInput"
+                type="file"
+                :accept="ICON_UPLOAD_ACCEPT"
+                class="icon-file-input"
+                aria-label="上传自定义图标图片"
+                @change="onIconFileChange"
+              />
+              <div class="icon-upload-row">
+                <button class="icon-upload-btn" :disabled="iconUploading" @click="triggerIconUpload">
+                  {{ iconUploading ? '处理中…' : '⬆ 上传图片' }}
+                </button>
+              </div>
+              <div class="icon-upload-hint">PNG / JPG / WebP / SVG，≤2MB，自动压缩至 128px 内</div>
+              <div v-if="iconError" class="icon-error" role="alert">{{ iconError }}</div>
+
+              <div class="field">
+                <label>图标尺寸 <span class="hint">({{ iconSizeModel }}px)</span></label>
+                <input
+                  type="range"
+                  :min="ICON_SIZE_MIN"
+                  :max="ICON_SIZE_MAX"
+                  step="1"
+                  v-model.number="iconSizeModel"
+                  @input="updateNodeIconSize"
+                />
+              </div>
+            </template>
+
             <!-- 设备名称（货架、堆垛机等 WCS 设备节点） -->
             <div v-if="element.data.name !== undefined" class="field">
               <label>名称</label>
@@ -316,6 +373,21 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { useNodeEvents } from '@/composables/useNodeEvents'
+import NodeIcon from './nodes/NodeIcon.vue'
+import {
+  PRESET_ICONS,
+  ICON_SIZE_MIN,
+  ICON_SIZE_MAX,
+  ICON_SIZE_DEFAULT,
+  ICON_UPLOAD_ACCEPT,
+  ICON_UPLOAD_MAX_BYTES,
+  ICON_UPLOAD_MAX_DIMENSION,
+  isImageIcon,
+  resolveNodeIcon,
+  clampIconSize,
+  iconOnlyNodeSize,
+  isMinimalIconShape,
+} from './nodes/nodeIcons'
 import {
   useDataSourceStore,
   DATA_SOURCE_TYPE_LABELS,
@@ -610,6 +682,183 @@ function updateNodeDataField(field: string) {
 function updateEdgeLabel() {
   if (!element.value || element.value.type !== 'edge') return
   editorStore.updateEdge(element.value.data.id, { label: element.value.data.label })
+}
+
+// ===================== 节点图标（默认 / 预设 / 上传自定义 / 尺寸控制） =====================
+// 原生形状（rect/circle）不走 Vue 节点渲染，不支持图标编辑
+const NATIVE_SHAPES = ['rect', 'circle']
+const iconEditable = computed(() =>
+  !!element.value &&
+  element.value.type === 'node' &&
+  !NATIVE_SHAPES.includes(element.value.data.shape)
+)
+
+/** 当前选中节点的形状名（用于解析默认图标） */
+const nodeShape = computed(() =>
+  element.value?.type === 'node' ? (element.value.data.shape || '') : ''
+)
+
+/** 当前实际生效的图标（data.icon 优先，否则形状默认图标） */
+const currentIcon = computed(() =>
+  resolveNodeIcon(nodeShape.value, element.value?.type === 'node' ? element.value.data.icon : '')
+)
+
+/** 是否为上传的图片图标（data: URL） */
+const isCustomImage = computed(() =>
+  element.value?.type === 'node' ? isImageIcon(element.value.data.icon) : false
+)
+
+/** 是否使用默认图标（data.icon 未设置） */
+const isDefaultIcon = computed(() =>
+  element.value?.type === 'node' ? !element.value.data.icon : true
+)
+
+// 图标尺寸本地模型（选中节点变化时从节点数据同步）
+const iconSizeModel = ref(ICON_SIZE_DEFAULT)
+const iconFileInput = ref<HTMLInputElement | null>(null)
+const iconUploading = ref(false)
+const iconError = ref('')
+
+/** 双写图标字段到 store 与 X6 节点 data（沿用面板既有同步模式） */
+function applyNodeIconData(patch: Record<string, any>) {
+  if (!element.value || element.value.type !== 'node') return
+  const nodeId = element.value.data.id
+
+  const storeNode = editorStore.graphData.nodes.find((n) => n.id === nodeId)
+  if (storeNode) {
+    editorStore.updateNode(nodeId, { data: { ...(storeNode.data || {}), ...patch } })
+  }
+
+  const graph = getGraph()
+  if (graph) {
+    const node = graph.getCellById(nodeId)
+    if (node && node.isNode()) {
+      node.setData({ ...(node.getData() || {}), ...patch })
+    }
+  }
+}
+
+/** 选择预设图标 */
+function selectIcon(ic: string) {
+  iconError.value = ''
+  applyNodeIconData({ icon: ic })
+}
+
+/** 恢复默认图标（清除 icon/iconSize，回退到形状默认图标与默认尺寸） */
+function resetIcon() {
+  iconError.value = ''
+  applyNodeIconData({ icon: undefined, iconSize: undefined })
+  iconSizeModel.value = ICON_SIZE_DEFAULT
+  syncIconModeNodeSize()
+}
+
+/** 更新图标显示尺寸 */
+function updateNodeIconSize() {
+  iconSizeModel.value = clampIconSize(iconSizeModel.value)
+  applyNodeIconData({ iconSize: iconSizeModel.value })
+  syncIconModeNodeSize()
+}
+
+/**
+ * 图标模式下节点模型尺寸随 iconSize 联动：
+ * 纯图标渲染时选择框需与图标视觉匹配，尺寸 = iconSize + 内边距（见 iconOnlyNodeSize）。
+ * 有效模式 = 节点级覆盖 ?? 全局；仅对支持极简视图的形状生效。
+ */
+function syncIconModeNodeSize() {
+  if (!element.value || element.value.type !== 'node') return
+  if (!isMinimalIconShape(element.value.data.shape)) return
+  const effectiveMode = element.value.data.displayMode ?? editorStore.displayMode
+  if (effectiveMode !== 'icon') return
+  const size = iconOnlyNodeSize(iconSizeModel.value)
+  props.canvasRef?.updateNodeSize?.(element.value.data.id, size.width, size.height)
+}
+
+/** 切换选中节点时同步图标尺寸与清除错误提示 */
+watch(
+  () => element.value?.data?.id,
+  () => {
+    iconError.value = ''
+    const graph = getGraph()
+    if (!graph || !element.value || element.value.type !== 'node') {
+      iconSizeModel.value = ICON_SIZE_DEFAULT
+      return
+    }
+    const node = graph.getCellById(element.value.data.id)
+    iconSizeModel.value = clampIconSize(node?.getData()?.iconSize || undefined)
+  },
+  { immediate: true }
+)
+
+/** 触发隐藏的文件选择框 */
+function triggerIconUpload() {
+  iconFileInput.value?.click()
+}
+
+/** 文件选择后：校验类型/大小 → canvas 压缩为 data URL → 写入节点 */
+async function onIconFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // 允许重复选择同一文件
+  if (!file) return
+
+  iconError.value = ''
+  if (!file.type.startsWith('image/')) {
+    iconError.value = '请选择图片文件（PNG / JPG / WebP / SVG）'
+    return
+  }
+  if (file.size > ICON_UPLOAD_MAX_BYTES) {
+    iconError.value = '图片超过 2MB，请压缩后再上传'
+    return
+  }
+
+  iconUploading.value = true
+  try {
+    const dataUrl = await compressImageToDataUrl(file)
+    // 图片图标过大时同步降一档默认显示尺寸，避免撑破节点头部
+    applyNodeIconData({ icon: dataUrl })
+  } catch (err: any) {
+    iconError.value = err?.message || '图片处理失败，请更换文件重试'
+  } finally {
+    iconUploading.value = false
+  }
+}
+
+/**
+ * 读取图片 → canvas 等比缩放至 ICON_UPLOAD_MAX_DIMENSION 内 → 导出 PNG data URL。
+ * 压缩后体积通常仅数 KB，写入节点 data 后随工程持久化到 localStorage 不会撑爆存储。
+ */
+function compressImageToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('文件读取失败'))
+    reader.onload = () => {
+      const img = new Image()
+      img.onerror = () => reject(new Error('图片解析失败，文件可能已损坏'))
+      img.onload = () => {
+        const w = img.naturalWidth
+        const h = img.naturalHeight
+        if (!w || !h) {
+          reject(new Error('无法读取图片尺寸（SVG 需声明 width/height）'))
+          return
+        }
+        const scale = Math.min(1, ICON_UPLOAD_MAX_DIMENSION / Math.max(w, h))
+        const tw = Math.max(1, Math.round(w * scale))
+        const th = Math.max(1, Math.round(h * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = tw
+        canvas.height = th
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('当前环境不支持 Canvas'))
+          return
+        }
+        ctx.drawImage(img, 0, 0, tw, th)
+        resolve(canvas.toDataURL('image/png'))
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  })
 }
 
 function onPositionInput() {
@@ -1132,6 +1381,127 @@ function toggleRouteMove() {
   margin-top: 3px;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+/* ===================== 节点图标选择区 ===================== */
+.icon-current {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  margin-bottom: 10px;
+  background: var(--statusbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+.icon-preview {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-bg);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+}
+.icon-current-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.icon-current-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.icon-reset-btn {
+  border: none;
+  background: none;
+  padding: 2px 0;
+  font-size: 11px;
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.icon-reset-btn:hover {
+  opacity: 0.75;
+  text-decoration: underline;
+}
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.icon-grid-item {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+  padding: 0;
+}
+.icon-grid-item:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+.icon-grid-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
+}
+.icon-grid-item.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+.icon-file-input {
+  display: none;
+}
+.icon-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.icon-upload-btn {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px dashed var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--panel-bg);
+  color: var(--color-primary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.icon-upload-btn:hover:not(:disabled) {
+  background: var(--color-primary-light);
+}
+.icon-upload-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.icon-upload-hint {
+  margin: 4px 0 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.icon-error {
+  margin: -2px 0 8px;
+  font-size: 11px;
+  color: var(--color-danger);
+  line-height: 1.4;
 }
 
 /* ===================== 响应式适配 ===================== */

@@ -1,9 +1,9 @@
 <template>
   <!-- 双击打开正视图（通过图级 cell:dblclick 事件触发，见 script） -->
-  <NodeMinimalView v-if="isMinimal" icon="🏛️" :name="name" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" />
   <div v-else class="rack-node">
     <div class="rack-header">
-      <span class="rack-icon">🏛️</span>
+      <NodeIcon class="rack-icon" :icon="displayIcon" :size="Math.min(iconSize, 24)" alt="货架" />
       <span class="rack-name">{{ name }}</span>
       <span class="rack-dim">{{ depthLabel }} {{ rows }}×{{ cols }}×{{ floors }}</span>
     </div>
@@ -71,7 +71,9 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useNodeData } from '@/composables/useNodeData'
 import { useDisplayMode } from '@/composables/useDisplayMode'
+import { useNodeIcon } from '@/composables/useNodeIcon'
 import NodeMinimalView from './NodeMinimalView.vue'
+import NodeIcon from './NodeIcon.vue'
 
 const props = defineProps<{
   node: any
@@ -79,6 +81,7 @@ const props = defineProps<{
 }>()
 
 const { isMinimal } = useDisplayMode(props.node)
+const { displayIcon, iconSize } = useNodeIcon(props.node, 'rack-node')
 
 /**
  * 货架三维模型：
@@ -254,7 +257,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 5px;
 }
-.rack-icon { font-size: 14px; }
+.rack-icon { display: inline-flex; align-items: center; }
 .rack-name {
   font-size: 12px;
   font-weight: 600;

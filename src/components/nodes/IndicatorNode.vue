@@ -1,7 +1,10 @@
 <template>
-  <NodeMinimalView v-if="isMinimal" icon="💡" :name="label" :status="status" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="label" :status="status" />
   <div v-else class="indicator-node">
-    <div class="indicator-label">{{ label }}</div>
+    <div class="indicator-label">
+      <NodeIcon class="indicator-icon" :icon="displayIcon" :size="Math.min(iconSize, 24)" alt="指示灯" />
+      {{ label }}
+    </div>
     <div class="indicator-body">
       <div class="indicator-light" :class="statusClass"></div>
       <span class="indicator-status">{{ statusText }}</span>
@@ -13,11 +16,14 @@
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
 import { useDisplayMode } from '@/composables/useDisplayMode'
+import { useNodeIcon } from '@/composables/useNodeIcon'
 import NodeMinimalView from './NodeMinimalView.vue'
+import NodeIcon from './NodeIcon.vue'
 
 const props = defineProps<{ node: any }>()
 
 const { isMinimal } = useDisplayMode(props.node)
+const { displayIcon, iconSize } = useNodeIcon(props.node, 'indicator-node')
 
 const { label, status } = useNodeData(props.node, {
   label: '指示灯',

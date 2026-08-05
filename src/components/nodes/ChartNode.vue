@@ -1,7 +1,10 @@
 <template>
-  <NodeMinimalView v-if="isMinimal" icon="📈" :name="title" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="title" />
   <div v-else class="chart-node">
-    <div class="chart-title">{{ title }}</div>
+    <div class="chart-title">
+      <NodeIcon class="chart-icon" :icon="displayIcon" :size="iconSize" alt="折线图" />
+      {{ title }}
+    </div>
     <div class="chart-container" ref="chartRef"></div>
   </div>
 </template>
@@ -11,11 +14,14 @@ import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import { useDisplayMode } from '@/composables/useDisplayMode'
+import { useNodeIcon } from '@/composables/useNodeIcon'
 import NodeMinimalView from './NodeMinimalView.vue'
+import NodeIcon from './NodeIcon.vue'
 
 const props = defineProps<{ node: any }>()
 
 const { isMinimal } = useDisplayMode(props.node)
+const { displayIcon, iconSize } = useNodeIcon(props.node, 'chart-node')
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: ECharts | null = null

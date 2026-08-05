@@ -242,13 +242,38 @@ export function useGraphSync(options: GraphSyncOptions) {
 }
 
 /**
+ * 运行期遥测字段：由 useDataService 订阅回调直接写入画布节点
+ * （node.data.value / _timestamp / _quality），并非用户编辑的设计数据。
+ * 这些字段在画布侧持续刷新、Store 侧不同步，若参与全量对比，会把任意
+ * 属性面板编辑误判为"实质变化"，从而触发整画布重建（见 bindStoreWatchers）。
+ * 对比前剥离这些字段，仅保留设计语义字段参与比较。
+ */
+const RUNTIME_DATA_KEYS = ['value', '_timestamp', '_quality']
+
+function stripRuntimeFields(node: any): any {
+  const data = node?.data
+  if (!data || typeof data !== 'object') return node
+  let touched = false
+  const cleaned: Record<string, any> = {}
+  for (const key of Object.keys(data)) {
+    if (RUNTIME_DATA_KEYS.includes(key)) {
+      touched = true
+      continue
+    }
+    cleaned[key] = data[key]
+  }
+  return touched ? { ...node, data: cleaned } : node
+}
+
+/**
  * 按 id 排序后逐条对比 nodes/edges，消除 cell 顺序差异导致的误判
  */
 function isSameGraphData(a: GraphData, b: GraphData): boolean {
   if (a.nodes.length !== b.nodes.length || a.edges.length !== b.edges.length) return false
   const sortById = (arr: any[]) => [...arr].sort((x, y) => String(x.id).localeCompare(String(y.id)))
+  const normalizeNodes = (arr: any[]) => sortById(arr).map(stripRuntimeFields)
   return (
-      JSON.stringify(sortById(a.nodes)) === JSON.stringify(sortById(b.nodes)) &&
+      JSON.stringify(normalizeNodes(a.nodes)) === JSON.stringify(normalizeNodes(b.nodes)) &&
       JSON.stringify(sortById(a.edges)) === JSON.stringify(sortById(b.edges))
   )
 }

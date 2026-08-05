@@ -1,8 +1,8 @@
 <template>
-  <NodeMinimalView v-if="isMinimal" icon="📦" :name="name" :status="status" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="sorter-node">
     <div class="sorter-header">
-      <span class="sorter-icon">📦</span>
+      <NodeIcon class="sorter-icon" :icon="displayIcon" :size="iconSize" alt="分拣机" />
       <span class="sorter-name">{{ name }}</span>
     </div>
     <div class="sorter-body">
@@ -25,13 +25,16 @@
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
 import { useDisplayMode } from '@/composables/useDisplayMode'
+import { useNodeIcon } from '@/composables/useNodeIcon'
 import NodeMinimalView from './NodeMinimalView.vue'
+import NodeIcon from './NodeIcon.vue'
 
 const props = defineProps<{
   node: any
 }>()
 
 const { isMinimal } = useDisplayMode(props.node)
+const { displayIcon, iconSize } = useNodeIcon(props.node, 'sorter-node')
 
 const { name, speed, status, chutes } = useNodeData(props.node, {
   name: '分拣机-01',

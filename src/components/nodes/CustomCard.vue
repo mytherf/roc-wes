@@ -1,8 +1,8 @@
 <template>
-  <NodeMinimalView v-if="isMinimal" :icon="icon" :name="title" :status="minimalStatus" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="title" :status="minimalStatus" />
   <div v-else class="custom-card" :style="{ borderColor: statusColor }">
     <div class="card-header">
-      <span class="icon">{{ icon }}</span>
+      <NodeIcon class="icon" :icon="displayIcon" :size="iconSize" alt="卡片图标" />
       <span class="title">{{ title }}</span>
     </div>
     <div class="card-body">
@@ -18,7 +18,9 @@
 // 这个组件会接收一个名为 'node' 的 prop，即 X6 的 Node 实例
 import { computed } from 'vue';
 import { useDisplayMode } from '@/composables/useDisplayMode'
+import { useNodeIcon } from '@/composables/useNodeIcon'
 import NodeMinimalView from './NodeMinimalView.vue'
+import NodeIcon from './NodeIcon.vue'
 
 /**
  * Props 说明：
@@ -30,11 +32,12 @@ const props = defineProps<{
 }>();
 
 const { isMinimal } = useDisplayMode(props.node)
+// 图标：data.icon 优先（模板默认注入），否则取形状默认图标；响应式跟随 change:data
+const { displayIcon, iconSize } = useNodeIcon(props.node, 'custom-card')
 
 // 从节点数据中读取自定义属性
 const data = computed(() => props.node.getData());
 const title = computed(() => data.value?.title || '未命名');
-const icon = computed(() => data.value?.icon || '📦');
 const statusText = computed(() => data.value?.status || '正常');
 
 // 根据状态文字映射颜色（工业场景常用）
@@ -92,7 +95,8 @@ const minimalStatus = computed(() => {
 }
 
 .icon {
-  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .title {

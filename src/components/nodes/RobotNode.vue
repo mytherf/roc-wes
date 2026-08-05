@@ -1,5 +1,5 @@
 <template>
-  <NodeMinimalView v-if="isMinimal" icon="🦾" :name="name" :status="status" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="robot-node">
     <div class="robot-arm">
       <div class="arm-base"></div>
@@ -9,6 +9,7 @@
       </div>
     </div>
     <div class="robot-info">
+      <NodeIcon class="robot-icon" :icon="displayIcon" :size="iconSize" alt="机械手" />
       <span class="robot-name">{{ name }}</span>
       <span class="robot-status" :class="statusClass">{{ statusText }}</span>
     </div>
@@ -19,13 +20,16 @@
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
 import { useDisplayMode } from '@/composables/useDisplayMode'
+import { useNodeIcon } from '@/composables/useNodeIcon'
 import NodeMinimalView from './NodeMinimalView.vue'
+import NodeIcon from './NodeIcon.vue'
 
 const props = defineProps<{
   node: any
 }>()
 
 const { isMinimal } = useDisplayMode(props.node)
+const { displayIcon, iconSize } = useNodeIcon(props.node, 'robot-node')
 
 const { name, jointAngle, isOpen, status } = useNodeData(props.node, {
   name: '机械手-01',

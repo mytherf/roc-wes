@@ -1,11 +1,11 @@
 <template>
-  <NodeMinimalView v-if="isMinimal" icon="🤖" :name="name" :status="status" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="agv-node" :class="{ 'agv-moving': isMoving }">
     <div class="agv-body">
       <div class="agv-wheel agv-wheel-fl"></div>
       <div class="agv-wheel agv-wheel-fr"></div>
       <div class="agv-center">
-        <span class="agv-icon">🤖</span>
+        <NodeIcon class="agv-icon" :icon="displayIcon" :size="iconSize" alt="AGV" />
         <span class="agv-battery" :style="{ width: battery + '%' }"></span>
         <span v-if="isMoving" class="agv-direction" :style="{ transform: `rotate(${routeAngle}deg)` }">➤</span>
       </div>
@@ -23,13 +23,16 @@
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
 import { useDisplayMode } from '@/composables/useDisplayMode'
+import { useNodeIcon } from '@/composables/useNodeIcon'
 import NodeMinimalView from './NodeMinimalView.vue'
+import NodeIcon from './NodeIcon.vue'
 
 const props = defineProps<{
   node: any
 }>()
 
 const { isMinimal } = useDisplayMode(props.node)
+const { displayIcon, iconSize } = useNodeIcon(props.node, 'agv-node')
 
 const { name, battery, isMoving, status, routeAngle } = useNodeData(props.node, {
   name: 'AGV-01',
@@ -83,7 +86,7 @@ const { statusClass, statusText } = useNodeStatus(status)
   border-radius: 6px;
   position: relative;
 }
-.agv-icon { font-size: 18px; }
+.agv-icon { display: inline-flex; align-items: center; }
 .agv-battery {
   position: absolute;
   bottom: 2px;

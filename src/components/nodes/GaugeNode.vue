@@ -1,7 +1,10 @@
 <template>
-  <NodeMinimalView v-if="isMinimal" icon="📊" :name="title" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="title" />
   <div v-else class="gauge-node">
-    <div class="gauge-title">{{ title }}</div>
+    <div class="gauge-title">
+      <NodeIcon class="gauge-icon" :icon="displayIcon" :size="iconSize" alt="仪表盘" />
+      {{ title }}
+    </div>
     <div class="gauge-chart" ref="chartRef"></div>
     <div class="gauge-value">
       {{ currentValue }} {{ unit }}
@@ -14,7 +17,9 @@ import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import { useDisplayMode } from '@/composables/useDisplayMode'
+import { useNodeIcon } from '@/composables/useNodeIcon'
 import NodeMinimalView from './NodeMinimalView.vue'
+import NodeIcon from './NodeIcon.vue'
 
 /**
  * 仪表盘节点组件
@@ -25,6 +30,7 @@ const props = defineProps<{
 }>()
 
 const { isMinimal } = useDisplayMode(props.node)
+const { displayIcon, iconSize } = useNodeIcon(props.node, 'gauge-node')
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: ECharts | null = null

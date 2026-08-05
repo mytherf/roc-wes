@@ -1,8 +1,8 @@
 <template>
-  <NodeMinimalView v-if="isMinimal" icon="🏗️" :name="name" :status="status" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="stacker-node" :class="{ 'stacker-moving': isMoving }">
     <div class="stacker-header">
-      <span class="stacker-icon">🏗️</span>
+      <NodeIcon class="stacker-icon" :icon="displayIcon" :size="iconSize" alt="堆垛机" />
       <span class="stacker-name">{{ name }}</span>
       <span v-if="isMoving" class="stacker-direction" :style="{ transform: `rotate(${routeAngle}deg)` }">➤</span>
     </div>
@@ -26,13 +26,16 @@
 import { useNodeData } from '@/composables/useNodeData'
 import { useNodeStatus } from '@/composables/useNodeStatus'
 import { useDisplayMode } from '@/composables/useDisplayMode'
+import { useNodeIcon } from '@/composables/useNodeIcon'
 import NodeMinimalView from './NodeMinimalView.vue'
+import NodeIcon from './NodeIcon.vue'
 
 const props = defineProps<{
   node: any
 }>()
 
 const { isMinimal } = useDisplayMode(props.node)
+const { displayIcon, iconSize } = useNodeIcon(props.node, 'stacker-node')
 
 const { name, lane, position, status, isMoving, progress, routeAngle } = useNodeData(props.node, {
   name: '堆垛机-01',
@@ -74,7 +77,7 @@ defineExpose({
   gap: 8px;
   margin-bottom: 6px;
 }
-.stacker-icon { font-size: 20px; }
+.stacker-icon { display: inline-flex; align-items: center; }
 .stacker-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .stacker-direction {
   font-size: 10px;

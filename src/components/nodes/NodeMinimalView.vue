@@ -1,30 +1,35 @@
 <template>
-  <div class="node-minimal">
-    <span class="minimal-icon">{{ icon }}</span>
-    <span class="minimal-name">{{ name }}</span>
-    <span v-if="status" class="minimal-dot" :class="dotClass" :title="statusTitle"></span>
+  <div class="node-icon-only" :title="tooltip" role="img" :aria-label="tooltip">
+    <NodeIcon :icon="icon" :size="iconSize" :alt="name" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import NodeIcon from './NodeIcon.vue'
 
 /**
- * NodeMinimalView - 极简模式下的节点统一渲染组件
+ * NodeMinimalView - 图标模式下的节点统一渲染组件
  *
- * 所有设备/IoT 节点在极简模式下共用此紧凑卡片：图标 + 名称 + 状态圆点。
- * 由各节点组件通过 v-if="isMinimal" 条件渲染。
+ * 图标模式下画布只显示节点的图标本身（默认图标或用户自定义图标），
+ * 不渲染名称与状态圆点；名称与运行状态收敛为悬停 tooltip，
+ * 保持节点可辨识、可访问。由各节点组件通过 v-if="isMinimal" 条件渲染。
+ *
+ * 节点模型尺寸随 iconSize 自适应（见 nodeIcons.iconOnlyNodeSize），
+ * 图标在节点内居中显示。
  */
-const props = defineProps<{
-  /** 节点图标（emoji） */
+const props = withDefaults(defineProps<{
+  /** 节点图标（emoji 或 data: URL 图片，由 NodeIcon 统一渲染） */
   icon: string
-  /** 节点名称 */
+  /** 节点名称（tooltip 展示） */
   name: string
-  /** 运行状态（idle/running/error/warning/charging/on/off），为空则不显示圆点 */
+  /** 运行状态（idle/running/error/warning/charging/on/off），为空则 tooltip 不含状态 */
   status?: string
-}>()
-
-const dotClass = computed(() => `dot-${props.status || 'idle'}`)
+  /** 图标尺寸（px），与节点模型尺寸联动 */
+  iconSize?: number
+}>(), {
+  iconSize: 20,
+})
 
 const STATUS_TITLES: Record<string, string> = {
   idle: '待机',
@@ -36,55 +41,26 @@ const STATUS_TITLES: Record<string, string> = {
   off: '关闭',
 }
 
-const statusTitle = computed(() => STATUS_TITLES[props.status || ''] || props.status || '')
+const tooltip = computed(() => {
+  const statusText = STATUS_TITLES[props.status || ''] || props.status || ''
+  return statusText ? `${props.name} · ${statusText}` : props.name
+})
 </script>
 
 <style scoped>
-.node-minimal {
+.node-icon-only {
   display: flex;
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  overflow: hidden;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: var(--panel-bg);
-  border: 1.5px solid var(--border-color);
-  border-radius: 6px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  justify-content: center;
+  border-radius: 8px;
   user-select: none;
   cursor: pointer;
-  white-space: nowrap;
+  transition: background-color 150ms ease;
 }
-.minimal-icon {
-  font-size: 16px;
-  line-height: 1;
-}
-.minimal-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.minimal-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.dot-idle { background: #d9d9d9; }
-.dot-running { background: #52c41a; animation: minimalPulse 1s infinite; }
-.dot-error { background: #ff4d4f; animation: minimalPulse 0.5s infinite; }
-.dot-warning { background: #faad14; animation: minimalPulse 0.8s infinite; }
-.dot-charging { background: #faad14; }
-.dot-on { background: #52c41a; }
-.dot-off { background: #d9d9d9; }
-@keyframes minimalPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+.node-icon-only:hover {
+  background: rgba(24, 144, 255, 0.08);
 }
 </style>

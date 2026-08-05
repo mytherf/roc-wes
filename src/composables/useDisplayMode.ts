@@ -10,7 +10,7 @@ import type { DisplayMode } from '@/stores/editor'
  * 2. 传入 node：优先读取节点级 data.displayMode 覆盖，未设置时回退到全局
  *
  * 模式语义：
- * - 'icon'（图标模式）：节点以紧凑图标卡片展示 → isMinimal = true
+ * - 'icon'（图标模式）：节点仅渲染图标（纯图标视图）→ isMinimal = true
  * - 'full'（完整/极简模式）：节点完整渲染 → isMinimal = false
  *
  * 节点级覆盖通过右键菜单设置 node.data.displayMode = 'icon' | 'full'，

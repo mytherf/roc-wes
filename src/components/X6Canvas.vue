@@ -56,6 +56,7 @@ import {PointIdGenerator} from '@/services/PointIdGenerator'
 
 import {useDataService} from '@/composables/useDataService'
 import {useGraphSync} from '@/composables/useGraphSync'
+import {iconOnlyNodeSize, isMinimalIconShape} from './nodes/nodeIcons'
 
 // ===================== 1. 获取 Teleport 容器组件 =====================
 const TeleportContainer = getTeleport()
@@ -117,11 +118,11 @@ function setNodeDisplayMode(mode: 'icon' | 'full' | undefined) {
 
   if (isMinimalShape(node)) {
     if (effectiveMode === 'icon') {
-      // 切到图标模式：保存原始尺寸（如果还没保存）并压缩
+      // 切到图标模式：保存原始尺寸（如果还没保存）并按 iconSize 压缩
       if (!originalSizes.has(node.id)) {
         originalSizes.set(node.id, { ...node.getSize() })
       }
-      node.setSize(ICON_MODE_SIZE)
+      node.setSize(iconModeSizeFor(data))
     } else {
       // 切到完整模式：恢复原始尺寸
       const original = originalSizes.get(node.id)
@@ -178,7 +179,7 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, s
     const effectiveMode = data?.displayMode ?? editorStore.displayMode
     if (effectiveMode === 'icon' && cell.isNode() && isMinimalShape(cell)) {
       originalSizes.set(cell.id, { ...cell.getSize() })
-      cell.setSize(ICON_MODE_SIZE)
+      cell.setSize(iconModeSizeFor(data))
     }
   },
   // 移除节点：释放点 ID
@@ -196,15 +197,10 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, s
 
 // ===================== 4.5 显示模式切换：节点尺寸适配 =====================
 
-/** 图标模式下的紧凑节点尺寸（与 NodeMinimalView 视觉尺寸匹配） */
-const ICON_MODE_SIZE = { width: 140, height: 36 }
-
-/** 支持极简视图的节点形状（切换图标模式时需压缩尺寸） */
-const MINIMAL_SHAPES = new Set([
-  'custom-card', 'gauge-node', 'chart-node', 'indicator-node',
-  'stacker-node', 'conveyor-node', 'agv-node', 'shuttle-node',
-  'sorter-node', 'elevator-node', 'robot-node', 'rack-node',
-])
+/** 计算图标模式下的节点尺寸：正方形，随节点 iconSize 自适应（见 nodeIcons.ts iconOnlyNodeSize） */
+function iconModeSizeFor(nodeData: Record<string, any> | undefined | null): { width: number; height: number } {
+  return iconOnlyNodeSize(nodeData?.iconSize)
+}
 
 /** 记录节点进入图标模式前的原始尺寸（nodeId → size） */
 const originalSizes = new Map<string, { width: number; height: number }>()
@@ -865,9 +861,9 @@ onMounted(() => {
 
 // ===================== 6. 辅助函数 =====================
 
-/** 判断节点是否需要在图标模式下压缩尺寸 */
+/** 判断节点是否需要在图标模式下压缩尺寸（形状集合统一维护在 nodeIcons.ts） */
 function isMinimalShape(node: any): boolean {
-  return MINIMAL_SHAPES.has(node.shape)
+  return isMinimalIconShape(node.shape)
 }
 
 /** 图标模式：保存原始尺寸并压缩所有极简视图节点（跳过有节点级覆盖的） */
@@ -877,11 +873,11 @@ function applyIconModeSizes(g: Graph) {
     const nodeData = node.getData() || {}
     // 有节点级覆盖且不是 icon 的，不受全局切换影响（null 表示跟随全局，不算覆盖）
     if (nodeData.displayMode != null && nodeData.displayMode !== 'icon') continue
-    // 仅在尚未记录原始尺寸时保存，防止已压缩节点的 140x36 覆盖真实原始尺寸
+    // 仅在尚未记录原始尺寸时保存，防止已压缩节点的紧凑尺寸覆盖真实原始尺寸
     if (!originalSizes.has(node.id)) {
       originalSizes.set(node.id, { ...node.getSize() })
     }
-    node.setSize(ICON_MODE_SIZE)
+    node.setSize(iconModeSizeFor(nodeData))
   }
 }
 
@@ -963,7 +959,7 @@ function loadGraphData(data: GraphData) {
         if (!originalSizes.has(node.id)) {
           originalSizes.set(node.id, { ...node.getSize() })
         }
-        node.setSize(ICON_MODE_SIZE)
+        node.setSize(iconModeSizeFor(nodeData))
         changed = true
       }
     }
