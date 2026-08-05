@@ -1,9 +1,14 @@
 <template>
   <div class="bottom-panel" :class="{ collapsed: editorStore.bottomCollapsed }">
-    <!-- 头部：标题 + 折叠开关 -->
+    <!-- 头部：标题 + 浮动切换 + 折叠开关 -->
     <div class="bottom-panel-header">
       <span class="bp-title">🛤️ 路线</span>
       <div class="bp-spacer" />
+      <button
+        class="bp-collapse-btn"
+        title="切换为浮动窗口"
+        @click="editorStore.setRouteFloating(true)"
+      >⧉</button>
       <button
         class="bp-collapse-btn"
         :title="editorStore.bottomCollapsed ? '展开面板' : '折叠面板'"
@@ -11,16 +16,13 @@
       >{{ editorStore.bottomCollapsed ? '▲' : '▼' }}</button>
     </div>
 
-    <!-- 内容区：路线编辑器常驻挂载，折叠时隐藏（保留编辑状态） -->
-    <div class="bottom-panel-content" v-show="!editorStore.bottomCollapsed">
-      <RouteEditorDialog :canvas-ref="canvasRef" :active="routeActive" />
-    </div>
+    <!-- 内容区：路线编辑器由 MainLayout 通过 Teleport 挂载到此容器（#bottom-panel-content），
+         折叠时隐藏（保留编辑状态） -->
+    <div class="bottom-panel-content" id="bottom-panel-content" v-show="!editorStore.bottomCollapsed"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import RouteEditorDialog from '@/components/RouteEditorDialog.vue'
 import { useEditorStore } from '@/stores/editor'
 
 defineProps<{
@@ -28,9 +30,6 @@ defineProps<{
 }>()
 
 const editorStore = useEditorStore()
-
-// 路线编辑器仅在面板展开时才接管画布交互（如空白右键添加航点）
-const routeActive = computed(() => !editorStore.bottomCollapsed)
 </script>
 
 <style scoped>

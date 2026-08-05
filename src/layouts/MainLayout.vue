@@ -13,10 +13,24 @@
         </div>
         <PropertyPanel :canvas-ref="canvasRef" />
       </div>
-      <!-- 底部：路线面板（可折叠） -->
-      <BottomPanel :canvas-ref="canvasRef" />
+      <!-- 底部：路线面板（可折叠；浮动模式下隐藏） -->
+      <BottomPanel v-show="!editorStore.routeFloating" :canvas-ref="canvasRef" />
       <!-- 底部：状态栏 -->
       <StatusBar :graph="graphInstance" />
+
+      <!-- 路线浮动窗口（悬浮于画布之上，可拖拽/缩放） -->
+      <RouteFloatWindow
+        v-show="editorStore.routeFloating"
+        @dock="onFloatDock"
+        @close="onFloatClose"
+      />
+
+      <!-- 路线编辑器单实例：通过 Teleport 在 停靠容器 / 浮动窗口 之间切换，
+           切换时组件实例与编辑状态（选中路线、绘制模式等）保持不变。
+           defer：目标容器由同级组件渲染，需等应用挂载完成后再解析目标 -->
+      <Teleport defer :to="editorStore.routeFloating ? '#route-float-body' : '#bottom-panel-content'">
+        <RouteEditorDialog :canvas-ref="canvasRef" :active="routeActive" />
+      </Teleport>
     </div>
 
     <!-- 节点详情弹窗（双击节点触发） -->
@@ -30,18 +44,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import X6Canvas from '@/components/X6Canvas.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
 import BottomPanel from '@/components/BottomPanel.vue'
+import RouteFloatWindow from '@/components/RouteFloatWindow.vue'
+import RouteEditorDialog from '@/components/RouteEditorDialog.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import NodeDetailDialog from '@/components/NodeDetailDialog.vue'
 import { useThemeStore } from '@/stores/theme'
+import { useEditorStore } from '@/stores/editor'
 
 // 初始化主题（读取 localStorage 并设置 data-theme 属性）
 useThemeStore()
+
+const editorStore = useEditorStore()
 
 const canvasRef = ref<InstanceType<typeof X6Canvas>>()
 const graphInstance = ref(null)
@@ -49,6 +68,23 @@ const dndInstance = ref(null)
 
 // 节点详情弹窗状态
 const detailNodeId = ref<string | null>(null)
+
+// 路线编辑器激活状态：浮动模式下始终激活；停靠模式下仅在面板展开时激活
+const routeActive = computed(() =>
+  editorStore.routeFloating ? true : !editorStore.bottomCollapsed
+)
+
+/** 浮动窗口「回到底部面板」：恢复停靠并展开 */
+function onFloatDock() {
+  editorStore.setRouteFloating(false)
+  editorStore.setBottomCollapsed(false)
+}
+
+/** 浮动窗口「关闭」：恢复停靠并收起为标题条 */
+function onFloatClose() {
+  editorStore.setRouteFloating(false)
+  editorStore.setBottomCollapsed(true)
+}
 
 const onCanvasReady = (payload: { graph: any; dnd: any }) => {
   graphInstance.value = payload.graph
@@ -247,6 +283,8 @@ body,
   flex-direction: column;
   min-width: 0;
   height: 100%;
+  /* 作为路线浮动窗口的定位上下文 */
+  position: relative;
 }
 
 .bottom-area {

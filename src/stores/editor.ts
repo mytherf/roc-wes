@@ -33,6 +33,8 @@ export const useEditorStore = defineStore(
         const displayMode = ref<DisplayMode>('full')
         // 底部路线面板是否折叠（折叠后仅显示标题条）
         const bottomCollapsed = ref(false)
+        // 路线编辑器是否以浮动窗口形式显示（true 时脱离底部停靠，悬浮在画布之上）
+        const routeFloating = ref(false)
         // 左侧组件库面板是否折叠
         const sidebarCollapsed = ref(false)
         // 右侧属性面板是否折叠
@@ -120,6 +122,20 @@ export const useEditorStore = defineStore(
          */
         function toggleBottomCollapsed() {
             bottomCollapsed.value = !bottomCollapsed.value
+        }
+
+        /**
+         * 设置路线编辑器浮动窗口模式
+         */
+        function setRouteFloating(floating: boolean) {
+            routeFloating.value = floating
+        }
+
+        /**
+         * 切换路线编辑器 停靠/浮动 模式
+         */
+        function toggleRouteFloating() {
+            routeFloating.value = !routeFloating.value
         }
 
         /**
@@ -276,6 +292,7 @@ export const useEditorStore = defineStore(
             canvasSelected,
             displayMode,
             bottomCollapsed,
+            routeFloating,
             sidebarCollapsed,
             propertyCollapsed,
             selectedElement,
@@ -287,6 +304,8 @@ export const useEditorStore = defineStore(
             setDisplayMode,
             setBottomCollapsed,
             toggleBottomCollapsed,
+            setRouteFloating,
+            toggleRouteFloating,
             setSidebarCollapsed,
             toggleSidebarCollapsed,
             setPropertyCollapsed,
