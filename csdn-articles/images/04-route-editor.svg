@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540">
+  <defs>
+    <linearGradient id="bg4" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="540" fill="url(#bg4)"/>
+  <text x="480" y="38" text-anchor="middle" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="20" font-weight="bold">路线编辑器 · Catmull-Rom 插值 · 浮动窗口</text>
+  <!-- Canvas area -->
+  <rect x="40" y="60" rx="8" width="600" height="420" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+  <text x="340" y="82" text-anchor="middle" fill="#475569" font-family="Arial,sans-serif" font-size="11">Canvas</text>
+  <!-- Grid dots -->
+  <g fill="#1e3a5f" opacity="0.4">
+    <circle cx="80" cy="120" r="1"/><circle cx="120" cy="120" r="1"/><circle cx="160" cy="120" r="1"/><circle cx="200" cy="120" r="1"/><circle cx="240" cy="120" r="1"/><circle cx="280" cy="120" r="1"/><circle cx="320" cy="120" r="1"/><circle cx="360" cy="120" r="1"/><circle cx="400" cy="120" r="1"/><circle cx="440" cy="120" r="1"/><circle cx="480" cy="120" r="1"/><circle cx="520" cy="120" r="1"/><circle cx="560" cy="120" r="1"/><circle cx="600" cy="120" r="1"/>
+    <circle cx="80" cy="160" r="1"/><circle cx="120" cy="160" r="1"/><circle cx="160" cy="160" r="1"/><circle cx="200" cy="160" r="1"/><circle cx="240" cy="160" r="1"/><circle cx="280" cy="160" r="1"/><circle cx="320" cy="160" r="1"/><circle cx="360" cy="160" r="1"/><circle cx="400" cy="160" r="1"/><circle cx="440" cy="160" r="1"/><circle cx="480" cy="160" r="1"/><circle cx="520" cy="160" r="1"/><circle cx="560" cy="160" r="1"/><circle cx="600" cy="160" r="1"/>
+    <circle cx="80" cy="200" r="1"/><circle cx="120" cy="200" r="1"/><circle cx="160" cy="200" r="1"/><circle cx="200" cy="200" r="1"/><circle cx="240" cy="200" r="1"/><circle cx="280" cy="200" r="1"/><circle cx="320" cy="200" r="1"/><circle cx="360" cy="200" r="1"/><circle cx="400" cy="200" r="1"/><circle cx="440" cy="200" r="1"/><circle cx="480" cy="200" r="1"/><circle cx="520" cy="200" r="1"/><circle cx="560" cy="200" r="1"/><circle cx="600" cy="200" r="1"/>
+  </g>
+  <!-- Route path (smooth curve) -->
+  <path d="M100,400 C150,380 180,300 250,280 S350,200 400,180 S500,150 550,200 S580,350 500,400" fill="none" stroke="#06b6d4" stroke-width="3" opacity="0.8"/>
+  <!-- Direction arrows along path -->
+  <polygon points="180,330 190,320 175,322" fill="#06b6d4" opacity="0.7"/>
+  <polygon points="330,210 340,200 325,202" fill="#06b6d4" opacity="0.7"/>
+  <polygon points="520,170 530,160 515,162" fill="#06b6d4" opacity="0.7"/>
+  <polygon points="560,300 570,290 555,292" fill="#06b6d4" opacity="0.7"/>
+  <!-- Waypoints -->
+  <circle cx="100" cy="400" r="8" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+  <text x="100" y="404" text-anchor="middle" fill="#f59e0b" font-family="Arial,sans-serif" font-size="9" font-weight="bold">1</text>
+  <circle cx="250" cy="280" r="8" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+  <text x="250" y="284" text-anchor="middle" fill="#f59e0b" font-family="Arial,sans-serif" font-size="9" font-weight="bold">2</text>
+  <circle cx="400" cy="180" r="8" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+  <text x="400" y="184" text-anchor="middle" fill="#f59e0b" font-family="Arial,sans-serif" font-size="9" font-weight="bold">3</text>
+  <circle cx="550" cy="200" r="8" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+  <text x="550" y="204" text-anchor="middle" fill="#f59e0b" font-family="Arial,sans-serif" font-size="9" font-weight="bold">4</text>
+  <circle cx="500" cy="400" r="8" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
+  <text x="500" y="404" text-anchor="middle" fill="#10b981" font-family="Arial,sans-serif" font-size="9" font-weight="bold">5</text>
+  <!-- Waypoint labels -->
+  <text x="100" y="430" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="9">起点</text>
+  <text x="250" y="265" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="9">航点</text>
+  <text x="400" y="165" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="9">航点</text>
+  <text x="550" y="225" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="9">航点</text>
+  <text x="500" y="430" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="9">终点</text>
+  <!-- Floating window -->
+  <rect x="660" y="80" rx="10" width="270" height="380" fill="#1e293b" stroke="#06b6d4" stroke-width="1.5" filter="url(#shadow4)"/>
+  <defs><filter id="shadow4"><feDropShadow dx="2" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.5"/></filter></defs>
+  <!-- Float window title bar -->
+  <rect x="660" y="80" rx="10" width="270" height="30" fill="#164e63"/>
+  <text x="795" y="100" text-anchor="middle" fill="#67e8f9" font-family="Arial,sans-serif" font-size="11" font-weight="bold">路线编辑 (浮动窗口)</text>
+  <!-- Drag handle icon -->
+  <text x="675" y="100" fill="#475569" font-family="Arial,sans-serif" font-size="12">⠿</text>
+  <!-- Route list -->
+  <text x="680" y="130" fill="#94a3b8" font-family="Arial,sans-serif" font-size="10">路线列表</text>
+  <rect x="675" y="138" rx="4" width="240" height="24" fill="#1e3a5f" stroke="#06b6d4" stroke-width="1"/>
+  <text x="685" y="155" fill="#67e8f9" font-family="Arial,sans-serif" font-size="10">AGV-主通道</text>
+  <rect x="675" y="166" rx="4" width="240" height="24" fill="#0f172a"/>
+  <text x="685" y="183" fill="#64748b" font-family="Arial,sans-serif" font-size="10">分拣环线</text>
+  <rect x="675" y="194" rx="4" width="240" height="24" fill="#0f172a"/>
+  <text x="685" y="211" fill="#64748b" font-family="Arial,sans-serif" font-size="10">充电回程</text>
+  <!-- Waypoint details -->
+  <line x1="675" y1="230" x2="915" y2="230" stroke="#334155" stroke-width="1"/>
+  <text x="680" y="250" fill="#94a3b8" font-family="Arial,sans-serif" font-size="10">航点详情</text>
+  <text x="680" y="272" fill="#64748b" font-family="Arial,sans-serif" font-size="9">#1 起点  (100, 400)</text>
+  <text x="680" y="290" fill="#64748b" font-family="Arial,sans-serif" font-size="9">#2 航点  (250, 280)</text>
+  <text x="680" y="308" fill="#64748b" font-family="Arial,sans-serif" font-size="9">#3 航点  (400, 180)</text>
+  <text x="680" y="326" fill="#64748b" font-family="Arial,sans-serif" font-size="9">#4 航点  (550, 200)</text>
+  <text x="680" y="344" fill="#64748b" font-family="Arial,sans-serif" font-size="9">#5 终点  (500, 400)</text>
+  <!-- Config -->
+  <line x1="675" y1="358" x2="915" y2="358" stroke="#334155" stroke-width="1"/>
+  <text x="680" y="378" fill="#64748b" font-family="Arial,sans-serif" font-size="9">平滑: Catmull-Rom</text>
+  <text x="680" y="396" fill="#64748b" font-family="Arial,sans-serif" font-size="9">速度: 1.0x</text>
+  <text x="680" y="414" fill="#64748b" font-family="Arial,sans-serif" font-size="9">循环: 启用</text>
+  <!-- Dock/Floating toggle -->
+  <rect x="675" y="430" rx="4" width="60" height="22" fill="#164e63"/><text x="705" y="445" text-anchor="middle" fill="#67e8f9" font-family="Arial,sans-serif" font-size="9">⧉ 浮动</text>
+  <rect x="745" y="430" rx="4" width="60" height="22" fill="#164e63"/><text x="775" y="445" text-anchor="middle" fill="#67e8f9" font-family="Arial,sans-serif" font-size="9">⬇ 停靠</text>
+  <!-- Bottom annotation -->
+  <text x="480" y="510" text-anchor="middle" fill="#475569" font-family="Arial,sans-serif" font-size="11">Teleport defer 实现停靠/浮动无缝切换 · 拖动无边界限制 · 世代后缀防视图残留</text>
+</svg>

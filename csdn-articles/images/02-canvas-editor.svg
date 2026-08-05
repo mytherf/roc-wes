@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <rect width="960" height="540" fill="url(#bg2)"/>
+  <text x="480" y="38" text-anchor="middle" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="20" font-weight="bold">画布编辑器 · 拖拽 → 属性面板 → 数据绑定</text>
+  <!-- Sidebar -->
+  <rect x="30" y="60" rx="8" width="140" height="440" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow)"/>
+  <text x="100" y="85" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="12" font-weight="bold">组件库</text>
+  <g font-family="Arial,sans-serif" font-size="11">
+    <rect x="45" y="100" rx="6" width="110" height="36" fill="#1e3a5f"/><text x="100" y="123" text-anchor="middle" fill="#60a5fa">🏗️ 堆垛机</text>
+    <rect x="45" y="145" rx="6" width="110" height="36" fill="#1e3a5f"/><text x="100" y="168" text-anchor="middle" fill="#60a5fa">⏹️ 输送线</text>
+    <rect x="45" y="190" rx="6" width="110" height="36" fill="#1e3a5f"/><text x="100" y="213" text-anchor="middle" fill="#60a5fa">🤖 AGV</text>
+    <rect x="45" y="235" rx="6" width="110" height="36" fill="#1e3a5f"/><text x="100" y="258" text-anchor="middle" fill="#60a5fa">🏛️ 货架</text>
+    <rect x="45" y="280" rx="6" width="110" height="36" fill="#1e3a5f"/><text x="100" y="303" text-anchor="middle" fill="#60a5fa">📊 仪表盘</text>
+    <rect x="45" y="325" rx="6" width="110" height="36" fill="#1e3a5f"/><text x="100" y="348" text-anchor="middle" fill="#60a5fa">💡 指示灯</text>
+    <rect x="45" y="370" rx="6" width="110" height="36" fill="#1e3a5f"/><text x="100" y="393" text-anchor="middle" fill="#60a5fa">📈 折线图</text>
+  </g>
+  <!-- Canvas -->
+  <rect x="190" y="60" rx="8" width="500" height="440" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+  <text x="440" y="82" text-anchor="middle" fill="#475569" font-family="Arial,sans-serif" font-size="11">Canvas (AntV X6 v3)</text>
+  <!-- Grid dots -->
+  <g fill="#1e3a5f" opacity="0.5">
+    <circle cx="220" cy="120" r="1.5"/><circle cx="260" cy="120" r="1.5"/><circle cx="300" cy="120" r="1.5"/><circle cx="340" cy="120" r="1.5"/><circle cx="380" cy="120" r="1.5"/><circle cx="420" cy="120" r="1.5"/><circle cx="460" cy="120" r="1.5"/><circle cx="500" cy="120" r="1.5"/><circle cx="540" cy="120" r="1.5"/><circle cx="580" cy="120" r="1.5"/><circle cx="620" cy="120" r="1.5"/><circle cx="660" cy="120" r="1.5"/>
+    <circle cx="220" cy="160" r="1.5"/><circle cx="260" cy="160" r="1.5"/><circle cx="300" cy="160" r="1.5"/><circle cx="340" cy="160" r="1.5"/><circle cx="380" cy="160" r="1.5"/><circle cx="420" cy="160" r="1.5"/><circle cx="460" cy="160" r="1.5"/><circle cx="500" cy="160" r="1.5"/><circle cx="540" cy="160" r="1.5"/><circle cx="580" cy="160" r="1.5"/><circle cx="620" cy="160" r="1.5"/><circle cx="660" cy="160" r="1.5"/>
+    <circle cx="220" cy="200" r="1.5"/><circle cx="260" cy="200" r="1.5"/><circle cx="300" cy="200" r="1.5"/><circle cx="340" cy="200" r="1.5"/><circle cx="380" cy="200" r="1.5"/><circle cx="420" cy="200" r="1.5"/><circle cx="460" cy="200" r="1.5"/><circle cx="500" cy="200" r="1.5"/><circle cx="540" cy="200" r="1.5"/><circle cx="580" cy="200" r="1.5"/><circle cx="620" cy="200" r="1.5"/><circle cx="660" cy="200" r="1.5"/>
+    <circle cx="220" cy="240" r="1.5"/><circle cx="260" cy="240" r="1.5"/><circle cx="300" cy="240" r="1.5"/><circle cx="340" cy="240" r="1.5"/><circle cx="380" cy="240" r="1.5"/><circle cx="420" cy="240" r="1.5"/><circle cx="460" cy="240" r="1.5"/><circle cx="500" cy="240" r="1.5"/><circle cx="540" cy="240" r="1.5"/><circle cx="580" cy="240" r="1.5"/><circle cx="620" cy="240" r="1.5"/><circle cx="660" cy="240" r="1.5"/>
+  </g>
+  <!-- Nodes on canvas -->
+  <!-- Stacker -->
+  <rect x="240" y="130" rx="8" width="100" height="60" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+  <text x="290" y="155" text-anchor="middle" fill="#93c5fd" font-family="Arial,sans-serif" font-size="11">🏗️ 堆垛机</text>
+  <text x="290" y="175" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="9">device.stacker.01</text>
+  <!-- Conveyor -->
+  <rect x="400" y="130" rx="8" width="100" height="60" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+  <text x="450" y="155" text-anchor="middle" fill="#93c5fd" font-family="Arial,sans-serif" font-size="11">⏹️ 输送线</text>
+  <text x="450" y="175" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="9">device.conv.01</text>
+  <!-- Edge -->
+  <line x1="340" y1="160" x2="400" y2="160" stroke="#60a5fa" stroke-width="2" stroke-dasharray="4,2"/>
+  <!-- AGV -->
+  <rect x="320" y="250" rx="8" width="100" height="60" fill="#1e3a5f" stroke="#10b981" stroke-width="2"/>
+  <text x="370" y="275" text-anchor="middle" fill="#6ee7b7" font-family="Arial,sans-serif" font-size="11">🤖 AGV</text>
+  <text x="370" y="295" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="9">device.agv.01</text>
+  <!-- Edge to AGV -->
+  <line x1="290" y1="190" x2="350" y2="250" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <line x1="450" y1="190" x2="390" y2="250" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <!-- Rack -->
+  <rect x="500" y="250" rx="8" width="100" height="60" fill="#1e3a5f" stroke="#f59e0b" stroke-width="2"/>
+  <text x="550" y="275" text-anchor="middle" fill="#fcd34d" font-family="Arial,sans-serif" font-size="11">🏛️ 货架</text>
+  <text x="550" y="295" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="9">device.rack.01</text>
+  <!-- Gauge -->
+  <rect x="240" y="360" rx="8" width="80" height="60" fill="#1e3a5f" stroke="#a78bfa" stroke-width="2"/>
+  <text x="280" y="385" text-anchor="middle" fill="#c4b5fd" font-family="Arial,sans-serif" font-size="11">📊</text>
+  <text x="280" y="405" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="9">Gauge</text>
+  <!-- Drag arrow -->
+  <path d="M155,213 C180,213 195,213 220,213" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrowOrange)"/>
+  <defs><marker id="arrowOrange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#f59e0b"/></marker></defs>
+  <text x="190" y="205" text-anchor="middle" fill="#f59e0b" font-family="Arial,sans-serif" font-size="10">drag</text>
+  <!-- Property Panel -->
+  <rect x="710" y="60" rx="8" width="220" height="440" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow)"/>
+  <text x="820" y="85" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="12" font-weight="bold">属性面板</text>
+  <line x1="720" y1="95" x2="920" y2="95" stroke="#334155" stroke-width="1"/>
+  <text x="730" y="115" fill="#64748b" font-family="Arial,sans-serif" font-size="10">ID</text>
+  <text x="850" y="115" fill="#93c5fd" font-family="Arial,sans-serif" font-size="10">node-abc123</text>
+  <text x="730" y="135" fill="#64748b" font-family="Arial,sans-serif" font-size="10">类型</text>
+  <text x="850" y="135" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="10">堆垛机</text>
+  <text x="730" y="155" fill="#64748b" font-family="Arial,sans-serif" font-size="10">名称</text>
+  <text x="850" y="155" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="10">堆垛机-A01</text>
+  <text x="730" y="175" fill="#64748b" font-family="Arial,sans-serif" font-size="10">X / Y</text>
+  <text x="850" y="175" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="10">240, 130</text>
+  <line x1="720" y1="190" x2="920" y2="190" stroke="#334155" stroke-width="1"/>
+  <text x="820" y="210" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="11" font-weight="bold">数据绑定</text>
+  <text x="730" y="235" fill="#64748b" font-family="Arial,sans-serif" font-size="10">数据源</text>
+  <rect x="810" y="222" rx="4" width="100" height="20" fill="#1e3a5f"/><text x="860" y="237" text-anchor="middle" fill="#60a5fa" font-family="Arial,sans-serif" font-size="9">WebSocket</text>
+  <text x="730" y="260" fill="#64748b" font-family="Arial,sans-serif" font-size="10">点ID</text>
+  <rect x="810" y="247" rx="4" width="100" height="20" fill="#1e3a5f"/><text x="860" y="262" text-anchor="middle" fill="#60a5fa" font-family="Arial,sans-serif" font-size="9">device.stacker.01</text>
+  <text x="730" y="285" fill="#64748b" font-family="Arial,sans-serif" font-size="10">Transform</text>
+  <rect x="720" y="295" rx="4" width="190" height="50" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+  <text x="730" y="315" fill="#a78bfa" font-family="monospace" font-size="9">(v) =&gt; v &gt; 80</text>
+  <text x="730" y="330" fill="#a78bfa" font-family="monospace" font-size="9">  ? 'alarm' : 'normal'</text>
+  <!-- Data flow arrow -->
+  <path d="M600,280 L710,280" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowBlue2)"/>
+  <defs><marker id="arrowBlue2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3b82f6"/></marker></defs>
+  <!-- Bottom annotation -->
+  <text x="480" y="525" text-anchor="middle" fill="#475569" font-family="Arial,sans-serif" font-size="11">Sidebar 拖拽 → X6 画布 → cell:added → Store 同步 → PropertyPanel 双向绑定</text>
+</svg>

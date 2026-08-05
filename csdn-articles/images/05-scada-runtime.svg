@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540">
+  <defs>
+    <linearGradient id="bg5" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="60%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="540" fill="url(#bg5)"/>
+  <text x="480" y="38" text-anchor="middle" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="20" font-weight="bold">SCADA 运行态 · 单 rAF 动画引擎 · 边沿触发事件</text>
+  <!-- Top toolbar -->
+  <rect x="40" y="55" rx="6" width="880" height="30" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="60" y="75" fill="#94a3b8" font-family="Arial,sans-serif" font-size="11">▶ 运行中</text>
+  <circle cx="120" cy="70" r="5" fill="#22c55e"/>
+  <text x="200" y="75" fill="#64748b" font-family="Arial,sans-serif" font-size="10">数据订阅: 7 活跃</text>
+  <text x="400" y="75" fill="#64748b" font-family="Arial,sans-serif" font-size="10">动画: 12 节点</text>
+  <text x="550" y="75" fill="#64748b" font-family="Arial,sans-serif" font-size="10">事件规则: 5 条</text>
+  <text x="750" y="75" fill="#64748b" font-family="Arial,sans-serif" font-size="10">主题: Dark</text>
+  <!-- Gauge 1 -->
+  <rect x="40" y="100" rx="8" width="200" height="180" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="140" y="120" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="10">货架利用率</text>
+  <circle cx="140" cy="195" r="55" fill="none" stroke="#334155" stroke-width="8"/>
+  <path d="M140,140 A55,55 0 1,1 95,235" fill="none" stroke="url(#gaugeGrad)" stroke-width="8" stroke-linecap="round"/>
+  <text x="140" y="200" text-anchor="middle" fill="#22c55e" font-family="Arial,sans-serif" font-size="22" font-weight="bold">78%</text>
+  <text x="140" y="268" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="9">device.rack.01</text>
+  <!-- Gauge 2 -->
+  <rect x="260" y="100" rx="8" width="200" height="180" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="360" y="120" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="10">输送线速度</text>
+  <circle cx="360" cy="195" r="55" fill="none" stroke="#334155" stroke-width="8"/>
+  <path d="M360,140 A55,55 0 0,1 405,230" fill="none" stroke="#3b82f6" stroke-width="8" stroke-linecap="round"/>
+  <text x="360" y="200" text-anchor="middle" fill="#60a5fa" font-family="Arial,sans-serif" font-size="22" font-weight="bold">1.2</text>
+  <text x="360" y="218" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="10">m/s</text>
+  <text x="360" y="268" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="9">device.conv.01</text>
+  <!-- Line chart -->
+  <rect x="480" y="100" rx="8" width="440" height="180" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="700" y="120" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="10">实时温度趋势 (ECharts)</text>
+  <!-- Chart axes -->
+  <line x1="510" y1="250" x2="890" y2="250" stroke="#334155" stroke-width="1"/>
+  <line x1="510" y1="140" x2="510" y2="250" stroke="#334155" stroke-width="1"/>
+  <!-- Chart line -->
+  <polyline points="520,230 550,220 580,210 610,215 640,200 670,190 700,195 730,180 760,175 790,185 820,170 850,165 880,160" fill="none" stroke="#06b6d4" stroke-width="2"/>
+  <polyline points="520,240 550,235 580,238 610,230 640,225 670,228 700,220 730,215 760,218 790,210 820,205 850,208 880,200" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4,2"/>
+  <!-- Legend -->
+  <line x1="600" y1="137" x2="625" y2="137" stroke="#06b6d4" stroke-width="2"/>
+  <text x="630" y="141" fill="#94a3b8" font-family="Arial,sans-serif" font-size="9">区域A</text>
+  <line x1="700" y1="137" x2="725" y2="137" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4,2"/>
+  <text x="730" y="141" fill="#94a3b8" font-family="Arial,sans-serif" font-size="9">区域B</text>
+  <!-- Equipment status row -->
+  <rect x="40" y="300" rx="8" width="880" height="100" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="480" y="320" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="10">设备状态总览</text>
+  <!-- Equipment cards -->
+  <g font-family="Arial,sans-serif" font-size="10">
+    <rect x="60" y="335" rx="6" width="120" height="50" fill="#0f172a" stroke="#22c55e" stroke-width="1.5"/>
+    <circle cx="80" cy="355" r="5" fill="#22c55e"/><text x="95" y="358" fill="#86efac" font-size="10">堆垛机</text>
+    <text x="80" y="375" fill="#64748b" font-size="9">运行中 · 正常</text>
+    <rect x="200" y="335" rx="6" width="120" height="50" fill="#0f172a" stroke="#22c55e" stroke-width="1.5"/>
+    <circle cx="220" cy="355" r="5" fill="#22c55e"/><text x="235" y="358" fill="#86efac" font-size="10">输送线</text>
+    <text x="220" y="375" fill="#64748b" font-size="9">运行中 · 1.2m/s</text>
+    <rect x="340" y="335" rx="6" width="120" height="50" fill="#0f172a" stroke="#f59e0b" stroke-width="1.5"/>
+    <circle cx="360" cy="355" r="5" fill="#f59e0b"/><text x="375" y="358" fill="#fcd34d" font-size="10">AGV-01</text>
+    <text x="360" y="375" fill="#64748b" font-size="9">充电中 · 65%</text>
+    <rect x="480" y="335" rx="6" width="120" height="50" fill="#0f172a" stroke="#22c55e" stroke-width="1.5"/>
+    <circle cx="500" cy="355" r="5" fill="#22c55e"/><text x="515" y="358" fill="#86efac" font-size="10">分拣机</text>
+    <text x="500" y="375" fill="#64748b" font-size="9">运行中 · 120/min</text>
+    <rect x="620" y="335" rx="6" width="120" height="50" fill="#0f172a" stroke="#ef4444" stroke-width="1.5"/>
+    <circle cx="640" cy="355" r="5" fill="#ef4444"/><text x="655" y="358" fill="#fca5a5" font-size="10">提升机</text>
+    <text x="640" y="375" fill="#64748b" font-size="9">告警 · 过载保护</text>
+    <rect x="760" y="335" rx="6" width="120" height="50" fill="#0f172a" stroke="#22c55e" stroke-width="1.5"/>
+    <circle cx="780" cy="355" r="5" fill="#22c55e"/><text x="795" y="358" fill="#86efac" font-size="10">机械臂</text>
+    <text x="780" y="375" fill="#64748b" font-size="9">运行中 · 正常</text>
+  </g>
+  <!-- Animation engine diagram -->
+  <rect x="40" y="420" rx="8" width="430" height="100" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="255" y="440" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="10">单 rAF 动画调度器</text>
+  <g font-family="monospace" font-size="9" fill="#a78bfa">
+    <text x="60" y="462">requestAnimationFrame(loop)</text>
+    <text x="60" y="478">  ├─ stacker-01  Δt=16ms  pos.x += speed * dt</text>
+    <text x="60" y="494">  ├─ agv-01      Δt=16ms  followPath(t)</text>
+    <text x="60" y="510">  └─ conveyor    Δt=16ms  beltOffset += v * dt</text>
+  </g>
+  <!-- Event engine -->
+  <rect x="490" y="420" rx="8" width="430" height="100" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="705" y="440" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="10">边沿触发事件引擎 (PLC 语义)</text>
+  <g font-family="monospace" font-size="9">
+    <text x="510" y="462" fill="#f59e0b">↑ 上升沿: temp &gt; 80 → 触发告警 (仅一次)</text>
+    <text x="510" y="478" fill="#ef4444">↓ 下降沿: temp &lt; 60 → 解除告警</text>
+    <text x="510" y="494" fill="#64748b">避免持续触发 → 减少通知风暴</text>
+    <text x="510" y="510" fill="#64748b">NodeEventService.evaluate(node, point)</text>
+  </g>
+</svg>

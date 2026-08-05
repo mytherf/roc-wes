@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="layer1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#60a5fa"/>
+    </linearGradient>
+    <linearGradient id="layer2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="layer3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#14b8a6"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <linearGradient id="layer4" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="960" height="540" fill="url(#bg)"/>
+  <!-- Grid -->
+  <g stroke="#1e3a5f" stroke-width="0.5" opacity="0.3">
+    <line x1="0" y1="100" x2="960" y2="100"/><line x1="0" y1="200" x2="960" y2="200"/>
+    <line x1="0" y1="300" x2="960" y2="300"/><line x1="0" y1="400" x2="960" y2="400"/>
+    <line x1="200" y1="0" x2="200" y2="540"/><line x1="400" y1="0" x2="400" y2="540"/>
+    <line x1="600" y1="0" x2="600" y2="540"/><line x1="800" y1="0" x2="800" y2="540"/>
+  </g>
+  <!-- Title -->
+  <text x="480" y="45" text-anchor="middle" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="22" font-weight="bold">ROC-WES 仓储自动化 SCADA 组态平台 · 四层架构</text>
+  <!-- Layer 1: Browser -->
+  <rect x="130" y="70" rx="12" width="700" height="80" fill="url(#layer1)" opacity="0.9" filter="url(#glow)"/>
+  <text x="480" y="100" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="16" font-weight="bold">Browser Layer</text>
+  <text x="480" y="125" text-anchor="middle" fill="#dbeafe" font-family="Arial,sans-serif" font-size="13">Vue 3 + AntV X6 v3 + Pinia + ECharts + TypeScript</text>
+  <!-- Arrow -->
+  <path d="M480,150 L480,175" stroke="#60a5fa" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <defs><marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#60a5fa"/></marker></defs>
+  <!-- Layer 2: Service -->
+  <rect x="130" y="175" rx="12" width="700" height="80" fill="url(#layer2)" opacity="0.9" filter="url(#glow)"/>
+  <text x="480" y="205" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="16" font-weight="bold">Service Layer</text>
+  <text x="480" y="228" text-anchor="middle" fill="#e0f2fe" font-family="Arial,sans-serif" font-size="12">WS | HTTP | SSE | MQTT | S7 | OPC UA | Modbus</text>
+  <!-- 7 small icons -->
+  <g font-family="Arial,sans-serif" font-size="10" fill="#bae6fd">
+    <circle cx="195" cy="240" r="8" fill="#0284c7"/><text x="195" y="244" text-anchor="middle" fill="#fff" font-size="8">WS</text>
+    <circle cx="275" cy="240" r="8" fill="#0284c7"/><text x="275" y="244" text-anchor="middle" fill="#fff" font-size="8">HTTP</text>
+    <circle cx="355" cy="240" r="8" fill="#0284c7"/><text x="355" y="244" text-anchor="middle" fill="#fff" font-size="8">SSE</text>
+    <circle cx="435" cy="240" r="8" fill="#0284c7"/><text x="435" y="244" text-anchor="middle" fill="#fff" font-size="8">MQTT</text>
+    <circle cx="530" cy="240" r="8" fill="#0284c7"/><text x="530" y="244" text-anchor="middle" fill="#fff" font-size="8">S7</text>
+    <circle cx="620" cy="240" r="8" fill="#0284c7"/><text x="620" y="244" text-anchor="middle" fill="#fff" font-size="8">OPC</text>
+    <circle cx="720" cy="240" r="8" fill="#0284c7"/><text x="720" y="244" text-anchor="middle" fill="#fff" font-size="8">Modbus</text>
+  </g>
+  <!-- Arrow -->
+  <path d="M480,255 L480,285" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrowCyan)"/>
+  <defs><marker id="arrowCyan" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#38bdf8"/></marker></defs>
+  <!-- Layer 3: Gateway -->
+  <rect x="130" y="285" rx="12" width="700" height="80" fill="url(#layer3)" opacity="0.9" filter="url(#glow)"/>
+  <text x="480" y="315" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="16" font-weight="bold">Gateway Layer (Node.js)</text>
+  <text x="480" y="338" text-anchor="middle" fill="#ccfbf1" font-family="Arial,sans-serif" font-size="12">WebSocket Bridge :19100 / :19101 / :19102</text>
+  <!-- TCP labels -->
+  <g font-family="Arial,sans-serif" font-size="10" fill="#99f6e4">
+    <rect x="200" y="345" width="60" height="18" rx="4" fill="#0d9488"/><text x="230" y="358" text-anchor="middle" fill="#fff" font-size="9">TCP</text>
+    <rect x="450" y="345" width="60" height="18" rx="4" fill="#0d9488"/><text x="480" y="358" text-anchor="middle" fill="#fff" font-size="9">TCP</text>
+    <rect x="700" y="345" width="60" height="18" rx="4" fill="#0d9488"/><text x="730" y="358" text-anchor="middle" fill="#fff" font-size="9">TCP</text>
+  </g>
+  <!-- Arrows -->
+  <path d="M230,363 L230,395" stroke="#2dd4bf" stroke-width="2" marker-end="url(#arrowTeal)"/>
+  <path d="M480,363 L480,395" stroke="#2dd4bf" stroke-width="2" marker-end="url(#arrowTeal)"/>
+  <path d="M730,363 L730,395" stroke="#2dd4bf" stroke-width="2" marker-end="url(#arrowTeal)"/>
+  <defs><marker id="arrowTeal" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#2dd4bf"/></marker></defs>
+  <!-- Layer 4: Device -->
+  <rect x="130" y="395" rx="12" width="700" height="80" fill="url(#layer4)" opacity="0.9" filter="url(#glow)"/>
+  <text x="480" y="425" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="16" font-weight="bold">Device Layer</text>
+  <text x="480" y="448" text-anchor="middle" fill="#fef3c7" font-family="Arial,sans-serif" font-size="12">PLC (Siemens S7) | OPC UA Server | Modbus Slave | Sensors | Actuators</text>
+  <!-- Bottom label -->
+  <text x="480" y="510" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="11">Browser cannot use TCP directly — industrial protocols are bridged via Node.js WebSocket gateways</text>
+</svg>
