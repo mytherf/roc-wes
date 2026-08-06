@@ -1,5 +1,16 @@
 import { MqttService } from './MqttService'
+import { IpcGatewayService } from './IpcGatewayService'
+import { isTauri } from '@/platform/isTauri'
+import { buildDeviceConfig } from '@/platform/deviceConfig'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DataSource, DataSourceType } from '@/stores/dataSource'
+
+/** gateway://status 事件载荷（与 Rust StatusEvent 对齐） */
+interface IpcStatusPayload {
+    deviceId: string
+    connected: boolean
+    message: string
+}
 
 /** 监控连接状态 */
 export type MonitorStatus = 'idle' | 'connecting' | 'online' | 'offline'
@@ -53,7 +64,10 @@ function isIndustrialType(t: DataSourceType): boolean {
  * - 错误告警：连接失败、设备未连接、坏质量（bad）帧等。
  *
  * 各类型探测方式：
- * - websocket / s7 / opc / modbus：订阅制 WebSocket（内置 mock 与独立网关协议一致）；
+ * - s7 / opc / modbus（Tauri 桌面运行时）：经 Rust 原生网关 IPC 探测——
+ *   IpcGatewayService 建立独立监控会话（deviceId 前缀 mon:），
+ *   监听 gateway://status 获取设备连接状态，订阅回调记录点位读数；
+ * - websocket（以及浏览器环境下的 s7 / opc / modbus）：订阅制 WebSocket；
  * - http：fetch 轮询 `${url}?pointId=xxx`；
  * - sse：EventSource 接收推送流；
  * - mqtt：复用 MqttService（mqtt.js），轮询其连接状态。
@@ -68,6 +82,9 @@ export class GatewayMonitorService {
     private state: MonitorState
     private ws: WebSocket | null = null
     private mqttSvc: MqttService | null = null
+    /** Tauri IPC 监控会话（工业协议桌面探测） */
+    private ipcSvc: IpcGatewayService | null = null
+    private ipcUnlisten: UnlistenFn | null = null
     private mqttPollTimer: number | null = null
     private reconnectTimer: number | null = null
     private httpTimers: number[] = []
@@ -106,8 +123,13 @@ export class GatewayMonitorService {
                 this.startMqtt()
                 break
             default:
-                // websocket / s7 / opc / modbus 均为订阅制 WS
-                this.startWsSubscribe()
+                // Tauri 桌面运行时：工业协议经 Rust 原生网关 IPC 探测；
+                // 其余（websocket，及浏览器环境下的工业类型）走订阅制 WS
+                if (isTauri() && isIndustrialType(this.ds.type)) {
+                    void this.startIpcGateway()
+                } else {
+                    this.startWsSubscribe()
+                }
                 break
         }
     }
@@ -135,6 +157,14 @@ export class GatewayMonitorService {
         if (this.mqttSvc) {
             this.mqttSvc.disconnect()
             this.mqttSvc = null
+        }
+        if (this.ipcUnlisten) {
+            this.ipcUnlisten()
+            this.ipcUnlisten = null
+        }
+        if (this.ipcSvc) {
+            this.ipcSvc.disconnect()
+            this.ipcSvc = null
         }
         this.state.status = 'idle'
         this.state.deviceConnected = null
@@ -194,6 +224,55 @@ export class GatewayMonitorService {
 
     private send(obj: unknown) {
         if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj))
+    }
+
+    // ---------- Tauri IPC（工业协议：s7 / opc / modbus） ----------
+
+    /**
+     * 经 Rust 原生网关探测工业协议（仅 Tauri 桌面运行时）。
+     *
+     * 监控会话使用独立 deviceId（mon: 前缀），与业务链路的会话隔离，
+     * 互不影响对方的订阅；重连由引擎侧指数退避自动完成，
+     * 状态翻转经 gateway://status 事件回报。
+     */
+    private async startIpcGateway() {
+        this.t0 = performance.now()
+        const deviceId = `mon:${this.ds.id}`
+        try {
+            // 先登记状态监听再创建会话，避免漏掉首个状态事件
+            this.ipcUnlisten = await listen<IpcStatusPayload>('gateway://status', (e) => {
+                if (e.payload.deviceId !== deviceId) return
+                const { connected, message } = e.payload
+                this.state.deviceConnected = connected
+                this.state.deviceMessage = message || ''
+                if (connected) {
+                    if (this.state.status !== 'online') {
+                        this.state.latencyMs = Math.round(performance.now() - this.t0)
+                        this.setStatus('online')
+                    }
+                } else {
+                    if (message) this.pushError(`设备未连接：${message}`)
+                    if (this.state.status !== 'offline') this.setStatus('offline')
+                }
+                this.emit(true)
+            })
+        } catch (e: any) {
+            this.pushError(`IPC 监听注册失败：${e?.message || e}`)
+            this.setStatus('offline')
+            return
+        }
+        if (this.stopped) {
+            this.ipcUnlisten()
+            this.ipcUnlisten = null
+            return
+        }
+
+        const config = buildDeviceConfig(this.ds.type, this.ds.url, this.ds.config)
+        const svc = new IpcGatewayService(deviceId, config, 'Monitor')
+        this.ipcSvc = svc
+        for (const p of this.pointIds) {
+            svc.subscribe(p, (pt) => this.recordPoint(p, pt.value, pt.quality || 'good', pt.timestamp))
+        }
     }
 
     // ---------- HTTP 轮询 ----------

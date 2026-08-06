@@ -37,7 +37,12 @@ export const DATA_SOURCE_TYPE_LABELS: Record<DataSourceType, string> = {
 
 /**
  * 内置模拟服务地址（开发环境随系统自动启动，见 mock/server.ts）
- * 端口需与 mock/server.ts 中的 MOCK_PORTS 保持一致。
+ * websocket / http / sse / mqtt 四项端口需与 mock/server.ts 中的 MOCK_PORTS 保持一致。
+ *
+ * 注意：s7 / opc / modbus 三项已无对应本地服务——工业协议的演示与真实接入
+ * 均已迁移至 Tauri 桌面端 Rust 原生网关（演示模式由 DemoAdapter 生成）。
+ * 此处保留这些地址仅用于识别历史数据源的演示模式
+ * （地址等于内置模拟地址即视为演示，见 platform/deviceConfig.ts）。
  */
 export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
     websocket: 'ws://localhost:8080/ws',
@@ -50,12 +55,10 @@ export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
 }
 
 /**
- * 独立真实设备网关地址（连接真实 PLC / 设备，需单独启动，见 gateway/ 目录）
- * - Modbus：gateway/modbus-gateway.ts（npm run gateway），ws://localhost:19100/modbus
- * - 西门子 S7：gateway/s7-gateway.ts（npm run s7-gateway），ws://localhost:19101/s7
- * - OPC UA：gateway/opc-gateway.ts（npm run opc-gateway），ws://localhost:19102/opc
- * 浏览器经 WS 接入网关，网关再以对应工业协议连接真实设备 / 仿真服务端。
- * 数据源在「真实设备」模式下使用此地址；「演示模式」则使用 BUILTIN_MOCK_URLS。
+ * 独立真实设备网关地址（历史遗留的浏览器时代 WS 网关占位地址）。
+ * Node 版网关（原 gateway/ 目录）已随 Tauri 迁移移除：桌面端工业协议
+ * 经 Rust 原生网关 IPC 直连设备，连接参数取数据源 config（host/port 等），
+ * 不使用此地址；此处保留仅为兼容数据源对话框在真实模式下的表单预填。
  */
 export const REAL_GATEWAY_URLS: Partial<Record<DataSourceType, string>> = {
     modbus: 'ws://localhost:19100/modbus',

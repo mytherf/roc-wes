@@ -1,17 +1,15 @@
 /**
  * 内置模拟数据服务器
  *
- * 随开发系统（vite dev）自动启动，为各数据源类型各提供一个可直接连接的模拟服务：
+ * 随开发系统（vite dev）自动启动，为浏览器可直连的数据源类型各提供一个模拟服务：
  * - WebSocket ：ws://localhost:8080/ws        （订阅制实时推送，1s/次）
  * - HTTP 轮询 ：http://localhost:8081/api/data?pointId=xxx （请求/响应）
  * - SSE       ：http://localhost:8082/sse?pointId=xxx      （服务端推送流，1s/次）
  * - MQTT      ：ws://localhost:8083（浏览器经 WebSocket 连接 MQTT broker，TCP 1883）
- * - S7        ：ws://localhost:8084/s7（浏览器经 WebSocket 连接 S7 网关，模拟西门子 PLC）
- * - OPC UA    ：ws://localhost:8085/opc（浏览器经 WebSocket 连接 OPC UA 网关，模拟统一架构节点）
- * - Modbus    ：ws://localhost:8086/modbus（浏览器经 WebSocket 连接 Modbus 网关，模拟寄存器扫描）
  *
- * 说明：S7（S7comm）、OPC UA、Modbus（Modbus TCP）均为原生 TCP 协议，浏览器无法直接连接，
- * 故内置 mock 以 WebSocket 网关方式桥接（与 MQTT-WS 思路一致），仅用于开发演示。
+ * 说明：S7 / OPC UA / Modbus 为原生 TCP 协议，其演示与真实接入已迁移至
+ * Tauri 桌面端 Rust 原生网关（演示模式由 gateway-demo 的 DemoAdapter 生成，
+ * 无需本地 WS 桥接），故此处不再提供 8084/8085/8086 模拟服务。
  *
  * 这些服务仅在开发环境由 vite.config.ts 的 mock-servers 插件拉起，不参与生产构建。
  */
@@ -19,7 +17,7 @@ import http from 'http'
 import net from 'net'
 import { WebSocketServer, createWebSocketStream } from 'ws'
 import { Aedes } from 'aedes'
-import { wsValue, httpValue, sseValue, mqttValue, s7Value, opcValue, modbusValue } from './generators.ts'
+import { wsValue, httpValue, sseValue, mqttValue } from './generators.ts'
 
 /** 内置模拟服务端口（避免与 Vite 5173 冲突） */
 export const MOCK_PORTS = {
@@ -28,9 +26,6 @@ export const MOCK_PORTS = {
   sse: 8082,
   mqttTcp: 1883,
   mqttWs: 8083,
-  s7: 8084,
-  opc: 8085,
-  modbus: 8086,
 }
 
 /** 内置模拟服务连接地址（供前端数据源管理预置） */
@@ -39,9 +34,6 @@ export const BUILTIN_MOCK_URLS = {
   http: `http://localhost:${MOCK_PORTS.http}/api/data`,
   sse: `http://localhost:${MOCK_PORTS.sse}/sse`,
   mqtt: `ws://localhost:${MOCK_PORTS.mqttWs}`,
-  s7: `ws://localhost:${MOCK_PORTS.s7}/s7`,
-  opc: `ws://localhost:${MOCK_PORTS.opc}/opc`,
-  modbus: `ws://localhost:${MOCK_PORTS.modbus}/modbus`,
 }
 
 /** 安全监听：端口被占用时仅告警，不中断 dev server */
@@ -58,16 +50,15 @@ function safeListen(server: http.Server | net.Server, port: number, label: strin
 
 // ===================== 订阅制 WebSocket 模拟服务工厂 =====================
 /**
- * 订阅制 WS 模拟服务通用骨架（WebSocket / S7 / OPC UA / Modbus 共用）。
+ * 订阅制 WS 模拟服务通用骨架。
  *
- * 四者协议完全一致：前端发送 { action:'subscribe'|'unsubscribe', topic } 登记数据点，
- * 服务端按固定周期向已订阅点推送 { topic, value, timestamp, quality }，
- * 仅端口、路径、日志标签与取值生成函数不同，故抽取此工厂去重。
+ * 协议：前端发送 { action:'subscribe'|'unsubscribe', topic } 登记数据点，
+ * 服务端按固定周期向已订阅点推送 { topic, value, timestamp, quality }。
  */
 interface SubscribeWsOptions {
   port: number
   path: string
-  /** 日志标签（如 'WebSocket 服务' / 'S7（西门子 PLC）网关'） */
+  /** 日志标签（如 'WebSocket 服务'） */
   label: string
   /** 启动日志中展示的完整地址 */
   url: string
@@ -262,54 +253,6 @@ async function startMqttServer() {
   console.log(`[mock] MQTT broker 已启动: tcp://localhost:${MOCK_PORTS.mqttTcp}, ${BUILTIN_MOCK_URLS.mqtt}`)
 }
 
-// ===================== S7（西门子 PLC）网关服务 =====================
-/**
- * S7（S7comm）为原生 TCP 协议，浏览器无法直接连接。
- * 此处以 WebSocket 网关方式桥接（与 MQTT-WS 思路一致），
- * 采用与 WS 服务相同的订阅协议，周期性推送 PLC 设定值跟踪数据。
- */
-function startS7Server() {
-  startSubscribeWsServer({
-    port: MOCK_PORTS.s7,
-    path: '/s7',
-    label: 'S7（西门子 PLC）网关',
-    url: BUILTIN_MOCK_URLS.s7,
-    gen: s7Value, // 设定值跟踪 0~100
-  })
-}
-
-// ===================== OPC UA 网关服务 =====================
-/**
- * OPC UA 为原生 TCP 协议（二进制编码），浏览器无法直接连接。
- * 此处以 WebSocket 网关方式桥接（与 MQTT-WS / S7 思路一致），
- * 采用相同的订阅协议，周期性推送量化阶梯数据，模拟 OPC UA 节点读数。
- */
-function startOpcServer() {
-  startSubscribeWsServer({
-    port: MOCK_PORTS.opc,
-    path: '/opc',
-    label: 'OPC UA 网关',
-    url: BUILTIN_MOCK_URLS.opc,
-    gen: opcValue, // 量化阶梯 0~100
-  })
-}
-
-// ===================== Modbus 网关服务 =====================
-/**
- * Modbus（Modbus TCP）为原生 TCP 协议，浏览器无法直接连接。
- * 此处以 WebSocket 网关方式桥接（与 MQTT-WS / S7 / OPC UA 思路一致），
- * 采用相同的订阅协议，周期性推送三角波数据，模拟 Modbus 寄存器连续扫描读数。
- */
-function startModbusServer() {
-  startSubscribeWsServer({
-    port: MOCK_PORTS.modbus,
-    path: '/modbus',
-    label: 'Modbus 网关',
-    url: BUILTIN_MOCK_URLS.modbus,
-    gen: modbusValue, // 三角波 10~90
-  })
-}
-
 // ===================== 统一启动入口（幂等） =====================
 let started = false
 
@@ -325,9 +268,6 @@ export async function startMockServers() {
     startHttpServer()
     startSseServer()
     await startMqttServer()
-    startS7Server()
-    startOpcServer()
-    startModbusServer()
     console.log('[mock] 全部内置模拟数据服务已启动')
   } catch (e) {
     console.error('[mock] 启动内置模拟服务失败:', e)

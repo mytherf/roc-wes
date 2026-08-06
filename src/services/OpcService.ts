@@ -17,13 +17,14 @@ export interface OpcDeviceConfig {
 }
 
 /**
- * OPC UA 数据服务
+ * OPC UA 数据服务（浏览器环境）
  *
- * OPC UA（opc.tcp:// 二进制协议）浏览器无法直接连接，需经 WebSocket 网关桥接。
- * 支持两种网关（订阅协议一致：{ action, topic } 订阅/取消，网关回推 { topic, value, timestamp, quality }）：
- * - 内置演示网关（mock/server.ts startOpcServer，ws://localhost:8085/opc）：生成模拟数据，忽略设备配置；
- * - 独立真实网关（gateway/opc-gateway.ts，ws://localhost:19102/opc）：连接后需发送
- *   { action:'configure', config } 指定设备参数，网关据此通过 node-opcua 连接真实服务器 / 仿真服务端。
+ * OPC UA（opc.tcp:// 二进制协议）浏览器无法直接连接。
+ * - Tauri 桌面运行时：由 useDataService 路由到 IpcGatewayService（Rust 原生网关，IPC），
+ *   不会使用本类；
+ * - 纯浏览器环境：仍可经外部 WebSocket 网关桥接（订阅协议：{ action, topic } 订阅/取消，
+ *   网关回推 { topic, value, timestamp, quality }）。原内置演示网关与 Node 真实网关
+ *   已随 Tauri 迁移移除，浏览器场景需自备兼容网关。
  *
  * 连接/重连/订阅逻辑统一由基类 GatewayService 实现。
  */

@@ -12,7 +12,7 @@ fn default_unit_id() -> u8 {
     1
 }
 fn default_s7_slot() -> u8 {
-    1
+    2
 }
 fn default_poll_interval_ms() -> u64 {
     1000
@@ -55,7 +55,7 @@ pub struct S7Config {
     /// 机架号（默认 0）
     #[serde(default)]
     pub rack: u8,
-    /// 槽号（S7-1200/1500 通常为 1）
+    /// 槽号（默认 2，与数据源对话框一致；S7-1200/1500 场景可配 1）
     #[serde(default = "default_s7_slot")]
     pub slot: u8,
     #[serde(default = "default_poll_interval_ms")]

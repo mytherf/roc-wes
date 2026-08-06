@@ -78,11 +78,14 @@ fn parse_point(point_id: &str) -> Result<(Area, u16), GatewayError> {
     Ok((area, addr))
 }
 
+/// 合并后的连续读取段：(起始地址, 数量, 段内成员)
+type MergedRange = (u16, u16, Vec<(u16, String)>);
+
 /// 将 (地址, 点位) 列表按地址排序后合并为连续读取段：
 /// 返回 (起始地址, 数量, 段内成员) 列表
-fn merge_ranges(points: &mut [(u16, String)], max_qty: u16) -> Vec<(u16, u16, Vec<(u16, String)>)> {
+fn merge_ranges(points: &mut [(u16, String)], max_qty: u16) -> Vec<MergedRange> {
     points.sort_by_key(|(addr, _)| *addr);
-    let mut ranges: Vec<(u16, u16, Vec<(u16, String)>)> = Vec::new();
+    let mut ranges: Vec<MergedRange> = Vec::new();
     for (addr, id) in points.iter().cloned() {
         if let Some((start, len, members)) = ranges.last_mut() {
             if addr == *start + *len && *len < max_qty {

@@ -19,13 +19,14 @@ export interface S7DeviceConfig {
 }
 
 /**
- * 西门子 S7 数据服务
+ * 西门子 S7 数据服务（浏览器环境）
  *
- * S7（S7comm）为原生 TCP 协议，浏览器无法直接连接，需经 WebSocket 网关桥接。
- * 支持两种网关（订阅协议一致：{ action, topic } 订阅/取消，网关回推 { topic, value, timestamp, quality }）：
- * - 内置演示网关（mock/server.ts startS7Server，ws://localhost:8084/s7）：生成模拟数据，忽略设备配置；
- * - 独立真实网关（gateway/s7-gateway.ts，ws://localhost:19101/s7）：连接后需发送
- *   { action:'configure', config } 指定设备参数，网关据此通过 nodes7 连接真实 PLC / 仿真服务端。
+ * S7（S7comm）为原生 TCP 协议，浏览器无法直接连接。
+ * - Tauri 桌面运行时：由 useDataService 路由到 IpcGatewayService（Rust 原生网关，IPC），
+ *   不会使用本类；
+ * - 纯浏览器环境：仍可经外部 WebSocket 网关桥接（订阅协议：{ action, topic } 订阅/取消，
+ *   网关回推 { topic, value, timestamp, quality }）。原内置演示网关与 Node 真实网关
+ *   已随 Tauri 迁移移除，浏览器场景需自备兼容网关。
  *
  * 连接/重连/订阅逻辑统一由基类 GatewayService 实现。
  */

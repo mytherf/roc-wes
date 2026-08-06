@@ -55,7 +55,7 @@ export function buildDeviceConfig(
                 host: String(cfg.host ?? '127.0.0.1'),
                 port: num(cfg.port, 102),
                 rack: num(cfg.rack, 0),
-                slot: num(cfg.slot, 1),
+                slot: num(cfg.slot, 2),
                 pollIntervalMs,
             }
         case 'opc':

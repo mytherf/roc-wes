@@ -169,6 +169,7 @@ sequenceDiagram
 - 前端平台层：`isTauri()` + `IpcGatewayService` + useDataService 路由
 - 开发链路打通：`@tauri-apps/cli` 已安装，`npx tauri dev` 首次完整编译并启动成功（WebView2 正常加载 vite dev server）
 - Modbus / 演示模式在桌面端可用
+- 代码清理（A+B+C）：移除 Node 网关 `gateway/`（约 1000 行）与 mock 工业桥接（端口 8084/8085/8086）、相关 scripts 与依赖（modbus-serial / node-opcua / nodes7 / tsx / ts-node）；`GatewayMonitorService` 工业类型在 Tauri 下改经 IPC 探测（独立 `mon:` 前缀会话，避免与业务会话冲突）；S7 slot 默认值统一为 2；clippy 零警告、workspace 测试 6/6 通过
 
 后续（按风险排序）：
 
