@@ -1,0 +1,67 @@
+flowchart TB
+    %% ================= 外部：真实设备现场 =================
+    subgraph FIELD["真实设备现场（裸 TCP）"]
+        direction LR
+        PLC_MB["Modbus TCP 从站"]
+        PLC_S7["西门子 S7 PLC"]
+        OPC_SRV["OPC UA Server"]
+    end
+
+    %% ================= Tauri 单二进制 =================
+    subgraph TAURI["Tauri 2 单二进制进程（Windows，无 Node）"]
+        direction TB
+
+        %% ---------- 前端 WebView ----------
+        subgraph FE["前端 WebView（Vue3 + AntV X6 · vite build 产物）"]
+            direction TB
+            UI["编辑器 UI<br/>X6 画布 / 属性面板 / 组件库"]
+            SVC["数据服务层（基本不动）<br/>GatewayService 基类 · Modbus/S7/Opc Service<br/>WebSocket / HTTP / SSE / MQTT Service"]
+            PAL["平台适配层 PAL<br/>检测 window.__TAURI__<br/>注入动态网关端口 · 文件对话框 · 持久化"]
+            UI --> SVC
+            SVC --> PAL
+        end
+
+        %% ---------- Rust 核心 ----------
+        subgraph RUST["Rust 核心（tokio 异步运行时）"]
+            direction TB
+
+            subgraph TRANSPORT["传输层（B2：内嵌本地 WS，协议与现有一致）"]
+                WSS["WebSocket Server<br/>127.0.0.1:动态端口<br/>/modbus /s7 /opc /ws /sse + http"]
+                SESSION["会话管理 + 周期轮询<br/>（移植 gateway-shared.ts）"]
+            end
+
+            subgraph ADAPTER["设备接入层（trait DeviceAdapter）"]
+                direction LR
+                MB["ModbusAdapter<br/>tokio-modbus"]
+                OPC["OpcAdapter<br/>opcua crate"]
+                S7["S7Adapter<br/>snap7 绑定 / 自研 S7comm<br/>⚠ 风险最高·spike 前置"]
+            end
+
+            DEMO["DemoGenerator 演示数据<br/>ws/http/sse/s7/opc/modbus<br/>MQTT 用 rumqttd 内嵌"]
+
+            WSS --> SESSION
+            SESSION --> MB
+            SESSION --> OPC
+            SESSION --> S7
+            SESSION -.演示通道.-> DEMO
+        end
+
+        %% ---------- 前后端之间 ----------
+        PAL == "WebSocket（协议不变）<br/>configure/subscribe/unsubscribe<br/>⇄ topic/value/timestamp/quality" ==> WSS
+    end
+
+    %% ================= Rust → 设备 =================
+    MB -- "Modbus TCP :502" --> PLC_MB
+    S7 -- "S7comm（TPKT/COTP）" --> PLC_S7
+    OPC -- "OPC UA TCP" --> OPC_SRV
+
+    %% ================= 样式 =================
+    classDef fe fill:#e8f4fd,stroke:#2b6cb0,stroke-width:1px,color:#1a365d;
+    classDef rust fill:#fff4e6,stroke:#dd6b20,stroke-width:1px,color:#7b341e;
+    classDef gw fill:#fef3c7,stroke:#d69e2e,stroke-width:1px,color:#744210;
+    classDef dev fill:#e6fffa,stroke:#319795,stroke-width:1px,color:#234e52;
+    classDef risk fill:#fed7d7,stroke:#e53e3e,stroke-width:2px,color:#742a2a;
+    class UI,SVC,PAL fe;
+    class WSS,SESSION,MB,OPC,DEMO rust;
+    class S7 risk;
+    class PLC_MB,PLC_S7,OPC_SRV dev;
