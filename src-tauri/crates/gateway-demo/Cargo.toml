@@ -1,0 +1,10 @@
+[package]
+name = "gateway-demo"
+version = "0.1.0"
+description = "演示适配器：桌面端演示模式的模拟数据源（替代浏览器版 mock 网关）"
+edition = "2021"
+
+[dependencies]
+gateway-core = { path = "../gateway-core" }
+async-trait = "0.1"
+serde_json = "1"

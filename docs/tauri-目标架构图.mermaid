@@ -1,0 +1,63 @@
+flowchart TB
+    subgraph FIELD["真实设备现场（裸 TCP）"]
+        direction LR
+        PLC_MB["Modbus TCP 从站 :502"]
+        PLC_S7["西门子 S7 PLC :102"]
+        OPC_SRV["OPC UA Server"]
+    end
+
+    subgraph TAURI["Tauri 2 单二进制进程（Windows · 无 Node · 无本地端口）"]
+        direction TB
+
+        subgraph FE["前端 WebView（Vue3 + AntV X6 · vite build 产物）"]
+            direction LR
+            UI["编辑器 UI<br/>X6 画布 / 属性面板 / 组件库（零改动）"]
+            UDS["useDataService 路由<br/>bindNodeData / subscribe / transform"]
+            SVC["IDataService 实现<br/>ws / http / sse / mqtt → WebView 原生直连<br/>modbus / s7 / opc + demo → IpcGatewayService"]
+            UI --> UDS
+            UDS --> SVC
+        end
+
+        subgraph SHELL["Tauri 壳（薄层 · 组合根）"]
+            direction LR
+            CMD["#[tauri::command]<br/>gateway_connect / subscribe /<br/>unsubscribe / disconnect"]
+            FACT["factory::create_adapter<br/>DeviceConfig → 适配器实例<br/>新协议唯一扩展点"]
+            SINK["TauriEventSink<br/>emit gateway://status<br/>emit gateway://telemetry（按周期批量）"]
+            CMD --> FACT
+        end
+
+        subgraph ENGINE["gateway-engine（会话编排 · 不感知 Tauri）"]
+            SESS["Session 轮询任务（tokio）<br/>interval + select · 每周期批量读<br/>连接失败指数退避重连 2s→30s<br/>状态事件仅翻转时上报"]
+        end
+
+        subgraph ADAPTERS["设备接入层（trait DeviceAdapter）"]
+            direction LR
+            MB["gateway-modbus<br/>tokio-modbus<br/>同区寄存器合并批量读"]
+            DEMO["gateway-demo<br/>DemoAdapter 模拟曲线<br/>替代浏览器版 mock 服务器"]
+            S7["gateway-s7<br/>⚠ 待 spike：snap7 / 自研 S7comm"]
+            OPC["gateway-opcua<br/>待引入 opcua crate"]
+        end
+
+        SVC == "invoke 命令<br/>camelCase 类型契约" ==> CMD
+        SINK == "事件流 status / telemetry" ==> SVC
+        FACT --> SESS
+        SESS --> MB
+        SESS --> DEMO
+        SESS -.待实现.-> S7
+        SESS -.待实现.-> OPC
+    end
+
+    MB -- "Modbus TCP" --> PLC_MB
+    S7 -. "S7comm（TPKT/COTP）" .-> PLC_S7
+    OPC -. "OPC UA TCP" .-> OPC_SRV
+
+    classDef fe fill:#e8f4fd,stroke:#2b6cb0,stroke-width:1px,color:#1a365d;
+    classDef shell fill:#fef3c7,stroke:#d69e2e,stroke-width:1px,color:#744210;
+    classDef eng fill:#fff4e6,stroke:#dd6b20,stroke-width:1px,color:#7b341e;
+    classDef dev fill:#e6fffa,stroke:#319795,stroke-width:1px,color:#234e52;
+    classDef risk fill:#fed7d7,stroke:#e53e3e,stroke-width:2px,color:#742a2a;
+    class UI,UDS,SVC fe;
+    class CMD,FACT,SINK shell;
+    class SESS,MB,DEMO eng;
+    class S7,OPC risk;
+    class PLC_MB,PLC_S7,OPC_SRV dev;

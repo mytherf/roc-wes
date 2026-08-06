@@ -1,0 +1,16 @@
+[package]
+name = "gateway-engine"
+version = "0.1.0"
+description = "网关引擎：设备会话编排、周期轮询、自动重连与事件分发（不依赖 Tauri）"
+edition = "2021"
+
+[dependencies]
+gateway-core = { path = "../gateway-core" }
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
+tracing = "0.1"
+async-trait = "0.1"
+serde_json = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread"] }
+gateway-demo = { path = "../gateway-demo" }

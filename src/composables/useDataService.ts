@@ -8,8 +8,14 @@ import { MqttService } from '@/services/MqttService'
 import { S7Service } from '@/services/S7Service'
 import { OpcService } from '@/services/OpcService'
 import { ModbusService } from '@/services/ModbusService'
+import { IpcGatewayService } from '@/services/IpcGatewayService'
+import { isTauri } from '@/platform/isTauri'
+import { buildDeviceConfig } from '@/platform/deviceConfig'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { evaluateNodeEvents } from '@/services/NodeEventService'
+
+/** 工业协议类型：浏览器无法直连（原生 TCP），Tauri 桌面运行时统一走 Rust 原生网关（IPC） */
+const INDUSTRIAL_TYPES = new Set(['s7', 'opc', 'modbus'])
 
 /**
  * 数据服务管理 Composable
@@ -59,6 +65,13 @@ export function useDataService() {
     }
     const key = serviceKey(sourceType, sourceUrl, sourceConfig)
     if (!dataServiceMap.has(key)) {
+      // Tauri 桌面运行时：工业协议（S7 / OPC UA / Modbus，含其演示模式）
+      // 浏览器无法直连原生 TCP，统一经 Rust 原生网关（invoke + event IPC），不再经过本地 WS
+      if (isTauri() && INDUSTRIAL_TYPES.has(sourceType)) {
+        const service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), sourceType.toUpperCase())
+        dataServiceMap.set(key, service)
+        return service
+      }
       let service: IDataService | null = null
       switch (sourceType) {
         case 'websocket':

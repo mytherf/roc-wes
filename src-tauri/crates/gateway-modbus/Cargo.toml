@@ -1,0 +1,13 @@
+[package]
+name = "gateway-modbus"
+version = "0.1.0"
+description = "Modbus TCP 适配器（tokio-modbus）：寄存器合并批量读，点位约定 holding:/input:/coil:/discrete:"
+edition = "2021"
+
+[dependencies]
+gateway-core = { path = "../gateway-core" }
+tokio = { version = "1", features = ["net", "time"] }
+tokio-modbus = { version = "0.13", features = ["tcp"] }
+async-trait = "0.1"
+tracing = "0.1"
+serde_json = "1"
