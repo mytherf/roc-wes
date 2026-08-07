@@ -248,8 +248,6 @@ export function evaluateNodeEvents(nodeId: string, oldData: any, newData: any) {
 
 事件规则存储在节点的 `data.events` 中，随画布数据一起序列化和持久化。`useNodeEvents` 组合式函数管理规则的加载、编辑和提交——采用 draft-then-commit 模式，编辑在草稿上进行，确认后自动提交到 X6 节点和 Store。
 
-事件规则存储在节点的 `data.events` 中，随画布数据一起序列化和持久化。`useNodeEvents` 组合式函数管理规则的加载、编辑和提交——采用 draft-then-commit 模式，编辑在草稿上进行，自动提交到 X6 节点和 Store。
-
 ## 四、主题系统
 
 项目内置 3 套主题：`industrial`（深蓝工业风，默认）、`light`（明亮）、`ocean`（海洋蓝）。
