@@ -3,8 +3,8 @@
 
      运行流程：
        1. 编辑页点击「▶ 运行」时，编辑器把当前画布数据序列化后
-          存入 sessionStorage（键名 scada-run-data）
-       2. 本页面挂载后从 sessionStorage 读取数据，重新渲染画布
+          写入 run-preview.json 文件（应用配置目录）
+       2. 本页面挂载后异步读取该文件，重新渲染画布
        3. 与编辑态不同：这里不可编辑（interacting: false），
           只展示节点动画 + 实时数据刷新（数据绑定、动画引擎）
 
@@ -52,6 +52,7 @@ import '@/components/nodes/registry'
 // 服务
 import { AnimationService } from '@/services/AnimationService'
 import { useDataService } from '@/composables/useDataService'
+import { readJsonFile } from '@/platform/fileStorage' // 文件读取工具（Tauri FS 落盘）
 
 const TeleportContainer = getTeleport()
 
@@ -77,21 +78,15 @@ const dataService = useDataService()
 onMounted(async() => {
   if (!containerRef.value) return
 
-  const stored = sessionStorage.getItem('scada-run-data')
-  if (!stored) {
+  // 从预览快照文件读取画布数据（编辑页「▶ 运行」时写入）
+  const data = await readJsonFile<{ nodes: any[]; edges: any[] }>('run-preview.json')
+  if (!data || !data.nodes || data.nodes.length === 0) {
     loading.value = false
     hasData.value = false
     return
   }
 
   try {
-    const data = JSON.parse(stored)
-    if (!data.nodes || data.nodes.length === 0) {
-      loading.value = false
-      hasData.value = false
-      return
-    }
-
     hasData.value = true
 
     await nextTick()

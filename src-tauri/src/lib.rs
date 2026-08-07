@@ -21,6 +21,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_fs::init()) // 文件系统插件：前端工程数据落盘到应用配置目录
         .setup(|app| {
             let sink = Arc::new(TauriEventSink::new(app.handle().clone()));
             let engine = Arc::new(gateway_engine::GatewayEngine::new(sink));

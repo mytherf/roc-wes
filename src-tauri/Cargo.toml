@@ -36,6 +36,7 @@ tauri-build = { version = "2", features = [] }  # 生成 Tauri 的上下文代�
 [dependencies]
 tauri = { version = "2", features = [] }        # Tauri 2 主框架
 tauri-plugin-shell = "2"                     # 系统 Shell 插件（打开外部程序/文件等）
+tauri-plugin-fs = "2"                        # 文件系统插件（工程数据落盘：画布/数据源/路线/主题/预览快照）
 serde = { version = "1", features = ["derive"] }  # 序列化框架（配置/命令参数）
 serde_json = "1"                               # JSON 解析（事件载荷等）
 tracing = "0.1"                                # 日志门面（打日志用）

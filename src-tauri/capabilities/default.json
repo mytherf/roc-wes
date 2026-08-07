@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "主窗口默认权限（核心 IPC；自定义命令不受 capability 限制）",
+  "description": "主窗口默认权限（核心 IPC；自定义命令不受 capability 限制；fs 允许读写应用配置目录以持久化工程数据）",
   "windows": ["main"],
-  "permissions": ["core:default", "shell:allow-open"]
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "fs:default",
+    "fs:allow-appconfig-read-recursive",
+    "fs:allow-appconfig-write-recursive"
+  ]
 }

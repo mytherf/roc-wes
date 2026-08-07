@@ -2,14 +2,14 @@
      EditorToolbar.vue - 编辑器顶部工具栏（一排“主操作按钮”）
 
      按功能分组：
-       1. 文件操作：保存（Ctrl+S，存 localStorage）/ 导出 JSON / 导入 JSON / 清空画布
+       1. 文件操作：保存（Ctrl+S，落盘 editor.json）/ 导出 JSON / 导入 JSON / 清空画布
        2. 数据：数据源管理对话框 / 路线面板
        3. 视图：节点显示模式切换（极简 / 图标）
-       4. 运行：▶ 预览（序列化画布到 sessionStorage，新窗口打开运行态）
+       4. 运行：▶ 预览（序列化画布写入 run-preview.json 文件，新窗口打开运行态）
        5. 右侧：主题切换（暗色工业 / 亮色现代 / 深蓝科技）
 
      保存机制说明：本项目改为「手动保存」（Ctrl+S 或点按钮），
-     不再实时自动保存，避免频繁写 localStorage。
+     不再实时自动保存；所有数据落盘到应用配置目录的 JSON 文件（Tauri FS）。
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <div class="editor-toolbar">
@@ -95,6 +95,7 @@ import { useEditorStore } from '@/stores/editor'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { useRouteStore } from '@/stores/route'
 import { serializeGraph } from '@/utils/graphSerializer'
+import { writeJsonFile } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
 import DataSourceDialog from '@/components/DataSourceDialog.vue'
 import { useThemeStore, THEMES } from '@/stores/theme'
 
@@ -112,10 +113,10 @@ const savedTip = ref(false)
 let savedTipTimer: number | null = null
 
 /**
- * 保存画布到本地（手动触发，替代此前的实时自动保存）
+ * 保存画布到文件（手动触发；异步写入应用配置目录的 editor.json）
  */
-function handleSave() {
-  const ok = editorStore.saveToStorage()
+async function handleSave() {
+  const ok = await editorStore.saveToStorage()
   if (!ok) {
     alert('保存失败，请检查控制台错误')
     return
@@ -137,9 +138,10 @@ function openRoutePanel() {
 }
 
 /**
- * 运行模式：导出数据到 sessionStorage，在新窗口打开运行态页面
+ * 运行模式：序列化画布写入 run-preview.json 文件，在新窗口打开运行态页面
+ * （文件落盘替代 sessionStorage：文件容量不受限，且新窗口可可靠读取）
  */
-function handleRun() {
+async function handleRun() {
   if (!props.graph) {
     console.warn('画布未初始化，无法运行')
     return
@@ -154,22 +156,16 @@ function handleRun() {
   // 1. 获取当前画布数据
   const data = serializeGraph(props.graph)
 
-  // 2. 存入 sessionStorage
-  try {
-    const jsonStr = JSON.stringify(data)
-    if (jsonStr.length > 4.5 * 1024 * 1024) {
-      alert('画布数据过大（超过 4.5MB），请精简内容后重试')
-      return
-    }
-    sessionStorage.setItem('scada-run-data', jsonStr)
-
-    // 3. 在新窗口打开运行态页面
-    const runUrl = `${window.location.origin}/run`
-    window.open(runUrl, '_blank')
-  } catch (error) {
-    console.error('运行数据保存失败:', error)
-    alert('运行数据保存失败，请检查控制台错误')
+  // 2. 写入预览快照文件（运行态窗口启动后由 RunView 读取）
+  const ok = await writeJsonFile('run-preview.json', data)
+  if (!ok) {
+    alert('运行数据写入失败，请检查控制台错误')
+    return
   }
+
+  // 3. 在新窗口打开运行态页面
+  const runUrl = `${window.location.origin}/run`
+  window.open(runUrl, '_blank')
 }
 
 /**

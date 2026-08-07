@@ -2,10 +2,11 @@
 // 职责：
 // 1. 记录当前使用的主题名称
 // 2. 把主题应用到页面根元素（<html> 上的 data-theme 属性，CSS 据此切换配色）
-// 3. 记住用户选择（存入 localStorage，刷新后不丢失）
+// 3. 记住用户选择（文件落盘：应用配置目录的 theme.json，刷新后不丢失）
 
 import { defineStore } from 'pinia' // Pinia 的 store 定义函数
 import { ref, watch } from 'vue' // ref 创建响应式数据；watch 监听数据变化
+import { readJsonFile, writeJsonFile } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
 
 // 主题名称的可选值（'industrial' 暗色工业 / 'light' 亮色现代 / 'ocean' 深蓝科技）
 export type ThemeName = 'industrial' | 'light' | 'ocean'
@@ -25,36 +26,33 @@ export const THEMES: ThemeMeta[] = [
   { key: 'ocean', label: '深蓝科技', icon: '🌊', description: '深蓝底色 + 青蓝高亮，科技感强' },
 ]
 
-// localStorage 中保存主题的键名
-const STORAGE_KEY = 'roc-wes-theme'
+// 主题保存的文件名（应用配置目录下）
+const STORAGE_FILE = 'theme.json'
 
 // 定义主题 store（名为 'theme'，全局唯一）
 export const useThemeStore = defineStore('theme', () => {
-  // 当前主题名称；初始值先尝试从 localStorage 读取（见下方 loadTheme）
-  const current = ref<ThemeName>(loadTheme())
+  // 当前主题名称；先用默认主题渲染，稍后异步从文件恢复用户选择
+  // （文件读取是异步的，若上次选的不是默认主题，启动时会有极短暂的主题切换）
+  const current = ref<ThemeName>('industrial')
 
-  // 从 localStorage 读取上次保存的主题；
-  // 若没有保存过或保存的值非法，则回退到默认主题 'industrial'
-  function loadTheme(): ThemeName {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      // 校验：只有保存的值确实是 THEMES 中存在的 key 才采用，防止脏数据
-      if (saved && THEMES.some((t) => t.key === saved)) {
-        return saved as ThemeName
-      }
-    } catch { /* 读取失败（如隐私模式禁用存储）时静默忽略 */ }
-    return 'industrial'
-  }
+  // 异步从文件读取上次保存的主题；
+  // 若没有保存过或保存的值非法，则保持默认主题 'industrial'
+  readJsonFile<{ theme: ThemeName }>(STORAGE_FILE).then(parsed => {
+    const saved = parsed?.theme
+    // 校验：只有保存的值确实是 THEMES 中存在的 key 才采用，防止脏数据
+    if (saved && THEMES.some((t) => t.key === saved) && saved !== current.value) {
+      applyTheme(saved)
+    }
+  })
 
-  // 切换主题：更新响应式状态 + 写 <html data-theme> 属性 + 持久化
+  // 切换主题：更新响应式状态 + 写 <html data-theme> 属性 + 持久化到文件
   function applyTheme(name: ThemeName) {
     current.value = name
     // 把主题名写到 <html> 标签的 data-theme 属性上，
     // 全局 CSS 通过 [data-theme='xxx'] 选择器控制各区域颜色
     document.documentElement.setAttribute('data-theme', name)
-    try {
-      localStorage.setItem(STORAGE_KEY, name)
-    } catch { /* 存储失败静默忽略 */ }
+    // 异步保存到文件（不阻塞界面切换）
+    void writeJsonFile(STORAGE_FILE, { theme: name })
   }
 
   // 初始化时立即应用当前主题（保证页面一打开配色就正确）

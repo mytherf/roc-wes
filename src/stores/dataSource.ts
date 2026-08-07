@@ -7,7 +7,8 @@
 // 本文件职责：数据源实例的增删改查 + 类型定义 + 内置模拟地址 + 持久化。
 
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch, toRaw } from 'vue'
+import { readJsonFile, writeJsonFile } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
 
 /** 数据源类型：目前支持 7 种协议/方式 */
 export type DataSourceType = 'websocket' | 'mqtt' | 'http' | 'sse' | 's7' | 'opc' | 'modbus'
@@ -76,13 +77,32 @@ export const REAL_GATEWAY_URLS: Partial<Record<DataSourceType, string>> = {
 
 /**
  * 数据源管理 Store
- * 负责数据源实例的 CRUD 与持久化（localStorage）。
+ * 负责数据源实例的 CRUD 与持久化（文件落盘：应用配置目录的 datasources.json）。
  */
 export const useDataSourceStore = defineStore(
     'dataSource',
     () => {
         // ---------- 状态 ----------
         const dataSources = ref<DataSource[]>([])
+
+        // ---------- 持久化（文件落盘，替代 pinia-plugin-persistedstate） ----------
+        const STORAGE_FILE = 'datasources.json'
+
+        // 初始化：异步从文件加载（加载完成后赋值，界面自动刷新）
+        readJsonFile<{ dataSources: DataSource[] }>(STORAGE_FILE).then(parsed => {
+            if (parsed && Array.isArray(parsed.dataSources)) {
+                dataSources.value = parsed.dataSources
+            }
+        })
+
+        // 数据源列表变化时自动保存到文件（增删改均走此通道，无需手动调用）
+        watch(
+            dataSources,
+            () => {
+                void writeJsonFile(STORAGE_FILE, { dataSources: toRaw(dataSources.value) })
+            },
+            { deep: true }
+        )
 
         // ---------- 操作（Actions） ----------
         /** 新增数据源，返回生成的实例
@@ -124,13 +144,5 @@ export const useDataSourceStore = defineStore(
             deleteDataSource,
             getDataSource,
         }
-    },
-    {
-        // 持久化到 localStorage：pinia-plugin-persistedstate 插件会自动完成
-        // key 是存储键名，pick 指定只持久化 dataSources 这一个字段
-        persist: {
-            key: 'roc-wes-datasources',
-            pick: ['dataSources'],
-        },
     }
 )

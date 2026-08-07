@@ -4,7 +4,6 @@
 
 import { createApp } from 'vue' // Vue 3 核心：createApp 用来创建一个应用实例
 import { createPinia } from 'pinia' // Pinia 状态管理库：集中管理全局数据（如画布节点、主题）
-import piniaPluginPersistedstate from 'pinia-plugin-persistedstate' // 持久化插件：自动把 store 数据存入 localStorage
 import './style.css' // 全局基础样式
 import router from './router' // 路由配置（见 src/router/index.ts）
 import App from './App.vue' // 根组件（整个应用的入口组件）
@@ -14,9 +13,8 @@ import App from './App.vue' // 根组件（整个应用的入口组件）
 import './components/nodes/registry'
 
 // 创建 Pinia 实例（全局状态容器）
+// 持久化说明：各 store 自行通过 platform/fileStorage.ts 落盘到应用配置目录（Tauri FS），不再使用插件
 const pinia = createPinia()
-// 注册持久化插件：之后 store 里标记 persist 的数据会自动存到 localStorage
-pinia.use(piniaPluginPersistedstate)
 
 // 创建 Vue 应用 → 安装 Pinia（状态管理）→ 安装路由 → 挂载到 index.html 的 #app 元素
 createApp(App).use(pinia).use(router).mount('#app')

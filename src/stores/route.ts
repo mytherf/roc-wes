@@ -4,10 +4,11 @@
 //   由一串航点（points）组成，节点（如 AGV）通过 routeId 引用某条路线，
 //   运行态动画服务会驱动节点沿路线移动。
 // 本文件职责：路线的增删改查、分段配置（每段的速度/方向/停顿）、
-// 导入导出，以及持久化到 localStorage。
+// 导入导出，以及持久化（文件落盘：应用配置目录的 routes.json）。
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, toRaw } from 'vue'
+import { readJsonFile, writeJsonFile } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
 
 /**
  * 路线航点：路线上的一个关键点（路径的“拐弯处”或“站点”）
@@ -60,44 +61,35 @@ export interface RouteDefinition {
  *
  * 管理独立的路线实体，与节点解耦。
  * 节点通过 routeId 引用路线，路线可被多个节点复用。
- * 持久化到 localStorage。
+ * 持久化：文件落盘（应用配置目录的 routes.json）。
  */
 export const useRouteStore = defineStore('route', () => {
   const routes = ref<RouteDefinition[]>([])
-  const STORAGE_KEY = 'roc-wes-routes'
+  const STORAGE_FILE = 'routes.json'
 
-  // 初始化：从 localStorage 加载
+  // 初始化：异步从文件加载
   // 加载时做了“数据兼容”：旧版本可能缺少 segments/smooth 等字段，逐一补齐默认值
   function loadFromStorage() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw) // 把 JSON 字符串还原成对象数组
-        // 兼容旧格式：补充 segments / smooth 字段
-        routes.value = parsed.map((r: any) => ({
-          ...r,
-          segments: r.segments || [], // 没有分段配置就默认为空数组
-          smooth: r.smooth ?? false, // 没有平滑开关就默认为关
-          points: (r.points || []).map((p: any) => ({
-            x: p.x,
-            y: p.y,
-            type: p.type || 'waypoint', // 航点类型默认普通航点
-            stationName: p.stationName,
-          })),
-        }))
-      }
-    } catch (e) {
-      console.warn('[RouteStore] 加载路线数据失败:', e)
-    }
+    readJsonFile<any[]>(STORAGE_FILE).then(parsed => {
+      if (!Array.isArray(parsed)) return
+      routes.value = parsed.map((r: any) => ({
+        ...r,
+        segments: r.segments || [], // 没有分段配置就默认为空数组
+        smooth: r.smooth ?? false, // 没有平滑开关就默认为关
+        points: (r.points || []).map((p: any) => ({
+          x: p.x,
+          y: p.y,
+          type: p.type || 'waypoint', // 航点类型默认普通航点
+          stationName: p.stationName,
+        })),
+      }))
+    }).catch(e => console.warn('[RouteStore] 加载路线数据失败:', e))
   }
 
-  // 保存到 localStorage（每次增删改后调用，保证刷新不丢数据）
+  // 保存到文件（每次增删改后调用；内部异步写入，不阻塞调用方）
   function saveToStorage() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(routes.value))
-    } catch (e) {
-      console.warn('[RouteStore] 保存路线数据失败:', e)
-    }
+    void writeJsonFile(STORAGE_FILE, toRaw(routes.value))
+      .catch(e => console.warn('[RouteStore] 保存路线数据失败:', e))
   }
 
   // 启动时加载

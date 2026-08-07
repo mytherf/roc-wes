@@ -9,6 +9,7 @@
 
 import { defineStore } from 'pinia'
 import {shallowRef, ref, computed, toRaw} from 'vue' // shallowRef 浅响应（只替换整体、不深监听）；toRaw 取出原始对象
+import { readJsonFile, writeJsonFile } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
 
 
 /**
@@ -250,44 +251,38 @@ export const useEditorStore = defineStore(
             historyIndex.value = -1
         }
 
-        // ---------- 持久化（手动保存） ----------
-        // 不再随状态变化实时写入 localStorage，改由工具栏「保存」按钮显式触发。
-        // 沿用原 pinia-plugin-persistedstate 的 key 与字段结构，保证旧缓存仍可读取。
-        const STORAGE_KEY = 'roc-wes-editor'
+        // ---------- 持久化（文件落盘，替代 localStorage） ----------
+        // 数据保存在「应用配置目录」的 editor.json 中（由 fileStorage 写入）：
+        // 容量不受限、不随 WebView2 缓存清理丢失。
+        // 仍由工具栏「保存」按钮显式触发；启动时异步从文件恢复。
+        const STORAGE_FILE = 'editor.json'
 
         /**
-         * 手动保存当前画布与编辑器状态到 localStorage（由「保存」按钮调用）
+         * 手动保存当前画布与编辑器状态到文件（由「保存」按钮调用）
          * @returns 是否保存成功
          */
-        function saveToStorage(): boolean {
-            try {
-                const payload = {
-                    graphData: toRaw(graphData.value),
-                    selectedId: selectedId.value,
-                    displayMode: displayMode.value,
-                }
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
-                return true
-            } catch (e) {
-                console.error('保存画布失败:', e)
-                return false
+        async function saveToStorage(): Promise<boolean> {
+            const payload = {
+                graphData: toRaw(graphData.value),
+                selectedId: selectedId.value,
+                displayMode: displayMode.value,
             }
+            const ok = await writeJsonFile(STORAGE_FILE, payload)
+            if (!ok) console.error('保存画布到文件失败')
+            return ok
         }
 
         /**
-         * 从 localStorage 恢复状态（store 初始化时同步调用，等价于此前的自动 hydrate）
+         * 从文件恢复状态（store 初始化时异步调用）
+         * 文件 IO 是异步的：加载完成前画布可能已挂载，
+         * 届时 setGraphData 会触发 X6Canvas 的全量 watcher 自动重载画布。
          */
-        function loadFromStorage() {
-            try {
-                const raw = localStorage.getItem(STORAGE_KEY)
-                if (!raw) return
-                const parsed = JSON.parse(raw)
-                if (parsed.graphData) graphData.value = parsed.graphData
-                if ('selectedId' in parsed) selectedId.value = parsed.selectedId
-                if (parsed.displayMode) displayMode.value = parsed.displayMode
-            } catch (e) {
-                console.warn('读取画布缓存失败:', e)
-            }
+        async function loadFromStorage() {
+            const parsed = await readJsonFile<any>(STORAGE_FILE)
+            if (!parsed) return
+            if (parsed.graphData) graphData.value = parsed.graphData
+            if ('selectedId' in parsed) selectedId.value = parsed.selectedId
+            if (parsed.displayMode) displayMode.value = parsed.displayMode
         }
 
         /**
@@ -299,7 +294,8 @@ export const useEditorStore = defineStore(
             clearHistory()
         }
 
-        // 初始化时同步恢复上次保存的画布（须在 X6Canvas 挂载读取 graphData 之前完成）
+        // 初始化时异步恢复上次保存的画布
+        // （文件读取是异步的，不阻塞启动；若画布已挂载，加载完成后 watcher 自动重载）
         loadFromStorage()
         return {
             graphData,

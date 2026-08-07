@@ -54,7 +54,7 @@ export const ICON_SIZE_DEFAULT = 20
 /** 上传图片的最大原始文件大小（2MB，压缩后写入 data URL） */
 export const ICON_UPLOAD_MAX_BYTES = 2 * 1024 * 1024
 
-/** 上传后压缩到的最大边长（px）——控制 data URL 体积，避免撑爆 localStorage */
+/** 上传后压缩到的最大边长（px）——控制 data URL 体积，避免工程文件过大 */
 export const ICON_UPLOAD_MAX_DIMENSION = 128
 
 /** 允许上传的图片 MIME 类型 */
