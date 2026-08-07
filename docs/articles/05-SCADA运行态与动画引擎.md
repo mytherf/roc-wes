@@ -10,32 +10,33 @@
 
 ### 数据交接
 
-编辑态和运行态是两个完全独立的路由页面（`/` 和 `/run`），它们之间通过 `sessionStorage` 交接数据：
+编辑态和运行态是两个完全独立的路由页面（`/` 和 `/run`），它们之间通过**预览快照文件**交接数据：
 
 ```typescript
-// EditorToolbar.vue - 点击运行
-function handleRun() {
-  const data = editorStore.graphData
-  sessionStorage.setItem('scada-run-data', JSON.stringify(data))
-  window.open('/run', '_blank')
+// EditorToolbar.vue - 点击「▶ 预览」
+async function handleRun() {
+  // 1. 序列化当前画布
+  const data = serializeGraph(props.graph)
+
+  // 2. 写入预览快照文件（应用配置目录，tauri-plugin-fs 原子写入）
+  const ok = await writeJsonFile('run-preview.json', data)
+  if (!ok) return
+
+  // 3. 在新窗口打开运行态页面
+  window.open(`${window.location.origin}/run`, '_blank')
 }
 ```
 
 ```typescript
 // views/RunView.vue - onMounted
-const raw = sessionStorage.getItem('scada-run-data')
-const graphData = JSON.parse(raw!)
+const data = await readJsonFile<{ nodes: any[]; edges: any[] }>('run-preview.json')
+if (!data || !data.nodes || data.nodes.length === 0) return
 
 // 用 X6 重建画布
-graph.value!.fromJSON({
-  cells: [
-    ...graphData.nodes,
-    ...graphData.edges,
-  ],
-})
+graph.fromJSON({ cells: [...data.nodes, ...data.edges] })
 ```
 
-运行态是完全**只读**的——`Graph` 实例创建时 `interacting: false`，禁用所有编辑交互（但保留平移和缩放）。它从 `sessionStorage` 接收一份冻结快照，不连接编辑态的 Pinia store。这意味着在运行态打开的画面不会受编辑器后续修改的影响。
+早期版本用 `sessionStorage` 交接，桌面化后改为文件落盘：文件容量不受 5MB 限制（大画面含自定义图标时容易撑爆），且新窗口读取可靠。运行态是完全**只读**的——`Graph` 实例创建时 `interacting: false`，禁用所有编辑交互（但保留平移和缩放）。它从快照文件接收一份冻结画面，不连接编辑态的 Pinia store，编辑器后续修改不会影响已打开的运行态。
 
 ### 运行态的数据订阅
 
@@ -43,21 +44,17 @@ graph.value!.fromJSON({
 
 ```typescript
 // RunView.vue
-const { bindNodeData, unbindNodeData, dispose } = useDataService(() => graph.value!)
+const dataService = useDataService()
 
-// 遍历所有节点，重新建立数据绑定
-graph.value!.getNodes().forEach(node => {
-  const data = node.getData()
-  if (data?.binding?.pointId) {
-    bindNodeData(node, data.binding)
-  }
-})
+// 画布重建后，遍历所有节点重新建立数据绑定
+// （读取每个节点 data.binding.pointId，订阅并自动写入 node.data.value）
+dataService.bindAllNodes(graph)
 
-// 组件卸载时清理
-onBeforeUnmount(() => { dispose() })
+// 组件卸载时清理：取消全部订阅并断开所有数据服务
+onBeforeUnmount(() => { dataService.dispose() })
 ```
 
-编辑态和运行态共享同一套数据服务基础设施（`IDataService` 接口 + 7 种协议实现 + 服务缓存），但各自维护独立的服务实例生命周期。
+编辑态和运行态共享同一套数据服务基础设施（`IDataService` 接口 + 各协议实现 + 服务缓存），但各自维护独立的服务实例生命周期。
 
 ### 虚拟渲染
 
@@ -65,7 +62,7 @@ onBeforeUnmount(() => { dispose() })
 
 ## 二、单循环动画引擎
 
-SCADA 画面中，设备节点需要动画来表达运行状态：堆垛机行走进度条、输送线滚动效果、AGV 沿路线移动、指示灯闪烁。如果每个节点各自启动 `setInterval`，100 个节点就是 100 个定时器——性能灾难。
+SCADA 画面中，设备节点需要动画来表达运行状态：指示灯闪烁、运行设备呼吸脉冲、风扇类部件旋转。如果每个节点各自启动 `setInterval`，100 个节点就是 100 个定时器——性能灾难。
 
 ### 设计：一个 rAF 驱动所有动画
 
@@ -73,52 +70,45 @@ SCADA 画面中，设备节点需要动画来表达运行状态：堆垛机行�
 
 ```typescript
 // services/AnimationService.ts
+type AnimationType = 'pulse' | 'blink' | 'rotate' | 'none'
+
 class AnimationService {
   private animations = new Map<string, AnimationState>()
-  private rafId: number | null = null
+  private frameId: number | null = null
 
   setAnimation(nodeId: string, config: AnimationConfig) {
-    // 停止旧动画
-    this.stopAnimation(nodeId)
+    this.stopAnimation(nodeId)  // 先停旧动画并恢复原始样式
+    const cell = this.graph.getCellById(nodeId)
+    if (!cell?.isNode()) return
 
     this.animations.set(nodeId, {
-      nodeId,
-      type: config.type,        // 'pulse' | 'blink' | 'rotate' | 'move'
+      config,
+      node: cell as Node,
       startTime: performance.now(),
-      domNode: this.findDomNode(nodeId),
-      // ...
+      visible: true,
     })
-
-    // 懒启动：第一个动画时启动 rAF 循环
-    if (!this.rafId) this.startLoop()
+    this.ensureLoop()  // 懒启动：有动画时才启动 rAF 循环
   }
 
   stopAnimation(nodeId: string) {
     const state = this.animations.get(nodeId)
-    if (state) {
-      this.resetVisual(state)
-      this.animations.delete(nodeId)
-    }
+    if (!state) return
+    this.resetNodeStyle(state.node)  // node.attr('body', { transform: '', opacity: 1 })
+    this.animations.delete(nodeId)
     // 最后一个动画停止时关闭 rAF 循环
     if (this.animations.size === 0) this.stopLoop()
   }
 
-  private startLoop() {
-    const tick = () => {
-      const now = performance.now()
+  private ensureLoop() {
+    if (this.frameId !== null) return
+    const tick = (now: number) => {
       for (const state of this.animations.values()) {
         this.updateAnimation(state, now)
       }
-      this.rafId = requestAnimationFrame(tick)
+      // 仍有动画时继续循环，否则自然停止
+      this.frameId = this.animations.size > 0 ? requestAnimationFrame(tick) : null
     }
-    this.rafId = requestAnimationFrame(tick)
-  }
-
-  private stopLoop() {
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId)
-      this.rafId = null
-    }
+    this.frameId = requestAnimationFrame(tick)
   }
 }
 ```
@@ -129,32 +119,39 @@ class AnimationService {
 
 ```typescript
 private updateAnimation(state: AnimationState, now: number) {
+  const { config, node } = state
+  const interval = config.interval || config.duration || 1000
   const elapsed = now - state.startTime
-  const duration = state.config.duration ?? 1000
 
-  switch (state.type) {
+  switch (config.type) {
     case 'pulse': {
-      // 正弦脉冲：opacity 在 0.3~1 之间周期变化
-      const phase = (elapsed % duration) / duration
-      const opacity = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(phase * Math.PI * 2))
-      state.domNode.style.opacity = String(opacity)
+      // 呼吸脉冲：缩放 + 透明度同步正弦变化
+      const phase = (elapsed / interval) % 1
+      const scale = 1 + 0.08 * Math.sin(phase * Math.PI * 2)
+      const opacity = 0.7 + 0.3 * Math.sin(phase * Math.PI * 2)
+      node.attr('body', { transform: `scale(${scale})`, opacity })
       break
     }
     case 'blink': {
-      // 闪烁：每 duration/2 毫秒切换可见性
-      const visible = Math.floor(elapsed / (duration / 2)) % 2 === 0
-      state.domNode.style.visibility = visible ? 'visible' : 'hidden'
+      // 闪烁：每 interval/2 切换一次透明度（状态不变时不重复设 attr）
+      const shouldBeVisible = Math.floor(elapsed / (interval / 2)) % 2 === 0
+      if (shouldBeVisible !== state.visible) {
+        state.visible = shouldBeVisible
+        node.attr('body', { opacity: shouldBeVisible ? 1 : 0.2 })
+      }
       break
     }
     case 'rotate': {
-      // 匀速旋转
-      const angle = (elapsed / duration) * 360 % 360
-      state.domNode.style.transform = `rotate(${angle}deg)`
+      // 缓慢旋转：每 interval 转 90°
+      const angle = ((elapsed / interval) * 90) % 360
+      node.attr('body', { transform: `rotate(${angle}deg)` })
       break
     }
   }
 }
 ```
+
+注意动画作用在 X6 节点的 `body` 属性上（`node.attr('body', ...)`），而不是直接操作 DOM——这样 X6 的渲染器能正确跟踪样式状态，停止动画时 `resetNodeStyle` 一步恢复原样。
 
 基于时间意味着：无论显示器是 60Hz 还是 144Hz，无论帧率是否波动，动画的视觉速度始终一致。60Hz 屏幕上每帧前进 16.7ms，144Hz 屏幕上每帧前进 6.9ms，但经过 1 秒后的动画进度都是 100%。
 
@@ -162,10 +159,10 @@ private updateAnimation(state: AnimationState, now: number) {
 
 动画服务的生命周期与画布绑定：
 
-- **节点添加时**：`useGraphSync` 的 `cell:added` 钩子检查节点是否配置了动画，有则调用 `setAnimation`
-- **节点删除时**：`cell:removed` 钩子调用 `stopAnimation`
-- **数据更新时**：transform 函数可能改变节点状态，触发动画类型切换（如堆垛机从 idle 变为 moving）
-- **画布销毁时**：`dispose()` 停止所有动画、取消 rAF
+- **运行态启动**：`RunView` 在画布加载完成后调用 `applyAllAnimations()`，遍历所有节点，把 `data.animation` 配置交给 `setAnimation`
+- **编辑态添加节点**：`useGraphSync` 的 `cell:added` 回调（`onNodeAdded`）检查节点是否配置了动画，有则启动
+- **节点删除时**：`cell:removed` 回调清理对应动画与资源
+- **画布销毁时**：`dispose()` 恢复所有节点样式、停止 rAF
 
 当没有活跃动画时，rAF 循环完全停止——不消耗 CPU。
 
@@ -176,57 +173,58 @@ SCADA 系统中的告警不应该持续触发——一个温度超限告警应�
 ### 事件模型
 
 ```typescript
+// services/NodeEventService.ts
+type EventCondition = 'changed' | 'gt' | 'lt' | 'gte' | 'lte' | 'eq' | 'neq'
+type EventActionType = 'console' | 'alert' | 'http'
+
 interface NodeEventRule {
   id: string
+  enabled: boolean
   name: string
-  trigger: 'rising' | 'falling'   // 上升沿 or 下降沿
-  field: string                    // 监测的数据字段
-  threshold: number                // 阈值
-  action: {
-    type: 'alert' | 'sound' | 'script'
-    config: Record<string, any>
-  }
+  field: string              // 监听的数据字段（空字符串 = 顶层 value）
+  condition: EventCondition  // 触发条件
+  threshold: string          // 阈值（比较类条件使用）
+  actionType: EventActionType
+  message?: string           // alert 动作的告警内容
+  url?: string               // http 动作的请求地址
+  method?: string
 }
 ```
 
-- **上升沿（rising）**：字段值从 ≤ threshold 变为 > threshold 时触发
-- **下降沿（falling）**：字段值从 > threshold 变为 ≤ threshold 时触发
+- **值变化（changed）**：字段值每次变化都触发
+- **比较类条件（gt / lt / gte / lte / eq / neq）**：**上升沿触发**——仅在从「不满足」变为「满足」的瞬间触发一次
 
 ### 评估引擎
 
-`NodeEventService` 在每次数据更新时评估事件规则：
+数据绑定每次写入节点后，`useDataService` 的订阅回调会调用 `evaluateNodeEvents(nodeId, oldData, newData)` 评估全部规则：
 
 ```typescript
-// services/NodeEventService.ts
-function evaluateNodeEvents(node: Cell, rules: NodeEventRule[]) {
-  const data = node.getData()
-  const eventState = data.__eventState ?? {}  // 上一次各字段的状态
+// 记录每条规则上一次的条件匹配状态（key: `${nodeId}:${ruleId}`）
+const prevMatchState = new Map<string, boolean>()
+
+export function evaluateNodeEvents(nodeId: string, oldData: any, newData: any) {
+  const rules = newData?.events
+  if (!Array.isArray(rules) || rules.length === 0) return
 
   for (const rule of rules) {
-    const currentValue = data[rule.field]
-    const prevState = eventState[rule.field] ?? false
+    if (!rule?.enabled) continue
 
-    let triggered = false
-    if (rule.trigger === 'rising') {
-      triggered = !prevState && currentValue > rule.threshold
-    } else {
-      triggered = prevState && currentValue <= rule.threshold
-    }
+    const oldVal = getFieldValue(oldData, rule.field)  // field 为空取顶层 value
+    const newVal = getFieldValue(newData, rule.field)
+    const matched = matchCondition(rule, oldVal, newVal)
 
-    if (triggered) {
-      fireAction(rule.action, { node, rule, value: currentValue })
-    }
+    const stateKey = `${nodeId}:${rule.id}`
+    const prev = prevMatchState.get(stateKey) || false
+    prevMatchState.set(stateKey, matched)
 
-    // 更新状态
-    eventState[rule.field] = currentValue > rule.threshold
+    // 「值变化」每次变化触发；比较类条件仅上升沿触发
+    const shouldFire = rule.condition === 'changed' ? matched : matched && !prev
+    if (shouldFire) executeAction(rule, newData, nodeId)
   }
-
-  // 写回事件状态（不触发 cell:change）
-  node.setData({ __eventState: eventState }, { silent: true })
 }
 ```
 
-每个字段维护一个布尔状态（是否超过阈值），边沿触发通过比较**当前状态与上一次状态**来判断。这确保了告警只在状态变化的瞬间触发一次。
+边沿检测的关键是 `prevMatchState` 这个模块级 Map：每条规则维护一个布尔状态（上一次条件是否满足），只有从 `false → true` 的瞬间才执行动作。状态存在服务模块内而不是节点 data 上——避免事件状态写入画布数据污染序列化结果。动作支持三种：`console`（日志）、`alert`（弹窗告警）、`http`（POST 通知外部系统）。
 
 ### 事件配置 UI
 
@@ -239,7 +237,7 @@ function evaluateNodeEvents(node: Cell, rules: NodeEventRule[]) {
 │  │ + 添加规则                      ││
 │  │                                 ││
 │  │ 规则 1: 温度过高告警            ││
-│  │ 触发: [上升沿 ▼]               ││
+│  │ 条件: [大于 ▼]                 ││
 │  │ 字段: [temperature       ]     ││
 │  │ 阈值: [80                ]     ││
 │  │ 动作: [告警 ▼]                 ││
@@ -247,6 +245,8 @@ function evaluateNodeEvents(node: Cell, rules: NodeEventRule[]) {
 │  └─────────────────────────────────┘│
 └─────────────────────────────────────┘
 ```
+
+事件规则存储在节点的 `data.events` 中，随画布数据一起序列化和持久化。`useNodeEvents` 组合式函数管理规则的加载、编辑和提交——采用 draft-then-commit 模式，编辑在草稿上进行，确认后自动提交到 X6 节点和 Store。
 
 事件规则存储在节点的 `data.events` 中，随画布数据一起序列化和持久化。`useNodeEvents` 组合式函数管理规则的加载、编辑和提交——采用 draft-then-commit 模式，编辑在草稿上进行，自动提交到 X6 节点和 Store。
 
@@ -296,60 +296,40 @@ const observer = new MutationObserver((mutations) => {
 observer.observe(document.documentElement, { attributes: true })
 ```
 
-## 五、生产部署
+## 五、打包与部署
 
 ### 构建
 
 ```bash
+# 前端产物：vue-tsc 类型检查 + vite build → dist/
 npm run build
-# 1. vue-tsc 类型检查
-# 2. vite build → dist/
+
+# 桌面安装包：前端产物 + Rust 网关一起打包（NSIS 安装包 / 免安装版）
+npx tauri build
 ```
 
-构建产物是纯静态文件（HTML + CSS + JS），约 2.3MB（gzip 后约 600KB）。
+前端构建产物是纯静态文件（HTML + CSS + JS），由 Tauri 在运行时通过自定义协议加载；Rust 侧的网关 crate 编译进主程序，整个应用只有一个可执行文件。
 
-### Nginx 部署
+### 部署
 
-```nginx
-server {
-    listen 80;
-    server_name scada.example.com;
-    root /var/www/roc-wes/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript;
-}
-```
-
-因为使用了 Vue Router 的 history 模式，需要 `try_files` 回退到 `../../index.html`。
+没有服务器、没有 Nginx——安装包拷到车间工控机或办公室 PC，双击即用。工程数据（画布 / 数据源 / 路线 / 主题 / 运行预览快照）全部落盘在应用配置目录（Windows 下为 `%APPDATA%\com.rocwes.desktop\`），卸载前随时备份。
 
 ### 连接真实设备
 
-生产环境中，内置模拟服务不会启动。连接真实 PLC 需要：
+1. 在数据源管理对话框中新建对应协议的数据源，填入 PLC 的 IP / 端口等参数（如 Modbus 的 host / port / unitId / 轮询间隔）。
+2. 保存后，`IpcGatewayService` 经 Tauri IPC 请求 Rust 网关建立会话，网关用 tokio 原生 TCP 直连 PLC，遥测数据批量推回前端。
 
-1. 在工控机上运行对应的网关进程：
-   ```bash
-   npm run gateway        # Modbus TCP → WS（端口 19100）
-   npm run s7-gateway     # S7comm → WS（端口 19101）
-   npm run opc-gateway    # OPC UA → WS（端口 19102）
-   ```
-
-2. 在数据源管理对话框中，将对应协议切换为「真实模式」，填入 PLC 的 IP 地址和端口参数。
-
-网关进程以 WebSocket 桥接方式工作：前端通过 WebSocket 连接网关，网关用原生 TCP 协议连接 PLC。
+当前 Modbus TCP 适配器已完整落地；S7 / OPC UA 适配器在 Rust 侧预留了扩展点（`factory.rs` 加一个 match 分支即可接入）。连接失败时，数据源监控面板会实时展示错误原因。
 
 ### 未来演进方向
 
-**Tauri 桌面化**：如果需要系统托盘、开机自启、串口直连（Modbus RTU over RS-485）、多窗口跨显示器等桌面能力，可以用 Tauri 封装。前端代码 100% 复用，网关可以作为 sidecar 进程打包。安装包约 5~10MB，远小于 Electron 的 80~100MB。
+**S7 / OPC UA 适配器落地**：Rust 网关的扩展点已就位，引入 snap7 绑定与 opcua crate 后，只需在 `factory.rs` 增加 match 分支，前端与引擎层零改动。
 
-**后端持久化**：当前的画布数据存在 `localStorage`（约 5MB 上限）。对于多用户协作、项目版本管理等场景，可以接入后端 API，把 `editorStore.graphData` 序列化后存数据库。`IDataService` 接口也可以扩展一个 `HttpApiService` 实现，对接 RESTful 后端。
+**串口直连（Modbus RTU）**：桌面化后具备 RS-485 串口能力，可为 gateway-core 增加 RTU 适配器，覆盖存量串口仪表。
 
-**移动端查看**：X6 的画布在移动端浏览器上可以查看（只读），但编辑体验受限于屏幕尺寸。如果移动端监控是刚需，可以考虑做一个轻量的 H5 运行态页面，只展示关键设备和数据。
+**后端持久化 / 多用户协作**：当前工程数据落盘在本地 JSON 文件。若需多用户协作、项目版本管理，可把 `editorStore.graphData` 等序列化后存数据库；`IDataService` 接口也可以扩展 `HttpApiService` 实现对接 RESTful 后端。
+
+**移动端查看**：X6 画布在移动端浏览器上可以只读展示。若移动端监控是刚需，可以做一个轻量的 H5 运行态页面，只展示关键设备和数据。
 
 ## 六、系列总结
 
@@ -359,7 +339,7 @@ server {
 |------|----------|------------|
 | 第 1 篇 | 项目总览与架构设计 | 四层架构、7 协议统一接入、技术选型 |
 | 第 2 篇 | 画布编辑器核心实现 | X6 集成、节点注册表、配置驱动工厂、双向同步防循环 |
-| 第 3 篇 | 多协议数据接入体系 | IDataService、GatewayService 模板方法、Transform 序列化 |
+| 第 3 篇 | 多协议数据接入体系 | IDataService、IpcGatewayService IPC 网关、Transform 序列化 |
 | 第 4 篇 | 路线编辑器与浮动窗口 | Generation 后缀、Teleport defer、自由拖拽 |
 | 第 5 篇 | SCADA 运行态与动画引擎 | 单 rAF 循环、边沿触发事件、主题系统 |
 
