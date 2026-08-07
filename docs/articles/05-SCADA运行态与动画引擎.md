@@ -2,7 +2,7 @@
 
 > 本系列最终篇。从编辑态到运行态的切换机制、单 requestAnimationFrame 循环驱动的动画引擎、数据订阅的生命周期管理、PLC 语义的边沿触发事件系统，以及主题切换与生产部署。
 
-![SCADA 运行态与动画引擎](./images/05-scada-runtime.svg)
+![SCADA 运行态与动画引擎](images/05-scada-runtime.svg)
 
 ## 一、从编辑态到运行态
 
@@ -326,7 +326,7 @@ server {
 }
 ```
 
-因为使用了 Vue Router 的 history 模式，需要 `try_files` 回退到 `index.html`。
+因为使用了 Vue Router 的 history 模式，需要 `try_files` 回退到 `../../index.html`。
 
 ### 连接真实设备
 
@@ -379,5 +379,5 @@ server {
 
 ---
 
-**上一篇**：[（四）路线编辑器与浮动窗口：Teleport 的巧妙运用](./04-路线编辑器与浮动窗口.md)
-**系列首篇**：[（一）项目总览与架构设计](./01-项目总览与架构设计.md)
+**上一篇**：[（四）路线编辑器与浮动窗口：Teleport 的巧妙运用](04-路线编辑器与浮动窗口.md)
+**系列首篇**：[（一）项目总览与架构设计](01-项目总览与架构设计.md)

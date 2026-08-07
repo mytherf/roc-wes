@@ -1,7 +1,7 @@
 # ROC-WES 产品分析报告
 
 > 分析视角：产品（定位 / 用户 / 价值 / 功能 / 竞品 / SWOT / 商业化）
-> 分析依据：当前代码库实际实现（`src/`、`gateway/`、`mock/`）+ `README.md` + `package.json`
+> 分析依据：当前代码库实际实现（`../../src`、`gateway/`、`../../mock`）+ `../../README.md` + `../../package.json`
 > 日期：2026-07-31
 
 ---
@@ -202,18 +202,18 @@ ROC-WES 当前**实际**是一个**纯前端、浏览器运行的可视化 SCADA
 | README 描述 | 代码现状 |
 |---|---|
 | 工作流编排：开始/结束/条件/定时器/HTTP/自定义代码节点、DAG 校验器 | **不存在**（无对应组件与 `WorkflowEngine`/`DagValidator`） |
-| ECDSA P-256 授权、许可证激活、功能权限、节点数限制 | **不存在**（`package.json` 无 `@noble/*`，无授权相关代码） |
+| ECDSA P-256 授权、许可证激活、功能权限、节点数限制 | **不存在**（`../../package.json` 无 `@noble/*`，无授权相关代码） |
 | 技术栈 Vue^3.4 / Vite^5 / Pinia^2.1 / ECharts^5.4 / TS^5 | 实际 Vue 3.5 / Vite 8 / Pinia 3 / ECharts 6 / TS 6 |
 | 项目结构写作 `roc-mes/`，含 Workflow*/License 文件 | 实际为 `roc-wes`，无上述文件，节点为 WCS 设备组件 |
-| 测试：`npm run test`、集成/性能测试 | `package.json` **无 test 脚本**（仅有 vitest 依赖） |
+| 测试：`npm run test`、集成/性能测试 | `../../package.json` **无 test 脚本**（仅有 vitest 依赖） |
 
 > 结论：README 很可能沿用一个更早的「MES + 工作流 + 授权」版本，未随产品转向「WCS 设备组态监控」而更新。这是一笔需要尽快偿还的"文档/定位债"。
 
 ## 附录 B：分析所据关键路径
 
-- 路由/视图：`src/router/index.ts`、`src/layouts/MainLayout.vue`、`src/views/RunView.vue`
-- 组件库：`src/components/nodes/nodeTemplates.ts`、`registry.ts`、各设备 `*.vue`
-- 数据连接：`src/stores/dataSource.ts`、`src/services/*`、`src/composables/useDataService.ts`
-- 网关/仿真：`gateway/*`、`mock/server.ts`、`mock/generators.ts`
-- 绑定/告警：`src/services/DataService.ts`、`NodeEventService.ts`、`src/composables/useNodeEvents.ts`
-- 监控：`src/services/GatewayMonitorService.ts`、`src/composables/useGatewayMonitor.ts`、`src/components/DataSourceDialog.vue`
+- 路由/视图：`../../src/router/index.ts`、`../../src/layouts/MainLayout.vue`、`../../src/views/RunView.vue`
+- 组件库：`../../src/components/nodes/nodeTemplates.ts`、`registry.ts`、各设备 `*.vue`
+- 数据连接：`../../src/stores/dataSource.ts`、`src/services/*`、`../../src/composables/useDataService.ts`
+- 网关/仿真：`gateway/*`、`../../mock/server.ts`、`../../mock/generators.ts`
+- 绑定/告警：`../../src/services/DataService.ts`、`NodeEventService.ts`、`../../src/composables/useNodeEvents.ts`
+- 监控：`../../src/services/GatewayMonitorService.ts`、`../../src/composables/useGatewayMonitor.ts`、`../../src/components/DataSourceDialog.vue`
