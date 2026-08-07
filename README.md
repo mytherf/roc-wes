@@ -1,11 +1,8 @@
-# ROC-WES — 仓储自动化 SCADA 组态平台
+# ROC-WES — 仓储自动化 SCADA 组态平台（桌面版）
 
-基于 Vue 3 + AntV X6 v3 的可视化组态编辑器，面向仓储自动化（WCS）设备监控场景，覆盖 **仿真演示 → 实时监控 → 运行执行** 三大核心环节。
+基于 Tauri 2 + Vue 3 + AntV X6 v3 的可视化组态编辑器，面向仓储自动化（WCS）设备监控场景，覆盖 **仿真演示 → 实时监控 → 运行执行** 三大核心环节。
 
-项目提供两种运行形态：
-
-- **浏览器版**：纯前端静态站点，浏览器内完成画面编排、多协议数据接入与 SCADA 运行态展示；
-- **桌面版（RocWes Desktop）**：Tauri 2 封装，内嵌 Rust 原生设备网关，通过 IPC 直连工业协议设备（Modbus TCP 已支持，S7 / OPC UA 规划中），无需任何中间网关进程与本地端口。
+桌面版（RocWes Desktop）由 Tauri 2 封装，内嵌 Rust 原生设备网关，通过 IPC 直连工业协议设备（Modbus TCP 已支持，S7 / OPC UA 规划中），无需任何中间网关进程与本地端口。
 
 ---
 
@@ -13,21 +10,14 @@
 
 ### 仿真演示
 
-无需真实 PLC / 网关即可完整体验数据绑定与画面联动：
-
-| 运行形态 | 演示数据来源 |
-|----------|--------------|
-| 浏览器（`npm run dev`） | 内置 mock 服务自动启动 4 类浏览器可直连协议：WebSocket（8080）、HTTP（8081）、SSE（8082）、MQTT（8083） |
-| 桌面版（`npx tauri dev`） | Rust `DemoAdapter` 内置模拟曲线，**全部 7 类协议**（含 S7 / OPC / Modbus）均可演示 |
+无需真实 PLC / 网关即可完整体验数据绑定与画面联动：Rust `DemoAdapter` 内置模拟曲线，**全部 7 类协议**（含 S7 / OPC / Modbus）均可演示。
 
 演示模式下，数据源监控面板自动注入各协议特征样例点位（如 `holding:100`、`DB1,REAL0`、`ns=2;s=Ramp`），即使画布无节点绑定也能看到实时模拟数据。
-
-> 注意：生产构建（`npm run build` / `npx tauri build`）不携带 mock 服务。浏览器版生产环境的 ws/http/sse/mqtt 需连接外部真实服务；桌面版的演示模式不受影响（由 Rust 侧生成）。
 
 ### 实时监控
 
 - **数据源管理**：统一管理 7 种协议的数据源连接，支持演示 / 真实双模式一键切换
-- **网关监控面板**：在数据源对话框内实时探测连通性、设备状态、建连耗时、数据点实时值与错误告警（桌面版工业协议经 IPC 探测，使用独立 `mon:` 会话避免与业务会话冲突）
+- **网关监控面板**：在数据源对话框内实时探测连通性、设备状态、建连耗时、数据点实时值与错误告警（工业协议经 IPC 探测，使用独立 `mon:` 会话避免与业务会话冲突）
 - **数据绑定**：节点通过 `binding` 配置关联数据源点位，支持 transform 函数将原始值映射为业务状态
 - **边沿触发告警**：节点事件系统采用 PLC 语义（上升沿 / 下降沿触发），避免持续报警
 
@@ -67,33 +57,22 @@
 ### 环境要求
 
 - Node.js ≥ 22
-- Rust stable（≥ 1.95）与 `cargo`（仅桌面版需要）
-- Windows 10/11（桌面版依赖 WebView2 运行时，系统一般已内置）
+- Rust stable（≥ 1.95）与 `cargo`
+- Windows 10/11（依赖 WebView2 运行时，系统一般已内置）
 
-### 浏览器开发
-
-```bash
-npm install
-npm run dev          # http://localhost:5173，自动拉起 mock 服务（8080-8083）
-```
-
-浏览器版可直连 ws / http / sse / mqtt 四类协议；工业协议（S7 / OPC / Modbus）因浏览器无法建立原生 TCP 连接，请使用桌面版。
-
-### 桌面开发（推荐）
+### 桌面开发
 
 ```bash
 npm install
 npx tauri dev        # 自动先启动 vite，再编译并启动桌面应用
 ```
 
-桌面版数据链路：前端经 IPC 调用 Rust 网关（`gateway_connect / subscribe / unsubscribe / disconnect`），遥测经 `gateway://telemetry` / `gateway://status` 事件推送，全程无本地端口。
+桌面版数据链路：前端经 IPC 调用 Rust 网关（`gateway_connect / subscribe / unsubscribe / disconnect`），遥测经 `gateway://telemetry` / `gateway://status` 事件推送，全程无本地端口。Web 类协议数据源（ws / http / sse / mqtt）在 WebView 内直连外部服务。
 
 ### 构建与打包
 
 ```bash
-npm run build        # vue-tsc 类型检查 + vite build → dist/
-npm run preview      # 本地预览浏览器构建产物
-npx tauri build      # 桌面安装包（NSIS）
+npx tauri build      # vue-tsc 类型检查 + vite build → NSIS 安装包
 ```
 
 ### 测试与检查（Rust 网关）
@@ -134,7 +113,6 @@ roc-wes/
 │       ├── gateway-engine/           # 会话编排：轮询/重连退避/EventSink（+集成测试）
 │       ├── gateway-modbus/           # Modbus TCP 适配器（tokio-modbus）
 │       └── gateway-demo/             # 演示适配器（模拟曲线）
-├── mock/                             # 浏览器 dev 内置模拟服务（ws/http/sse/mqtt）
 ├── docs/                             # 文档中心（见 docs/README.md）
 ├── templates/                        # 画面模板
 └── package.json
@@ -145,38 +123,31 @@ roc-wes/
 ## 数据接入架构
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  前端（Vue 3）                                                │
-│  节点组件 ← useDataService ─┬→ WebSocket/Http/Sse/MqttService │  浏览器直连协议
-│                             └→ IpcGatewayService（isTauri）   │  工业协议（桌面）
-│  数据源管理 ← useGatewayMonitor ← GatewayMonitorService       │
-└──────────────┬──────────────────────────────┬────────────────┘
-               │ ws / http / sse / mqtt-WS    │ Tauri IPC（无端口）
-               ▼                              ▼
-┌────────────────────────────┐   ┌──────────────────────────────┐
-│ 内置 mock（仅 dev）         │   │ Rust 网关（src-tauri/crates） │
-│ 8080-8083                  │   │ engine 会话：轮询≥200ms、      │
-│ 外部真实服务（生产）        │   │ 失败指数退避 2s→30s 自动重连   │
-└────────────────────────────┘   │ Modbus ✅ / Demo ✅ / S7·OPC ⏳ │
-                                 └──────────────┬───────────────┘
-                                                │ 原生 TCP
-                                                ▼
-                                 ┌──────────────────────────────┐
-                                 │ 真实 PLC / 仪表 / OPC 服务器  │
-                                 └──────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  前端（Vue 3，WebView2）                           │
+│  节点组件 ← useDataService ─┬→ Web 协议服务        │  ws/http/sse/mqtt（WebView 直连）
+│                             └→ IpcGatewayService  │  工业协议（IPC）
+│  数据源管理 ← useGatewayMonitor ← GatewayMonitorService │
+└──────────────┬───────────────────────────────────┘
+               │ Tauri IPC（无本地端口）
+               ▼
+┌──────────────────────────────────────────────────┐
+│ Rust 网关（src-tauri/crates）                      │
+│ engine 会话：轮询≥200ms、失败指数退避 2s→30s 重连    │
+│ Modbus ✅ / Demo ✅ / S7·OPC ⏳                     │
+└──────────────┬───────────────────────────────────┘
+               │ 原生 TCP
+               ▼
+┌──────────────────────────────────────────────────┐
+│ 真实 PLC / 仪表 / OPC 服务器                        │
+└──────────────────────────────────────────────────┘
 ```
 
-路由规则：`useDataService` 对 `s7 / opc / modbus` 三类工业协议检测 `isTauri()` —— 桌面环境构造 `IpcGatewayService`（设备参数经 `platform/deviceConfig.ts` 映射为 Rust `DeviceConfig`），浏览器环境保留旧 WS 服务实现（需自备外部网关，内置 Node 网关已退役）。
+路由规则：`useDataService` 对 `s7 / opc / modbus` 三类工业协议经 IPC 构造 `IpcGatewayService`（设备参数经 `platform/deviceConfig.ts` 映射为 Rust `DeviceConfig`）；`ws / http / sse / mqtt` 类协议在 WebView 内直连外部服务。
 
 ---
 
 ## 部署
-
-### 浏览器版
-
-构建产物为纯静态文件（`dist/`），可部署至任意静态托管（Nginx `try_files ... /index.html` 兜底 SPA 路由）。生产环境不带 mock 服务，数据源需指向外部真实服务。
-
-### 桌面版
 
 `npx tauri build` 产出 NSIS 安装包（`src-tauri/target/release/bundle/nsis/`）。桌面版自带全部运行依赖，工业协议设备开箱直连（Modbus；S7 / OPC UA 见路线图）。
 
