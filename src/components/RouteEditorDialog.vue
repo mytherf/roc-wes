@@ -75,7 +75,13 @@
             <!-- 航点编辑 -->
             <div class="edit-section-title">航点 ({{ selectedRoute.points.length }})</div>
             <div class="edit-actions">
-              <button class="btn-edit" :class="{ active: drawing }" @click="toggleDrawing">
+              <button
+                class="btn-edit"
+                :class="{ active: drawing }"
+                :disabled="!hasCanvas"
+                :title="hasCanvas ? '' : '独立窗口内没有画布，请在主窗口添加航点'"
+                @click="toggleDrawing"
+              >
                 {{ drawing ? '✏️ 点击画布添加…' : '✏️ 添加航点' }}
               </button>
               <button class="btn-del" @click="clearPoints" :disabled="selectedRoute.points.length === 0">清空</button>
@@ -105,7 +111,10 @@
                 <button class="wp-remove" @click="removePoint(idx)">×</button>
               </div>
             </div>
-            <div v-else class="wp-hint">点击「添加航点」后在画布上依次点击设置路径。<br/>右键航点可删除/插入/设为站点，右键线段可插入中间点。</div>
+            <div v-else class="wp-hint">
+              <template v-if="hasCanvas">点击「添加航点」后在画布上依次点击设置路径。<br/>右键航点可删除/插入/设为站点，右键线段可插入中间点。</template>
+              <template v-else>独立窗口内没有画布：请在主窗口画布上添加/拖拽航点，<br/>或在下方坐标输入框中直接编辑，改动会实时同步。</template>
+            </div>
 
             <!-- 分段配置 -->
             <div class="edit-section-title" v-if="selectedRoute.points.length > 1">分段配置</div>
@@ -139,7 +148,7 @@
 
             <!-- 预览/删除 -->
             <div class="edit-footer">
-              <button class="btn-preview" @click="previewAnimation" :disabled="selectedRoute.points.length < 2 || previewing">
+              <button class="btn-preview" @click="previewAnimation" :disabled="!hasCanvas || selectedRoute.points.length < 2 || previewing" :title="hasCanvas ? '' : '独立窗口内没有画布，请在主窗口预览'">
                 {{ previewing ? '⏹ 停止预览' : '▶ 预览动画' }}
               </button>
               <button class="btn-delete" @click="deleteCurrent">🗑 删除路线</button>
@@ -232,6 +241,10 @@ function getGraph(): any {
   const g = props.canvasRef?.graph
   return g?.value !== undefined ? g.value : g
 }
+
+/** 是否挂载了画布（独立窗口形态 canvasRef 为 null，依赖画布的
+ *  功能——添加航点/拖拽/预览动画——会被禁用，其余数据编辑能力照常可用） */
+const hasCanvas = computed(() => !!getGraph())
 
 const PREFIX = '__route_editor_'
 

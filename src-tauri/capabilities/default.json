@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "主窗口默认权限（核心 IPC；自定义命令不受 capability 限制；fs 允许读写应用配置目录以持久化工程数据）",
-  "windows": ["main"],
+  "description": "应用窗口权限（核心 IPC；自定义命令不受 capability 限制；fs 允许读写应用配置目录以持久化工程数据）。windows 含主窗口与路线编辑器独立窗口（多屏支持）",
+  "windows": ["main", "route-editor"],
   "permissions": [
     "core:default",
     "shell:allow-open",

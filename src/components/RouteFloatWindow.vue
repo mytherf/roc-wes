@@ -5,7 +5,7 @@
        1. 把底部路线面板“浮起来”，方便编辑路线时同时看清画布
        2. 标题栏拖动移动窗口（不限制边界，可拖出屏幕）
        3. 右下角手柄调整窗口大小（最小 400×240）
-       4. 两个操作按钮：⬇ 回到底部面板（dock）/ ✕ 关闭并收起到底部（close）
+       4. 三个操作按钮：🗗 独立窗口（多屏）/ ⬇ 回到底部面板（dock）/ ✕ 关闭并收起到底部（close）
 
      与 RouteEditorDialog 的协作：
        MainLayout 用 <Teleport> 把路线编辑器挂到本组件的 #route-float-body 容器，
@@ -22,6 +22,7 @@
       <span class="rfw-title">🛤️ 路线</span>
       <span class="rfw-hint">浮动窗口 · 可拖动</span>
       <div class="rfw-spacer" />
+      <button class="rfw-btn" title="弹出为独立窗口（可拖到其他屏幕）" @click="onPopout">🗗</button>
       <button class="rfw-btn" title="回到底部面板" @click="emit('dock')">⬇</button>
       <button class="rfw-btn" title="关闭（收起到底部）" @click="emit('close')">✕</button>
     </div>
@@ -36,11 +37,17 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { openRouteWindow } from '@/platform/routeWindow'
 
 const emit = defineEmits<{
   (e: 'dock'): void
   (e: 'close'): void
 }>()
+
+/** 弹出为独立 OS 窗口（Tauri 多窗口），可拖到任意显示器 */
+function onPopout() {
+  openRouteWindow().catch(e => console.error('[RouteFloatWindow] 打开独立窗口失败:', e))
+}
 
 const winRef = ref<HTMLElement | null>(null)
 

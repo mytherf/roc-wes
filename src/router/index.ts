@@ -22,6 +22,13 @@ const router = createRouter({
             // 懒加载：只有真正访问 /run 时才下载 RunView 的代码，减少首屏体积
             component: () => import('@/views/RunView.vue'),
         },
+        {
+            path: '/route-window', // 路线编辑器独立窗口（多屏支持）
+            name: 'route-window',
+            // 由 platform/routeWindow.ts 打开的独立 OS 窗口加载本路由；
+            // 浏览器开发模式下也可以用 window.open 直接访问
+            component: () => import('@/views/RouteWindowView.vue'),
+        },
     ],
 })
 
