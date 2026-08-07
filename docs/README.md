@@ -37,14 +37,14 @@
 - 监控探针桌面适配（`mon:` 独立会话）、集成测试与 clippy 零警告基线
 - 代码清理：Node 网关与工业 mock 桥接退役、依赖精简、S7 slot 默认值统一
 - 应用图标与 NSIS 打包配置、`npx tauri dev` 开发链路
+- 持久化升级：tauri-plugin-fs 全部工程数据落盘为应用配置目录 JSON 文件（原子写入），全面替代 localStorage / sessionStorage
 
 ### 后续（按风险排序）
 
 1. **S7 spike**（风险最高）：snap7 绑定 vs 自研 S7comm（已有 TPKT/COTP/S7 PDU 的 JS 逆向经验可移植），产出 `gateway-s7` 并在 factory 注册
 2. **OPC UA**：引入 `opcua` crate，产出 `gateway-opcua`
 3. **打包完善**：NSIS 安装器调优、（可选）tauri-plugin-updater 自动更新
-4. **持久化升级**：tauri-plugin-dialog 文件保存工程、tauri-plugin-store 配置
-5. **日志落盘**：tracing-appender 滚动文件（AppData）
+4. **日志落盘**：tracing-appender 滚动文件（AppData）
 
 ### 已知限制（现状声明）
 

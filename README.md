@@ -43,7 +43,7 @@
 |------|------|------|
 | 框架 | Vue 3 + Vite | 前端主体 |
 | 图引擎 | AntV X6 v3 | 画布编辑 / 运行态渲染 |
-| 状态管理 | Pinia（persistedstate） | 编辑器与数据源配置持久化 |
+| 状态管理 | Pinia | 工程数据经 Tauri FS 以 JSON 文件落盘持久化 |
 | 图表 | ECharts | Gauge / Chart 节点 |
 | 语言 | TypeScript | 前端全量 TS |
 | 桌面壳 | Tauri 2 | WebView2 + Rust 后端 |
@@ -103,7 +103,7 @@ roc-wes/
 │   │   └── StatusBar.vue             # 状态栏
 │   ├── composables/                  # useDataService / useGatewayMonitor / useNodeEvents ...
 │   ├── services/                     # 各协议数据服务 + GatewayMonitorService 探针
-│   ├── platform/                     # 桌面平台接缝：isTauri() + deviceConfig 映射
+│   ├── platform/                     # 桌面平台接缝：isTauri() + deviceConfig 映射 + fileStorage（文件落盘）
 │   ├── stores/                       # editor / dataSource / route / theme
 │   └── views/RunView.vue             # SCADA 运行态
 ├── src-tauri/                        # Tauri 桌面壳 + Rust 原生网关

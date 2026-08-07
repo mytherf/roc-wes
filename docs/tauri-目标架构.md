@@ -145,7 +145,7 @@ sequenceDiagram
 - **CSP**：`PropertyPanel.vue` 与 `useDataService.ts` 使用 `new Function` 编译 transform，`tauri.conf.json` 的 `script-src` 必须包含 `'unsafe-eval'`（已配置）
 - **数据源记录中的 url 字段**：桌面模式下 modbus/s7/opc 的 url 不再被消费（传输走 IPC），保留仅为浏览器模式兼容与可读性
 - **轮询下限**：引擎强制 ≥200ms，防止前端误配打满设备链路
-- **持久化**：工程文件/数据源仍在 localStorage（第一阶段）；后续迁移 tauri-plugin-store + 文件对话框保存工程
+- **持久化**：全部工程数据经 `src/platform/fileStorage.ts` 由 tauri-plugin-fs 落盘为应用配置目录下的 JSON 文件（`editor.json` / `datasources.json` / `routes.json` / `theme.json` / `run-preview.json`，原子写入防损坏）；localStorage / sessionStorage 已全面移除
 - **退出清理**：`RunEvent::Exit` 时 `engine.shutdown()` 断开全部设备 TCP 连接
 
 ## 7. 与旧方案的差异（为什么放弃内嵌 WS）
@@ -176,5 +176,4 @@ sequenceDiagram
 1. **S7 spike**（风险最高）：snap7 绑定 vs 自研 S7comm（TPKT/COTP 已有 JS 逆向经验），产出 `gateway-s7` 并在 factory 注册
 2. OPC UA：引入 `opcua` crate，`gateway-opcua`
 3. 打包：应用图标、NSIS 安装器、（可选）tauri-plugin-updater 自动更新
-4. 持久化升级：tauri-plugin-dialog 文件保存工程、tauri-plugin-store 配置
-5. 日志落盘：tracing-appender 滚动文件（AppData）
+4. 日志落盘：tracing-appender 滚动文件（AppData）
