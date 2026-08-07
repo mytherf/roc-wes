@@ -1,3 +1,8 @@
+// ========== 西门子 S7 数据服务（浏览器环境）==========
+// S7comm 是西门子 PLC（S7-200/300/400/1200/1500）的专有通信协议。
+// 浏览器无法直接使用（原生 TCP），通过 WebSocket 网关桥接；
+// Tauri 桌面端改用 Rust 原生网关（见 IpcGatewayService）。
+
 import { GatewayService } from './GatewayService'
 
 /**

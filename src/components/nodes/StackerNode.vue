@@ -1,3 +1,15 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     StackerNode.vue - 堆垛机节点（自动化立体仓库的核心设备）
+
+     画布上的堆垛机图形：头部图标/名称 + 状态点 + 巷道/货位 + 移动进度条。
+     数据字段（useNodeData 声明）：
+       - name: 名称（默认 堆垛机-01）
+       - lane: 所在巷道（如 A01）
+       - position: 当前货位（如 05-12-03）
+       - isMoving / progress / routeAngle: 移动状态与进度（随路线运动更新）
+       - status: 运行状态（idle/running/warning/error，颜色+闪烁区分）
+     额外暴露 setStatus/setMoving/setProgress 方法供外部控制。
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="stacker-node" :class="{ 'stacker-moving': isMoving }">

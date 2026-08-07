@@ -1,3 +1,11 @@
+// ========== 节点动画服务 ==========
+// 给画布节点添加动态效果（让监控画面“活”起来）：
+//   - pulse（脉冲）：节点呼吸式缩放 + 透明度变化
+//   - blink（闪烁）：节点明暗交替
+//   - rotate（旋转）：节点缓慢旋转
+// 实现要点：只用一条 requestAnimationFrame（浏览器帧循环）统一驱动所有动画，
+// 动画进度按“经过的时间”计算（而非按帧数），保证不同刷新率下动画速度一致。
+
 import type { Graph, Node } from '@antv/x6'
 
 /**
@@ -9,17 +17,17 @@ export type AnimationType = 'pulse' | 'blink' | 'rotate' | 'none'
  * 动画配置
  */
 export interface AnimationConfig {
-    type: AnimationType
-    duration?: number // 毫秒
-    interval?: number // 毫秒
+    type: AnimationType // 动画类型
+    duration?: number // 毫秒（单次动画时长）
+    interval?: number // 毫秒（动画周期）
 }
 
 /**
  * 单个动画的运行时状态
  */
 interface AnimationState {
-    config: AnimationConfig
-    node: Node
+    config: AnimationConfig // 动画配置
+    node: Node // 正在播放动画的 X6 节点
     /** 动画起始时间戳（用于基于経過时间计算，避免帧率依赖） */
     startTime: number
     /** 闪烁动画的当前可见性（避免重复设置 attr） */

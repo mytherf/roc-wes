@@ -1,3 +1,11 @@
+<!-- ══════════════════════════════════════════════════════════════════════
+     StatusBar.vue - 编辑器底部状态栏
+
+     功能：
+       1. 左侧：授权状态（当前为占位，直接显示“已授权”）
+       2. 中间：实时统计画布节点数 / 连线数（每 500ms 刷新一次）
+       3. 右侧：版本号（来自 .env 的 VITE_APP_VERSION）
+     ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <div class="status-bar">
     <!-- 左侧：授权状态（直接显示“已授权”，无交互） -->
@@ -27,11 +35,12 @@ const props = defineProps<{
 }>()
 
 const version = import.meta.env.VITE_APP_VERSION || '1.0.0'
-const nodeCount = ref(0)
-const edgeCount = ref(0)
-let statsTimer: number | null = null
+const nodeCount = ref(0) // 画布节点数（实时统计）
+const edgeCount = ref(0) // 画布连线数（实时统计）
+let statsTimer: number | null = null // 统计刷新定时器
 
 function updateStats() {
+  // 从 Graph 实例读取最新的节点/连线数量
   if (props.graph) {
     nodeCount.value = props.graph.getNodes().length
     edgeCount.value = props.graph.getEdges().length
@@ -40,10 +49,12 @@ function updateStats() {
 
 onMounted(() => {
   updateStats()
+  // 每 500ms 刷新一次（画布增删节点后数字自动更新）
   statsTimer = window.setInterval(updateStats, 500)
 })
 
 onBeforeUnmount(() => {
+  // 组件卸载时停掉定时器
   if (statsTimer) {
     clearInterval(statsTimer)
     statsTimer = null

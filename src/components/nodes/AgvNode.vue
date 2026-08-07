@@ -1,3 +1,15 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     AgvNode.vue - AGV 小车节点（自动导引运输车）
+
+     画布上的 AGV 图形：四轮车身 + 中央图标 + 电量条 + 方向箭头。
+     数据字段（useNodeData 声明）：
+       - name: 名称（默认 AGV-01）
+       - battery: 电量百分比（绿色电量条宽度）
+       - isMoving: 是否在移动（抖动动画 + 方向箭头，随路线运动更新）
+       - routeAngle: 当前行驶方向角度（旋转箭头）
+       - status: 运行状态（idle/running/charging/error，颜色区分）
+     图标模式（isMinimal）下由 NodeMinimalView 统一渲染。
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="agv-node" :class="{ 'agv-moving': isMoving }">

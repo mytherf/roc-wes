@@ -1,3 +1,9 @@
+// ========== Modbus 数据服务（浏览器环境）==========
+// Modbus 是工业控制领域最普及的通信协议（PLC/仪表普遍支持）。
+// 浏览器无法直接使用 Modbus TCP（原生 TCP 协议），因此本类通过
+// WebSocket 网关桥接；Tauri 桌面端则改用 Rust 原生网关（见 IpcGatewayService）。
+// 连接/重连/订阅的通用逻辑在父类 GatewayService 中实现。
+
 import { GatewayService } from './GatewayService'
 
 /**

@@ -1,3 +1,13 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     ShuttleNode.vue - 穿梭车节点（轨道上往复运输的小车）
+
+     画布上的穿梭车图形：轨道 + 沿轨道滑动的小车（带方向箭头）。
+     数据字段（useNodeData 声明）：
+       - name: 名称（默认 穿梭车-01）
+       - position: 在轨道上的位置百分比（0-100，小车 left 定位）
+       - isMoving / routeAngle: 移动状态与方向（随路线运动更新）
+       - status: 运行状态（idle/running/error，颜色区分）
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="shuttle-node" :class="{ 'shuttle-moving': isMoving }">

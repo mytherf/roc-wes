@@ -1,3 +1,23 @@
+<!-- ══════════════════════════════════════════════════════════════════════
+     MainLayout.vue - 主布局组件（整个编辑器的“骨架”）
+
+     页面从上到下/从左到右的布局结构：
+       ┌──────────┬──────────────────────────────┐
+       │          │  工具栏 EditorToolbar          │
+       │  侧边栏  ├──────────────┬───────────────┤
+       │ Sidebar  │  画布 X6Canvas │  属性面板     │
+       │ (组件库) │              │ PropertyPanel │
+       │          ├──────────────┴───────────────┤
+       │          │  路线面板 BottomPanel / 状态栏 │
+       └──────────┴──────────────────────────────┘
+
+     职责：
+       1. 组装所有大组件（侧边栏、画布、属性面板、工具栏、状态栏等）
+       2. 协调跨组件通信：画布就绪后把 graph/dnd 实例分发给子组件
+       3. 管理全局主题初始化（useThemeStore）
+       4. 管理路线编辑器的两种形态：停靠底部面板 / 浮动窗口（Teleport 切换）
+       5. 处理节点双击 → 弹出详情对话框
+     ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <div class="app-container">
     <!-- 左侧：组件库侧边栏 -->
@@ -63,7 +83,9 @@ useThemeStore()
 const editorStore = useEditorStore()
 
 const canvasRef = ref<InstanceType<typeof X6Canvas>>()
+// X6 Graph 实例（画布就绪后由 X6Canvas 通过 ready 事件传出，供工具栏/侧边栏使用）
 const graphInstance = ref(null)
+// X6 DnD 实例（拖拽组件库条目到画布即可创建节点）
 const dndInstance = ref(null)
 
 // 节点详情弹窗状态
@@ -87,6 +109,8 @@ function onFloatClose() {
 }
 
 const onCanvasReady = (payload: { graph: any; dnd: any }) => {
+  // 子组件 X6Canvas 就绪后回调：拿到 Graph 与 DnD 实例，
+  // 供 Sidebar（拖拽建节点）和 EditorToolbar（操作画布）等兄弟组件使用
   graphInstance.value = payload.graph
   dndInstance.value = payload.dnd
 }

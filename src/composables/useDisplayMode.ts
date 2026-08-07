@@ -1,3 +1,17 @@
+// ========== 显示模式 Composable（节点「图标模式 / 完整模式」切换）==========
+// 所属层级：画布节点渲染层的基础工具，供所有节点组件与 NodeMinimalView 使用
+//
+// 用途：
+//   1. 无参数调用 → 读取全局显示模式（由工具栏切换，存在 editorStore.displayMode）
+//   2. 传入 node 调用 → 优先读取节点级 data.displayMode 覆盖，未设置时回退到全局
+//
+// 模式语义：
+//   - 'icon'（图标模式）：节点只渲染一个图标，画面更简洁 → isMinimal = true
+//   - 'full'（完整模式）：节点完整渲染（名称、状态、数值等）→ isMinimal = false
+//
+// 节点级覆盖通过右键菜单设置 node.data.displayMode = 'icon' | 'full' 实现，
+// 设为 undefined 表示跟随全局。监听 change:data 事件实时同步覆盖值。
+
 import { computed, ref, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import type { DisplayMode } from '@/stores/editor'

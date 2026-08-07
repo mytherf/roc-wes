@@ -1,3 +1,11 @@
+// ========== 数据服务管理 Composable（数据绑定的“总调度”）==========
+// 用途：把“节点绑定数据”这件事集中管理起来——
+//   1. 按配置选择正确的数据服务（模拟/WebSocket/HTTP/MQTT/SSE/工业协议/IPC）
+//   2. 缓存服务实例（同一数据源只建一条连接，不重复浪费）
+//   3. 订阅数据并把最新值写入节点 data.value（同时触发节点事件规则）
+//   4. 清理：解绑节点时取消订阅，组件卸载时断开全部连接
+// 什么是 Composable？Vue 3 中把可复用的逻辑抽成函数，名字以 use 开头。
+
 import type { Graph, Node } from '@antv/x6'
 import { MockDataService } from '@/services/MockDataService'
 import type { DataBindingConfig, IDataService } from '@/services/DataService'

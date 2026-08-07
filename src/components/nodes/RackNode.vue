@@ -1,3 +1,19 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     RackNode.vue - 货架节点（三维货架模型：排×列×层）
+     画布上的货架图形：标题 + 俯视图网格 + 库位统计。
+     数据字段（useNodeData 声明）：
+       - name: 名称（默认 货架-A01）
+       - rows: 排（深度方向，单深位=1 / 双深位=2）
+       - cols: 列（宽度方向，默认 6）
+       - floors: 层（高度方向，默认 4）
+       - floorGrids: 三维数组 [层][排][列]，格内状态 empty/occupied/reserved
+     交互：
+       - 双击节点打开正视图弹窗（Teleport 到 body，监听图级
+         cell:dblclick 事件，绕开 X6 选中框对原生双击的拦截）
+       - 属性面板修改维度时重建网格并尽量保留重叠区域状态
+       - 数据绑定推送的 floorGrids 仅在维度匹配时采纳
+     图标模式（isMinimal）下由 NodeMinimalView 统一渲染。
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <!-- 双击打开正视图（通过图级 cell:dblclick 事件触发，见 script） -->
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" />

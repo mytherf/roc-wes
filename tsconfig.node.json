@@ -1,23 +1,27 @@
 {
+  // ========== Node 端（构建脚本）的 TypeScript 配置 ==========
+  // 用于类型检查 vite.config.ts 等运行在 Node 环境里的文件。
   "compilerOptions": {
+    // TS 增量编译的缓存文件位置
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
-    "target": "es2023",
-    "lib": ["ES2023"],
-    "types": ["node"],
-    "skipLibCheck": true,
+    "target": "es2023", // 编译输出目标：ES2023 语法（Node 已支持）
+    "lib": ["ES2023"], // 可用的内置 API 库：只含 ES 标准库，不含 DOM
+    "types": ["node"], // 引入 Node.js 的类型声明（path/process 等）
+    "skipLibCheck": true, // 跳过对 .d.ts 声明文件的类型检查（加快速度）
 
-    /* Bundler mode */
-    "module": "nodenext",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
+    /* Bundler mode —— 面向打包工具（Vite）的模块解析规则 */
+    "module": "nodenext", // 模块系统：按 Node 最新规范解析
+    "allowImportingTsExtensions": true, // 允许直接导入 .ts 后缀的文件
+    "verbatimModuleSyntax": true, // 强制按字面写法导入类型（type 关键字）
+    "moduleDetection": "force", // 把每个文件都当作独立模块
+    "noEmit": true, // 只做类型检查，不生成任何编译产物
 
     /* Linting */
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noUnusedLocals": true, // 禁止未使用的局部变量
+    "noUnusedParameters": true, // 禁止未使用的参数
+    "erasableSyntaxOnly": true, // 只允许编译期可擦除的语法
+    "noFallthroughCasesInSwitch": true // switch 禁止穿透
   },
+  // 本配置只检查 vite.config.ts（及它导入的 mock 脚本）
   "include": ["vite.config.ts"]
 }

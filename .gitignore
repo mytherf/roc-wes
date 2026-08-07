@@ -1,4 +1,7 @@
-# Logs
+# ========== Git 忽略规则 ==========
+# 被此文件列出的文件/目录不会进入 Git 版本管理，也不会被提交到仓库
+
+# Logs —— 各类日志文件
 logs
 *.log
 npm-debug.log*
@@ -7,12 +10,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# 依赖与构建产物（体积大且可由命令重新生成）
 node_modules
+# Vite 打包输出目录
 dist
+# 服务端渲染（SSR）产物
 dist-ssr
+# 本地环境变量文件（可能含个人配置/密钥，不应入库）
 *.local
 
-# Editor directories and files
+# Editor directories and files —— 编辑器本地配置
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -23,4 +30,5 @@ dist-ssr
 *.sln
 *.sw?
 
+# Rust 编译产物（Tauri 后端）—— 体积巨大且可重新编译
 src-tauri/target

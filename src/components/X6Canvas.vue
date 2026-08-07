@@ -1,3 +1,17 @@
+<!-- ══════════════════════════════════════════════════════════════════════
+     X6Canvas.vue - 画布编辑器核心组件（整个编辑器的“主战场”）
+
+     基于 AntV X6 图编辑引擎，职责包括：
+       1. 创建/销毁画布：初始化 Graph、网格、背景、缩放/平移、虚拟渲染
+       2. 安装插件：选择框（Selection）、缩放（Transform）、剪贴板（Clipboard）、
+          快捷键（Keyboard）、拖拽建节点（Dnd）
+       3. 画布 ↔ Store 同步：移动/缩放/增删节点时写回 Store（useGraphSync）
+       4. 数据驱动：节点绑定数据源后实时刷新（useDataService）
+       5. 动画：节点闪烁/位移动画（AnimationService）、路线运动（RouteService）
+       6. 路线可视化：渲染路线虚线路径 + 航点标记 + 高亮效果
+       7. 显示模式：右键节点切换“图标模式/极简模式”，并自适应压缩节点尺寸
+       8. 快捷键：Ctrl+C/V（复制粘贴）、Delete（删除）、Ctrl+Z（撤销）、Ctrl+S（保存）等
+     ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <!-- X6 画布挂载的容器 -->
   <div id="x6-container" ref="containerRef"></div>
@@ -701,6 +715,8 @@ onMounted(() => {
       })
   )
 
+  // ---------- 快捷键绑定（编辑器的“键盘操作”） ----------
+  // Ctrl+C：复制选中的节点/连线到剪贴板
   graph.bindKey('ctrl+c', () => {
     const cells = graph!.getSelectedCells()
     if (cells.length) {

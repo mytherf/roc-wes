@@ -1,3 +1,12 @@
+# ═══════════════════════════════════════════════════════════════
+# gateway-modbus - Modbus TCP 适配器 crate
+#
+# 职责：实现 DeviceAdapter 端口，与真实 PLC / 采集网关通信：
+#   - 按点位 ID（holding:N / input:N / coil:N / discrete:N）读写
+#   - 同一存储区内按地址排序并合并连续段，每段只发一次请求（性能优化）
+# 由桌面壳组合根（factory.rs）按配置实例化并交给网关引擎。
+# ═══════════════════════════════════════════════════════════════
+
 [package]
 name = "gateway-modbus"
 version = "0.1.0"
@@ -5,9 +14,9 @@ description = "Modbus TCP 适配器（tokio-modbus）：寄存器合并批量读
 edition = "2021"
 
 [dependencies]
-gateway-core = { path = "../gateway-core" }
-tokio = { version = "1", features = ["net", "time"] }
-tokio-modbus = { version = "0.13", features = ["tcp"] }
-async-trait = "0.1"
-tracing = "0.1"
-serde_json = "1"
+gateway-core = { path = "../gateway-core" }  # 领域模型（配置/遥测/端口）
+tokio = { version = "1", features = ["net", "time"] }  # 异步网络（TCP 连接）与超时
+tokio-modbus = { version = "0.13", features = ["tcp"] }  # Modbus 协议实现（TCP 模式）
+async-trait = "0.1"   # async trait（DeviceAdapter 实现）
+tracing = "0.1"       # 日志
+serde_json = "1"       # JSON 值类型（寄存器数值转换）

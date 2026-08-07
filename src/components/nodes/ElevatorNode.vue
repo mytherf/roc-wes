@@ -1,3 +1,14 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     ElevatorNode.vue - 提升机/电梯节点（垂直运输设备）
+
+     画布上的提升机图形：竖井 + 层数标记 + 上下移动的轿厢。
+     数据字段（useNodeData 声明）：
+       - name: 名称（默认 提升机-01）
+       - maxLevel: 总层数（默认 6）
+       - currentLevel: 当前所在层（高亮显示）
+       - position: 轿厢位置（0-100，bottom 定位，随运行更新）
+       - status: 运行状态（idle/running/error，颜色区分）
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="elevator-node">

@@ -1,3 +1,18 @@
+<!-- ══════════════════════════════════════════════════════════════════════
+     PropertyPanel.vue - 属性面板（选中元素的“设置窗口”）
+
+     点击画布上的元素后，这里会展示它的全部可编辑属性：
+       1. 画布属性：点击画布空白处 → 背景色 / 网格显隐 / 网格大小与类型
+       2. 节点属性：选中节点 → 四个标签页——
+          - 基础：ID、名称、标签、图标（预设/上传/尺寸）、货架维度（排/列/层）、位置与尺寸
+          - 绑定：把节点绑定到数据源点位，实现实时数据驱动
+          - 路线：选择路线、设置速度、启动/停止路线运动
+          - 事件：配置条件触发规则（如“温度超限变红”）
+       3. 连线属性：标签编辑
+
+     双写模式：所有修改同时写入「X6 节点 data」和「Pinia Store」，
+     保证画布实时刷新且工程保存不丢失。
+     ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <div class="property-panel" :class="{ collapsed: editorStore.propertyCollapsed }">
     <!-- 折叠态：窄条 + 展开标签 -->
@@ -862,6 +877,7 @@ function compressImageToDataUrl(file: File): Promise<string> {
 }
 
 function onPositionInput() {
+  // 位置输入框变化 → 调用 X6Canvas 暴露的 updateNodePosition 更新节点位置
   if (!element.value || element.value.type !== 'node') return
   const id = element.value.data.id
   const x = posX.value || 0
@@ -873,6 +889,7 @@ function onPositionInput() {
 }
 
 function onSizeInput() {
+  // 尺寸输入框变化 → 调用 X6Canvas 暴露的 updateNodeSize 更新节点尺寸（最小 40px）
   if (!element.value || element.value.type !== 'node') return
   const id = element.value.data.id
   const w = Math.max(nodeWidth.value || 40, 40)
@@ -884,6 +901,8 @@ function onSizeInput() {
 }
 
 function syncPositionFromCanvas() {
+  // 从画布读取选中节点的位置/尺寸，同步到输入框显示
+  // （画布拖拽时输入框数字实时跟随，而不是等输入才更新）
   const graph = getGraph()
   if (!graph || !editorStore.selectedId) return
   const cell = graph.getCellById(editorStore.selectedId)
@@ -902,6 +921,8 @@ function syncPositionFromCanvas() {
 }
 
 function startPositionPolling() {
+  // 用 requestAnimationFrame 持续轮询画布状态（比定时器更流畅），
+  // 实现“画布上拖拽 → 输入框数字实时跟随”
   stopPositionPolling()
   const poll = () => {
     syncPositionFromCanvas()
@@ -911,6 +932,7 @@ function startPositionPolling() {
 }
 
 function stopPositionPolling() {
+  // 停止轮询（切换选中/组件卸载时调用，避免空转浪费性能）
   if (positionRafId !== null) {
     cancelAnimationFrame(positionRafId)
     positionRafId = null

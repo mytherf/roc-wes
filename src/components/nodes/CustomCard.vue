@@ -1,3 +1,15 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     CustomCard.vue - 自定义卡片节点（通用信息卡片）
+     画布上的卡片图形：图标 + 标题 + 可插槽内容区 + 状态徽章。
+     与其它节点不同，本组件不使用 useNodeData / useNodeStatus，
+     而是直接通过 node.getData() 读取自定义属性：
+       - title: 卡片标题（默认 未命名）
+       - status: 状态文字（默认 正常），支持 正常/告警/故障/停止
+     状态颜色映射（工业场景惯例）：正常绿 / 告警黄 / 故障红 / 停止灰。
+     极简模式下会把中文状态翻译成英文（on/warning/error/off）交给
+     NodeMinimalView 渲染。
+     图标模式（isMinimal）下由 NodeMinimalView 统一渲染。
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="title" :status="minimalStatus" />
   <div v-else class="custom-card" :style="{ borderColor: statusColor }">

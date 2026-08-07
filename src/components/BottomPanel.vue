@@ -1,3 +1,12 @@
+<!-- ══════════════════════════════════════════════════════════════════════
+     BottomPanel.vue - 底部路线面板（停靠形态的路线编辑区）
+
+     功能：
+       1. 提供一个固定高度的底部容器（默认 260px）
+       2. 头部两个按钮：⧉ 切换为浮动窗口 / ▼▲ 折叠或展开面板
+       3. 内容区（#bottom-panel-content）是 RouteEditorDialog 的 Teleport 目标，
+          由 MainLayout 挂载——折叠时用 v-show 隐藏但不销毁，保留编辑状态
+     ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <div class="bottom-panel" :class="{ collapsed: editorStore.bottomCollapsed }">
     <!-- 头部：标题 + 浮动切换 + 折叠开关 -->

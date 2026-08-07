@@ -1,3 +1,17 @@
+// ========== 节点数据初始化与同步 Composable（节点组件的“取数器”）==========
+// 所属层级：画布节点渲染层的基础工具，供所有节点组件使用
+//
+// 解决的问题：每个节点组件（输送线、机器人、货架……）都要做两件重复的事——
+//   1. 从 X6 节点实例的 data 里读取自己的属性（名称、状态、速度等）
+//   2. 监听 X6 的 change:data 事件，属性面板改数据时能实时刷新界面
+// 本 composable 把这两件事封装好，组件只需声明“我要哪些字段、默认值是什么”。
+//
+// 用法示例：
+//   const { name, status, speed } = useNodeData(props.node, {
+//     name: '输送线-01', status: 'idle', speed: 0,
+//   })
+//   // 返回的都是响应式 ref，模板里直接用 {{ name }} 即可自动更新
+
 import { ref, onBeforeUnmount, type Ref } from 'vue'
 
 /**

@@ -1,3 +1,13 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     RobotNode.vue - 机械手节点（工业机器人）
+     画布上的机械手图形：底座 + 可旋转关节 + 机械臂 + 可开合夹爪。
+     数据字段（useNodeData 声明）：
+       - name: 名称（默认 机械手-01）
+       - jointAngle: 关节旋转角度（旋转机械臂，单位：度）
+       - isOpen: 夹爪是否张开（gripper-open 样式切换）
+       - status: 运行状态（idle/running/error，颜色区分）
+     图标模式（isMinimal）下由 NodeMinimalView 统一渲染。
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="robot-node">

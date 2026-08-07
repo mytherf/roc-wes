@@ -1,3 +1,8 @@
+// ========== OPC UA 数据服务（浏览器环境）==========
+// OPC UA 是工业自动化领域的统一数据交换标准（跨厂商互操作）。
+// 其二进制协议（opc.tcp://）浏览器无法直接连接，通过 WebSocket 网关桥接；
+// Tauri 桌面端改用 Rust 原生网关（见 IpcGatewayService）。
+
 import { GatewayService } from './GatewayService'
 
 /**

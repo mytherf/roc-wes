@@ -1,7 +1,15 @@
+// ========== 数据源 Store（全局数据源管理）==========
+// 什么是“数据源”？
+//   画布上的每个节点（如仪表、指示灯）都要显示真实数据，这些数据来自哪里？
+//   数据源就是数据“来源”的配置，比如一个 WebSocket 服务器、一个 MQTT 主题、
+//   一台 Modbus PLC 设备等。节点通过 sourceId 绑定到某个数据源实例，
+//   运行时就从这个数据源订阅/轮询数据来驱动节点动画。
+// 本文件职责：数据源实例的增删改查 + 类型定义 + 内置模拟地址 + 持久化。
+
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-/** 数据源类型 */
+/** 数据源类型：目前支持 7 种协议/方式 */
 export type DataSourceType = 'websocket' | 'mqtt' | 'http' | 'sse' | 's7' | 'opc' | 'modbus'
 
 /**
@@ -77,36 +85,40 @@ export const useDataSourceStore = defineStore(
         const dataSources = ref<DataSource[]>([])
 
         // ---------- 操作（Actions） ----------
-        /** 新增数据源，返回生成的实例 */
+        /** 新增数据源，返回生成的实例
+         * @param input 除 id 外的数据源信息（id 由本函数自动生成）
+         * @returns 生成完毕（含 id）的数据源对象 */
         function addDataSource(input: Omit<DataSource, 'id'>): DataSource {
+            // 生成唯一 id：时间戳 + 随机串，避免重复
             const ds: DataSource = {
                 ...input,
                 id: `ds-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             }
-            dataSources.value.push(ds)
+            dataSources.value.push(ds) // 追加到响应式数组（界面会自动刷新）
             return ds
         }
 
-        /** 更新数据源（按 id） */
+        /** 更新数据源（按 id 定位，用新值替换旧值） */
         function updateDataSource(id: string, updates: Partial<Omit<DataSource, 'id'>>) {
-            const idx = dataSources.value.findIndex(d => d.id === id)
-            if (idx === -1) return
+            const idx = dataSources.value.findIndex(d => d.id === id) // 找到目标下标
+            if (idx === -1) return // 找不到则什么都不做
+            // 不可变更新：创建新对象合并旧值+新值，替换数组中的元素
             dataSources.value[idx] = { ...dataSources.value[idx], ...updates, id }
         }
 
         /** 删除数据源（按 id） */
         function deleteDataSource(id: string) {
             const idx = dataSources.value.findIndex(d => d.id === id)
-            if (idx !== -1) dataSources.value.splice(idx, 1)
+            if (idx !== -1) dataSources.value.splice(idx, 1) // splice 从数组中移除该元素
         }
 
-        /** 根据 id 获取数据源 */
+        /** 根据 id 获取数据源（供节点绑定/服务层查询使用） */
         function getDataSource(id: string): DataSource | undefined {
             return dataSources.value.find(d => d.id === id)
         }
 
         return {
-            dataSources,
+            dataSources, // 所有数据源列表（响应式）
             addDataSource,
             updateDataSource,
             deleteDataSource,
@@ -114,7 +126,8 @@ export const useDataSourceStore = defineStore(
         }
     },
     {
-        // 持久化到 localStorage
+        // 持久化到 localStorage：pinia-plugin-persistedstate 插件会自动完成
+        // key 是存储键名，pick 指定只持久化 dataSources 这一个字段
         persist: {
             key: 'roc-wes-datasources',
             pick: ['dataSources'],

@@ -1,42 +1,62 @@
+# ═══════════════════════════════════════════════════════════════
+# Cargo.toml - Tauri 桌面壳主清单（Rust 工程配置）
+#
+# 工程结构说明：
+#   1. 这是一个“工作区（workspace）”工程：根目录只放桌面壳（roc-wes-desktop），
+#      真正的设备网关业务逻辑拆成 4 个独立 crate 放在 crates/ 目录，
+#      各自可单独编译、单独测试，与 Tauri 解耦。
+#   2. 桌面壳职责：启动 WebView、注册 IPC 命令、把 Tauri 事件桥接给网关引擎。
+# ═══════════════════════════════════════════════════════════════
+
+# ---- 工作区定义：包含 crates/ 下的全部子 crate ----
 [workspace]
 members = ["crates/*"]
-resolver = "2"
+resolver = "2"  # Rust 2021 推荐的依赖解析器版本
 
+# ---- 桌面壳 crate 自身信息 ----
 [package]
-name = "roc-wes-desktop"
-version = "0.1.0"
+name = "roc-wes-desktop"       # 包名（crate 名称，转成下划线后为 roc_wes_desktop）
+version = "0.1.0"              # 版本号
 description = "RocWes 仓储 SCADA 组态平台桌面端（Tauri 2 + Rust 原生设备网关）"
 authors = ["roc"]
-edition = "2021"
+edition = "2021"               # Rust 语言版本（2021 edition）
 
+# ---- 库目标：供 main.rs 调用的同名库 ----
+# 说明：Tauri 2 推荐“薄壳”模式——main.rs 只调用库的 run()，
+# 这样便于对业务逻辑做单元测试（不需要启动整个 GUI）。
 [lib]
 name = "roc_wes_desktop_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["staticlib", "cdylib", "rlib"]  # 三种库类型：静态/动态/普通，兼容不同链接方式
 
+# ---- 构建依赖：编译时工具（不参与运行时链接） ----
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }  # 生成 Tauri 的上下文代码（图标、权限等）
 
+# ---- 运行时依赖 ----
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-shell = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-thiserror = "2"
+tauri = { version = "2", features = [] }        # Tauri 2 主框架
+tauri-plugin-shell = "2"                     # 系统 Shell 插件（打开外部程序/文件等）
+serde = { version = "1", features = ["derive"] }  # 序列化框架（配置/命令参数）
+serde_json = "1"                               # JSON 解析（事件载荷等）
+tracing = "0.1"                                # 日志门面（打日志用）
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }  # 日志输出实现（支持环境变量过滤）
+thiserror = "2"                                # 简化错误类型定义（gateway-core 使用）
 
-gateway-core = { path = "crates/gateway-core" }
-gateway-engine = { path = "crates/gateway-engine" }
-gateway-modbus = { path = "crates/gateway-modbus" }
-gateway-demo = { path = "crates/gateway-demo" }
+# ---- 内部网关 crate（本地路径依赖） ----
+gateway-core = { path = "crates/gateway-core" }      # 领域模型：配置/遥测/错误/适配器端口
+gateway-engine = { path = "crates/gateway-engine" }    # 会话编排：连接/轮询/重连
+gateway-modbus = { path = "crates/gateway-modbus" }    # Modbus TCP 适配器实现
+gateway-demo = { path = "crates/gateway-demo" }        # 演示模式适配器（模拟数据）
 
+# ---- 特性开关（Cargo features） ----
 [features]
 # Tauri 默认特性；自定义特性按需在此扩展
-custom-protocol = ["tauri/custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]  # 打包时用自定义协议加载前端资源（生产环境）
 
+# ---- 发布（release）构建优化参数 ----
 [profile.release]
-panic = "abort"
-codegen-units = 1
-lto = true
-opt-level = "s"
-strip = true
+panic = "abort"      # 发生 panic 直接中止（减小体积）
+codegen-units = 1     # 单代码生成单元：利于跨函数内联优化
+lto = true            # 全程序链接时优化：进一步减小体积、提升性能
+opt-level = "s"       # 优化目标为“体积小”（s = size）
+strip = true          # 剥离调试符号：大幅减小安装包体积

@@ -1,50 +1,70 @@
-import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+// ========== 主题 Store（全局皮肤管理）==========
+// 职责：
+// 1. 记录当前使用的主题名称
+// 2. 把主题应用到页面根元素（<html> 上的 data-theme 属性，CSS 据此切换配色）
+// 3. 记住用户选择（存入 localStorage，刷新后不丢失）
 
+import { defineStore } from 'pinia' // Pinia 的 store 定义函数
+import { ref, watch } from 'vue' // ref 创建响应式数据；watch 监听数据变化
+
+// 主题名称的可选值（'industrial' 暗色工业 / 'light' 亮色现代 / 'ocean' 深蓝科技）
 export type ThemeName = 'industrial' | 'light' | 'ocean'
 
+// 每个主题的展示元信息（用于下拉菜单/切换按钮的展示）
 export interface ThemeMeta {
-  key: ThemeName
-  label: string
-  icon: string
-  description: string
+  key: ThemeName // 主题唯一标识，与 data-theme 属性值一致
+  label: string // 显示名称
+  icon: string // 图标（emoji）
+  description: string // 一句话描述
 }
 
+// 内置主题列表（如果以后要加新主题，在这里追加一项即可）
 export const THEMES: ThemeMeta[] = [
   { key: 'industrial', label: '暗色工业', icon: '🏭', description: '深色侧边栏 + 亮色工作区，沉稳专业' },
   { key: 'light', label: '亮色现代', icon: '☀️', description: '全亮色设计，清爽通透' },
   { key: 'ocean', label: '深蓝科技', icon: '🌊', description: '深蓝底色 + 青蓝高亮，科技感强' },
 ]
 
+// localStorage 中保存主题的键名
 const STORAGE_KEY = 'roc-wes-theme'
 
+// 定义主题 store（名为 'theme'，全局唯一）
 export const useThemeStore = defineStore('theme', () => {
+  // 当前主题名称；初始值先尝试从 localStorage 读取（见下方 loadTheme）
   const current = ref<ThemeName>(loadTheme())
 
+  // 从 localStorage 读取上次保存的主题；
+  // 若没有保存过或保存的值非法，则回退到默认主题 'industrial'
   function loadTheme(): ThemeName {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
+      // 校验：只有保存的值确实是 THEMES 中存在的 key 才采用，防止脏数据
       if (saved && THEMES.some((t) => t.key === saved)) {
         return saved as ThemeName
       }
-    } catch { /* ignore */ }
+    } catch { /* 读取失败（如隐私模式禁用存储）时静默忽略 */ }
     return 'industrial'
   }
 
+  // 切换主题：更新响应式状态 + 写 <html data-theme> 属性 + 持久化
   function applyTheme(name: ThemeName) {
     current.value = name
+    // 把主题名写到 <html> 标签的 data-theme 属性上，
+    // 全局 CSS 通过 [data-theme='xxx'] 选择器控制各区域颜色
     document.documentElement.setAttribute('data-theme', name)
     try {
       localStorage.setItem(STORAGE_KEY, name)
-    } catch { /* ignore */ }
+    } catch { /* 存储失败静默忽略 */ }
   }
 
-  // 初始化时立即应用
+  // 初始化时立即应用当前主题（保证页面一打开配色就正确）
   applyTheme(current.value)
 
+  // 监听主题变化：如果其他地方直接修改了 current，也要同步 DOM 属性
   watch(current, (val) => {
     document.documentElement.setAttribute('data-theme', val)
   })
 
+  // 对外暴露：当前主题 + 切换函数
   return { current, applyTheme }
 })

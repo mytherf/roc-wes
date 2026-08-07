@@ -1,3 +1,14 @@
+# ═══════════════════════════════════════════════════════════════
+# gateway-core - 设备网关“领域模型”crate（六边形架构的核心层）
+#
+# 职责：只定义与协议无关的“概念”：
+#   - DeviceConfig（各协议的连接参数）
+#   - Telemetry / StatusEvent（遥测与状态事件模型）
+#   - GatewayError（统一错误类型）
+#   - DeviceAdapter（适配器端口 trait，具体协议在此实现之外）
+# 刻意不依赖任何 IO / 框架（含 Tauri），因此可独立编译、独立单测。
+# ═══════════════════════════════════════════════════════════════
+
 [package]
 name = "gateway-core"
 version = "0.1.0"
@@ -5,7 +16,7 @@ description = "设备网关领域模型：配置、遥测、错误与 DeviceAdap
 edition = "2021"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "2"
-async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }  # 序列化（配置与事件需跨 IPC 传给前端）
+serde_json = "1"         # JSON 值类型（遥测数值字段）
+thiserror = "2"          # 派生 Error 实现（GatewayError）
+async-trait = "0.1"      # 支持 async fn 的 trait（DeviceAdapter 接口）

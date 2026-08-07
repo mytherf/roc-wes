@@ -1,19 +1,24 @@
 {
+  // ========== 应用代码的 TypeScript 配置（浏览器端）==========
+  // extends 表示继承 Vue 官方提供的一套针对 DOM 环境的推荐配置（strict 等）。
   "extends": "@vue/tsconfig/tsconfig.dom.json",
   "compilerOptions": {
     "paths": {
+      // 路径别名：代码里写 "@/xxx" 就等价于 "src/xxx"，避免写长长的相对路径
       "@/*": ["./src/*"]
     },
-
+    // TS 增量编译的缓存文件位置（加快重复编译速度）
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    // 引入 Vite 客户端类型（如 import.meta.env 的智能提示）
     "types": ["vite/client"],
+    // 允许导入带任意扩展名的文件（如 .vue 后缀的导入）
     "allowArbitraryExtensions": true,
-
-    /* Linting */
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    /* Linting —— 以下开关用于尽早发现代码问题 */
+    "noUnusedLocals": true, // 禁止声明了却不使用的局部变量
+    "noUnusedParameters": true, // 禁止声明了却不使用的函数参数
+    "erasableSyntaxOnly": true, // 只允许能被直接删除的语法（便于编译期擦除类型）
+    "noFallthroughCasesInSwitch": true // switch 分支不允许“穿透”到下个 case
   },
+  // 参与类型检查的文件范围：src 目录下所有 TS/TSX/Vue 文件
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
 }

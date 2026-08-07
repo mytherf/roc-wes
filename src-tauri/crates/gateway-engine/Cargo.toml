@@ -1,3 +1,14 @@
+# ═══════════════════════════════════════════════════════════════
+# gateway-engine - 设备会话编排层 crate
+#
+# 职责：管理设备会话的生命周期：
+#   - 创建/断开会话（GatewayEngine）
+#   - 周期轮询订阅点位（session.rs 中的轮询任务）
+#   - 连接失败指数退避重连
+#   - 通过 EventSink 端口向外分发状态与遥测事件
+# 不依赖 Tauri：Tauri 壳只需注入 EventSink 实现即可复用全部逻辑。
+# ═══════════════════════════════════════════════════════════════
+
 [package]
 name = "gateway-engine"
 version = "0.1.0"
@@ -5,12 +16,13 @@ description = "网关引擎：设备会话编排、周期轮询、自动重连�
 edition = "2021"
 
 [dependencies]
-gateway-core = { path = "../gateway-core" }
-tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
-tracing = "0.1"
-async-trait = "0.1"
-serde_json = "1"
+gateway-core = { path = "../gateway-core" }                    # 领域模型（配置/遥测/端口）
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }  # 异步运行时（通道/定时器）
+tracing = "0.1"       # 日志
+async-trait = "0.1"    # async trait（EventSink 等）
+serde_json = "1"       # JSON 值类型（透传遥测数据）
 
+# ---- 仅测试使用的依赖 ----
 [dev-dependencies]
-tokio = { version = "1", features = ["rt-multi-thread"] }
-gateway-demo = { path = "../gateway-demo" }
+tokio = { version = "1", features = ["rt-multi-thread"] }  # 多线程运行时（集成测试）
+gateway-demo = { path = "../gateway-demo" }                    # 演示适配器（集成测试数据源）

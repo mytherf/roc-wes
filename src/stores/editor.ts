@@ -1,5 +1,14 @@
+// ========== 编辑器 Store（画布核心状态）==========
+// 这是整个编辑器的“大脑”，集中管理：
+// 1. 画布数据（所有节点和边的序列化描述）
+// 2. 当前选中了哪个元素
+// 3. 撤销/重做历史记录
+// 4. 各面板的折叠状态、显示模式等 UI 状态
+// 说明：X6 画布（X6Canvas.vue）与界面（工具栏/属性面板等）之间
+//       不直接通信，都通过这个 store 交换数据。
+
 import { defineStore } from 'pinia'
-import {shallowRef, ref, computed, toRaw} from 'vue'
+import {shallowRef, ref, computed, toRaw} from 'vue' // shallowRef 浅响应（只替换整体、不深监听）；toRaw 取出原始对象
 
 
 /**
@@ -7,8 +16,8 @@ import {shallowRef, ref, computed, toRaw} from 'vue'
  * 与 X6 的 JSON 格式一致
  */
 export interface GraphData {
-    nodes: any[]
-    edges: any[]
+    nodes: any[] // 所有节点（每个节点包含 id/position/data 等字段）
+    edges: any[] // 所有连线（每条线包含 source/target 端口引用）
 }
 
 /** 节点显示模式：full=完整渲染（「极简」按钮） icon=图标模式（紧凑图标卡片，「图标」按钮） */
@@ -48,6 +57,8 @@ export const useEditorStore = defineStore(
 
         // ---------- 计算属性 ----------
         // 根据 selectedId 获取当前选中的节点或边（仅用于属性面板展示）
+        // 返回统一格式 { type: 'node'|'edge', data: {...} }，
+        // 并展开 data 字段，方便属性面板直接读取所有属性
         const selectedElement = computed(() => {
             if (!selectedId.value) return null
             const node = graphData.value.nodes.find(n => n.id === selectedId.value)
@@ -204,11 +215,14 @@ export const useEditorStore = defineStore(
         }
 
         /**
-         * 撤销
+         * 撤销：历史索引回退一步，把画布数据恢复到上一个快照
+         * @returns 是否撤销成功
          */
         function undo() {
             if (historyIndex.value > 0) {
                 historyIndex.value--
+                // toRaw：把 Vue 的响应式代理还原成普通对象，
+                // 避免把代理对象塞进画布导致 X6 处理异常
                 graphData.value = toRaw(history.value[historyIndex.value])
                 return true
             }
@@ -216,7 +230,8 @@ export const useEditorStore = defineStore(
         }
 
         /**
-         * 重做
+         * 重做：历史索引前进一步，恢复到“撤销前”的状态
+         * @returns 是否重做成功
          */
         function redo() {
             if (historyIndex.value < history.value.length - 1) {

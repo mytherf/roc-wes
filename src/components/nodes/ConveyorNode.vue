@@ -1,3 +1,14 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     ConveyorNode.vue - 输送线节点（辊道/皮带输送机）
+
+     画布上的输送线图形：皮带轨道 + 分段闪烁动画 + 名称/状态。
+     数据字段（useNodeData 声明）：
+       - name: 名称（默认 输送线-01）
+       - direction: 运行方向（left / right / bidirectional，动画方向不同）
+       - isRunning: 皮带是否在转（分段闪烁动画）
+       - status: 运行状态（idle/running/error，颜色区分）
+     图标模式（isMinimal）下由 NodeMinimalView 统一渲染。
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="conveyor-node" :class="directionClass">

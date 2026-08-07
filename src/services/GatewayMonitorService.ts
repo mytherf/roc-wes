@@ -1,3 +1,12 @@
+// ========== 网关监控服务（数据源健康探测）==========
+// 用途：给「监控界面」提供某个数据源的“健康报告”——
+//   1. 能否连上（连通性 + 建连耗时）
+//   2. 工业设备是否就绪（真实网关的设备连接状态）
+//   3. 绑定到该数据源的点位实时值
+//   4. 错误/告警记录
+// 特点：它独立于业务数据链路，只做“观测”不改动数据；
+//       内部按数据源类型（WS/HTTP/SSE/MQTT/IPC）分派不同的探测实现。
+
 import { MqttService } from './MqttService'
 import { IpcGatewayService } from './IpcGatewayService'
 import { isTauri } from '@/platform/isTauri'

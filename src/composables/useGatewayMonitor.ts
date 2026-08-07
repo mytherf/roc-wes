@@ -1,3 +1,17 @@
+// ========== 数据源网关监控 Composable（数据源「体检表」）==========
+// 所属层级：数据源管理层的配套工具，供数据源管理对话框 / 状态栏使用
+//
+// 用途：统一管理各个数据源的监控探针（GatewayMonitorService）生命周期：
+//   1. 为每个数据源启动一个探针，周期性地向设备/服务发送请求，测量连通性、延迟
+//   2. 自动收集画布上绑定到该数据源的所有节点点位，作为监控对象
+//   3. 把监控结果（在线/离线/延迟/错误/点位值）放入响应式 states，供界面直接显示
+//   4. 组件卸载时自动停止全部探针，避免后台残留连接
+//
+// 关键概念：
+//   - 演示模式：数据源地址 = 内置 mock 服务地址时，自动注入一组样例点位，
+//     即使没有节点绑定也能展示实时跳动数据，方便预览效果
+//   - 真实设备模式：只监控节点实际绑定的点位
+
 import { reactive, onUnmounted } from 'vue'
 import { GatewayMonitorService, type MonitorState } from '@/services/GatewayMonitorService'
 import { useEditorStore } from '@/stores/editor'

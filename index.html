@@ -1,13 +1,23 @@
+<!-- ========== 应用 HTML 入口 ==========
+     这是整个 Web 应用唯一的一个 HTML 页面（SPA 单页应用）：
+     - Vite 会以这个文件为起点，编译 src/main.ts 里的代码
+     - 应用运行后所有界面都会动态渲染到 <div id="app"> 里 -->
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- 声明 UTF-8 字符编码，避免中文乱码 -->
     <meta charset="UTF-8" />
+    <!-- 浏览器标签页上的小图标 -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 移动端适配视口设置 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 浏览器标签页标题 -->
     <title>roc-wes</title>
   </head>
   <body>
+    <!-- Vue 应用挂载点：main.ts 里的 createApp 会把整个应用渲染进这个空 div -->
     <div id="app"></div>
+    <!-- 入口脚本：type="module" 表示支持 ES 模块 import/export 语法 -->
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

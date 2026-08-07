@@ -1,3 +1,19 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     GaugeNode.vue - 仪表盘节点（ECharts 仪表盘图表）
+     画布上的仪表盘图形：标题 + 半圆形指针仪表 + 实时数值。
+     数据字段（node.getData() 读取）：
+       - title: 标题（默认 仪表盘）
+       - unit: 数值单位（默认 °C）
+       - min/max: 仪表量程（默认 0~100）
+       - value: 当前数值（默认 50）
+     仪表盘颜色分段：低值红色 / 中值黄色 / 高值绿色（工业惯例）。
+     数据变化监听：
+       - change:data 事件 → 刷新标题/量程/数值
+       - change:size 事件 → 同步 ECharts 画布尺寸（拖拽缩放）
+     极简模式下释放图表实例，切回完整模式时重新初始化。
+     组件通过 defineExpose 暴露 updateValue() 供外部更新数值。
+     图标模式（isMinimal）下由 NodeMinimalView 统一渲染。
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="title" />
   <div v-else class="gauge-node">

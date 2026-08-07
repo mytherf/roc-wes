@@ -1,3 +1,8 @@
+// ========== 设备配置转换层（数据源配置 → Rust 网关配置）==========
+// 背景：在 Tauri 桌面运行态下，工业设备（Modbus/S7/OPC）的连接由 Rust 原生网关负责。
+// 前端「数据源管理」里保存的通用配置（host/port/unitId 等）格式与 Rust 的
+// DeviceConfig 结构不同，本模块负责把两者互相翻译。
+
 /**
  * 数据源配置 → Rust DeviceConfig 映射（Tauri 桌面运行时）
  *
@@ -6,9 +11,11 @@
  * Rust `gateway_core::config::DeviceConfig`（camelCase），交给 gateway_connect。
  */
 
-import { BUILTIN_MOCK_URLS } from '@/stores/dataSource'
-import type { DeviceConfig } from '@/services/IpcGatewayService'
+import { BUILTIN_MOCK_URLS } from '@/stores/dataSource' // 内置模拟服务地址表（用于识别演示模式）
+import type { DeviceConfig } from '@/services/IpcGatewayService' // Rust 侧设备配置的 TS 类型定义
 
+// 工具函数：把任意值安全地转成数字；
+// 用户输入可能是字符串（表单值），转不了或非法时使用 fallback 兜底值
 const num = (v: unknown, fallback: number): number => {
     const n = typeof v === 'string' ? Number(v) : (v as number)
     return Number.isFinite(n) ? (n as number) : fallback
@@ -16,10 +23,13 @@ const num = (v: unknown, fallback: number): number => {
 
 /**
  * 判定某数据源是否为演示模式。
- * 优先读 config.demo；兼容旧数据（地址等于内置模拟地址即视为演示）。
+ * 优先读 config.demo（用户显式选择）；
+ * 兼容旧数据：地址等于内置模拟地址即视为演示（历史版本没有 demo 字段）。
  */
 export function isDemoSource(sourceType: string, sourceUrl?: string, sourceConfig?: Record<string, any>): boolean {
+    // 显式配置了 demo 布尔值 → 直接采信
     if (typeof sourceConfig?.demo === 'boolean') return sourceConfig.demo
+    // 旧数据兼容：url 与内置模拟地址一致 → 视为演示
     if (sourceUrl && sourceUrl === (BUILTIN_MOCK_URLS as Record<string, string>)[sourceType]) return true
     return false
 }
@@ -27,40 +37,47 @@ export function isDemoSource(sourceType: string, sourceUrl?: string, sourceConfi
 /**
  * 依据数据源类型与配置构建 Rust DeviceConfig。
  * 演示模式统一映射为 `{ kind:'demo' }`（由 Rust DemoAdapter 生成模拟数据）。
+ * @param sourceType 数据源类型（modbus/s7/opc/...）
+ * @param sourceUrl 数据源地址（用于演示模式判断）
+ * @param sourceConfig 数据源管理里保存的设备参数
+ * @returns Rust 网关认识的 DeviceConfig 对象
  */
 export function buildDeviceConfig(
     sourceType: string,
     sourceUrl?: string,
     sourceConfig?: Record<string, any>
 ): DeviceConfig {
-    const cfg = sourceConfig ?? {}
-    const pollIntervalMs = num(cfg.pollInterval, 1000)
+    const cfg = sourceConfig ?? {} // 配置可能为空，兜底成空对象
+    const pollIntervalMs = num(cfg.pollInterval, 1000) // 轮询间隔，默认 1000ms
 
+    // 演示模式：不连接任何真实设备，由 Rust 的 DemoAdapter 定时生成模拟数据
     if (isDemoSource(sourceType, sourceUrl, cfg)) {
         return { kind: 'demo', pollIntervalMs }
     }
 
+    // 按协议类型分别构造对应的连接参数
     switch (sourceType) {
         case 'modbus':
             return {
                 kind: 'modbus',
-                host: String(cfg.host ?? '127.0.0.1'),
-                port: num(cfg.port, 502),
-                unitId: num(cfg.unitId, 1),
+                host: String(cfg.host ?? '127.0.0.1'), // 设备 IP，默认本机
+                port: num(cfg.port, 502), // Modbus TCP 默认端口 502
+                unitId: num(cfg.unitId, 1), // 从站地址（站号），默认 1
                 pollIntervalMs,
             }
         case 's7':
             return {
                 kind: 's7',
                 host: String(cfg.host ?? '127.0.0.1'),
-                port: num(cfg.port, 102),
-                rack: num(cfg.rack, 0),
-                slot: num(cfg.slot, 2),
+                port: num(cfg.port, 102), // S7 协议默认端口 102
+                rack: num(cfg.rack, 0), // 机架号，默认 0
+                slot: num(cfg.slot, 2), // 槽号，默认 2（CPU 通常在此）
                 pollIntervalMs,
             }
         case 'opc':
             return {
                 kind: 'opc',
+                // OPC UA 用 endpoint（端点地址）而非 host/port，默认走 4840 端口
                 endpoint: String(cfg.endpoint ?? cfg.url ?? 'opc.tcp://127.0.0.1:4840'),
                 pollIntervalMs,
             }

@@ -1,3 +1,17 @@
+<!-- ══════════════════════════════════════════════════════════════════════
+     RunView.vue - 运行态视图（把编辑好的组态“跑起来”的页面）
+
+     运行流程：
+       1. 编辑页点击「▶ 运行」时，编辑器把当前画布数据序列化后
+          存入 sessionStorage（键名 scada-run-data）
+       2. 本页面挂载后从 sessionStorage 读取数据，重新渲染画布
+       3. 与编辑态不同：这里不可编辑（interacting: false），
+          只展示节点动画 + 实时数据刷新（数据绑定、动画引擎）
+
+     与编辑态（X6Canvas）的关系：
+       - 共用同一套节点组件注册表、数据绑定（useDataService）、动画引擎
+       - 状态栏底部实时显示节点数/连线数/当前时间
+     ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <div class="run-page">
     <!-- 加载状态 -->
@@ -42,16 +56,20 @@ import { useDataService } from '@/composables/useDataService'
 const TeleportContainer = getTeleport()
 
 const containerRef = ref<HTMLDivElement | null>(null)
+// X6 Graph 实例（运行态画布）
 let graph: Graph | null = null
+// 动画引擎（驱动节点闪烁、位移等动画）
 let animationService: AnimationService | null = null
+// 窗口尺寸变化监听器（自适应缩放画布）
 let resizeHandler: (() => void) | null = null
+// 统计信息定时器（每秒刷新节点数/连线数/时间）
 let statsTimer: number | null = null
 
-const loading = ref(true)
-const hasData = ref(false)
-const nodeCount = ref(0)
-const edgeCount = ref(0)
-const currentTime = ref('')
+const loading = ref(true)   // 是否正在加载
+const hasData = ref(false)  // 是否有运行数据（从编辑页跳转过来才有）
+const nodeCount = ref(0)    // 画布节点数量（底部信息栏展示）
+const edgeCount = ref(0)    // 画布连线数量（底部信息栏展示）
+const currentTime = ref('') // 当前时间（底部信息栏每秒刷新）
 
 // 数据服务管理（与编辑态 X6Canvas 共用同一套绑定逻辑）
 const dataService = useDataService()
@@ -80,16 +98,20 @@ onMounted(async() => {
 
     graph = new Graph({
       container: containerRef.value,
+      // 浅灰背景 + 网格线，保持与编辑态一致的视觉参考
       background: { color: '#f5f5f5' },
       grid: true,
+      // 运行态不允许编辑（禁止拖动/缩放节点），只允许平移查看
       interacting: false,
       panning: true,
+      // 滚轮缩放（以鼠标位置为中心，限制缩放范围 0.1~3 倍）
       mousewheel: {
         enabled: true,
         zoomAtMousePosition: true,
         minScale: 0.1,
         maxScale: 3,
       },
+      // 虚拟渲染：只渲染视口附近的节点，节点很多时保持流畅
       virtual: {
         enabled: true,
         margin: 150,
@@ -132,6 +154,7 @@ onMounted(async() => {
 })
 
 function applyNodeAnimation(node: any) {
+  // 读取节点上配置的动画类型，交给动画引擎播放
   const data = node.getData()
   if (data?.animation) {
     animationService?.setAnimation(node.id, data.animation)
@@ -139,6 +162,7 @@ function applyNodeAnimation(node: any) {
 }
 
 function applyAllAnimations() {
+  // 画布加载完成后，给所有节点统一启动动画
   if (!graph) return
   const nodes = graph.getNodes()
   for (const node of nodes) {
@@ -147,12 +171,14 @@ function applyAllAnimations() {
 }
 
 function updateStats() {
+  // 刷新底部信息栏的节点数 / 连线数
   if (!graph) return
   nodeCount.value = graph.getNodes().length
   edgeCount.value = graph.getEdges().length
 }
 
 onBeforeUnmount(() => {
+  // 组件卸载清理：移除监听器、停掉定时器、断开数据连接、销毁画布
   if (resizeHandler) {
     window.removeEventListener('resize', resizeHandler)
     resizeHandler = null

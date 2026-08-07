@@ -1,3 +1,10 @@
+// ========== 工业协议网关服务基类 ==========
+// 背景：S7 / OPC UA / Modbus 三种工业协议都是“原生 TCP 协议”，
+// 浏览器无法直接收发 TCP 报文，必须通过一个“网关”中转：
+//   浏览器 ⇄(WebSocket)⇄ 网关 ⇄(TCP)⇄ 设备
+// 三个协议的连接流程几乎一样，只有“设备配置”不同，
+// 所以把公共逻辑（连接/重连/订阅/分发）写在本基类，子类只需传配置。
+
 import type { IDataService, DataPoint, DataCallback } from './DataService'
 
 /**
@@ -14,26 +21,28 @@ import type { IDataService, DataPoint, DataCallback } from './DataService'
  * 连接建立后自动下发 configure（演示网关将忽略），再重订阅已登记的数据点。
  */
 export class GatewayService implements IDataService {
-    protected ws: WebSocket | null = null
-    protected url: string
-    protected config: Record<string, any>
+    protected ws: WebSocket | null = null // WebSocket 连接实例（protected：子类可访问）
+    protected url: string // 网关地址
+    protected config: Record<string, any> // 设备连接参数（host/port/unitId 等）
     /** 日志标签（如 'S7' / 'OPC UA' / 'Modbus'） */
     protected tag: string
-    protected callbacks: Map<string, DataCallback[]> = new Map()
-    private reconnectTimer: number | null = null
-    private reconnectDelay = 3000
-    private isConnected_ = false
+    protected callbacks: Map<string, DataCallback[]> = new Map() // 点 ID → 回调列表
+    private reconnectTimer: number | null = null // 重连定时器
+    private reconnectDelay = 3000 // 重连间隔 3 秒
+    private isConnected_ = false // 是否已连接网关
 
     constructor(url: string, config: Record<string, any> = {}, tag = 'Gateway') {
         this.url = url
         this.config = config
         this.tag = tag
-        this.connect()
+        this.connect() // 创建即连接
     }
 
+    // 建立连接并绑定事件处理（与 WebSocketService.connect 结构相同）
     private connect() {
         try {
             this.ws = new WebSocket(this.url)
+            // 连接成功：下发设备配置 + 重订阅历史数据点
             this.ws.onopen = () => {
                 console.log(`[${this.tag}] 已连接网关`)
                 this.isConnected_ = true
@@ -44,6 +53,7 @@ export class GatewayService implements IDataService {
                     this.sendSubscribe(pointId)
                 }
             }
+            // 收到网关消息：区分“状态消息”和“数据消息”
             this.ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data)
@@ -54,8 +64,9 @@ export class GatewayService implements IDataService {
                         } else {
                             console.warn(`[${this.tag}] 设备未连接:`, data.message || '')
                         }
-                        return
+                        return // 状态消息处理完即返回，不再当数据分发
                     }
+                    // 数据消息：解析并分发给对应回调
                     const pointId = data.topic || data.id || data.pointId
                     if (pointId && this.callbacks.has(pointId)) {
                         const point: DataPoint = {
@@ -72,11 +83,13 @@ export class GatewayService implements IDataService {
                     console.warn(`[${this.tag}] 解析数据失败:`, e)
                 }
             }
+            // 断开：安排自动重连
             this.ws.onclose = () => {
                 console.log(`[${this.tag}] 断开连接，尝试重连...`)
                 this.isConnected_ = false
                 this.scheduleReconnect()
             }
+            // 出错：关闭连接（触发 onclose → 重连）
             this.ws.onerror = (error) => {
                 console.error(`[${this.tag}] 错误:`, error)
                 this.ws?.close()
@@ -87,6 +100,7 @@ export class GatewayService implements IDataService {
         }
     }
 
+    // 安排重连（保证只有一个待执行的重连）
     private scheduleReconnect() {
         if (this.reconnectTimer) return
         this.reconnectTimer = window.setTimeout(() => {
@@ -95,24 +109,28 @@ export class GatewayService implements IDataService {
         }, this.reconnectDelay)
     }
 
+    // 发送设备配置给网关
     private sendConfigure() {
         if (this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({ action: 'configure', config: this.config }))
         }
     }
 
+    // 发送订阅请求
     private sendSubscribe(pointId: string) {
         if (this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({ action: 'subscribe', topic: pointId }))
         }
     }
 
+    // 发送退订请求
     private sendUnsubscribe(pointId: string) {
         if (this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({ action: 'unsubscribe', topic: pointId }))
         }
     }
 
+    // 订阅：登记回调并通知网关
     subscribe(pointId: string, callback: DataCallback): void {
         if (!this.callbacks.has(pointId)) {
             this.callbacks.set(pointId, [])
@@ -121,6 +139,7 @@ export class GatewayService implements IDataService {
         this.sendSubscribe(pointId)
     }
 
+    // 退订：移除回调并通知网关
     unsubscribe(pointId: string): void {
         this.callbacks.delete(pointId)
         this.sendUnsubscribe(pointId)
@@ -130,6 +149,7 @@ export class GatewayService implements IDataService {
         return this.isConnected_
     }
 
+    // 断开：取消重连、关闭连接、清空状态
     disconnect(): void {
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer)

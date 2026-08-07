@@ -1,3 +1,16 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     IndicatorNode.vue - 指示灯节点
+     画布上的指示灯图形：标签 + 圆形指示灯 + 状态文字。
+     指示灯颜色由状态驱动（on 绿色常亮 / off 灰色 / warning 黄色闪烁 /
+     error 红色快速闪烁），通过 useNodeStatus 的 prefix: 'light' 定制
+     CSS 类名（light-on / light-off / light-warning / light-error）。
+     数据字段（useNodeData 声明）：
+       - label: 标签文字（默认 指示灯）
+       - status: 灯状态（on/off/warning/error，默认 off）
+     组件通过 defineExpose 暴露 setStatus()，供外部（如事件脚本）
+     动态切换灯的状态。
+     图标模式（isMinimal）下由 NodeMinimalView 统一渲染。
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="label" :status="status" />
   <div v-else class="indicator-node">

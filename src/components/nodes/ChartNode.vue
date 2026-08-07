@@ -1,3 +1,16 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     ChartNode.vue - 折线图节点（ECharts 实时趋势曲线）
+     画布上的折线图图形：标题 + 平滑曲线 + 渐变面积填充。
+     数据字段（node.getData() 读取）：
+       - title: 标题（默认 实时曲线）
+       - history: 历史数据数组（默认 20 个 0，最多保留 20 个点）
+     数据变化监听：
+       - change:data 事件 → 整体替换 history（数据绑定推送）
+       - change:size 事件 → 同步 ECharts 画布尺寸（拖拽缩放）
+     极简模式下释放图表实例，切回完整模式时重新初始化。
+     组件通过 defineExpose 暴露 pushData() 供外部追加数据点。
+     图标模式（isMinimal）下由 NodeMinimalView 统一渲染。
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="title" />
   <div v-else class="chart-node">

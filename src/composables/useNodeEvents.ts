@@ -1,3 +1,17 @@
+// ========== 节点事件规则编辑 Composable（节点“条件动作”编辑器）==========
+// 所属层级：属性面板配套逻辑，从 PropertyPanel.vue 抽取而来
+//
+// 背景：SCADA 系统里节点可以配置“事件规则”——
+// 比如“当温度超过 80 时，指示灯变红”。规则被存在节点 data.events 数组里，
+// 运行时由 NodeEventService 执行。本文件负责这些规则的「编辑」部分：
+//
+//   1. 加载：选中节点变化时，把该节点已配置的规则读入草稿（eventsDraft）
+//   2. 编辑：在属性面板里增删规则条目（addEventRule / removeEventRule）
+//   3. 提交：草稿变化时自动写回 X6 节点和 Store（无变化则跳过，避免多余写入）
+//
+// 为什么用“草稿”模式：边改边提交会频繁触发画布同步，
+// 草稿 + 深监听的方式保证只在内容真正变化时才提交一次。
+
 import { ref, watch, type Ref } from 'vue'
 import type { Graph } from '@antv/x6'
 import { useEditorStore } from '@/stores/editor'

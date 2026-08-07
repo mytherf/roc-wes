@@ -1,3 +1,17 @@
+// ========== 画布 ↔ Store 双向同步 Composable（编辑器的“神经中枢”）==========
+// 所属层级：编辑器核心层，专供 X6Canvas.vue 使用
+//
+// 用途：把画布（用户拖拽、改属性的图形界面）和 Store（内存数据仓库）
+// 两边保持同步，像“双向镜子”一样：
+//   - 画布 → Store：用户在画布上移动节点、改尺寸、增删节点时，
+//     序列化整个画布写入 Store，并推入历史记录（支持撤销/重做）
+//   - Store → 画布：外部程序修改 Store 数据（如导入模板、属性面板改值）时，
+//     自动更新画布上的节点（位置/尺寸用轻量更新，结构变化则全量重载）
+//
+// 关键概念：防循环标志（isUpdatingFromStore 等）——
+// 画布和 Store 相互监听，如果不加“我正在更新对方”的标志，
+// 就会 A 改 B、B 改 A 无限循环。本文件用多个标志位分别拦截各类循环。
+
 import { nextTick, watch } from 'vue'
 import type { Graph } from '@antv/x6'
 import type { GraphData } from '@/stores/editor'

@@ -1,4 +1,9 @@
 {
+  // ========== TSConfig 总入口（Solution 模式）==========
+  // 这个文件本身不编译任何代码，只负责把项目拆分成两个独立的编译单元：
+  // - tsconfig.app.json：浏览器端的应用代码（src 目录）
+  // - tsconfig.node.json：Node 环境的构建脚本（vite.config.ts 等）
+  // 好处：两边的环境（DOM vs Node）互不干扰，类型检查更准确。
   "files": [],
   "references": [
     { "path": "./tsconfig.app.json" },

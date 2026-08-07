@@ -1,4 +1,6 @@
 {
+  "_comment": "========== 项目说明 ==========\n本项目是 SCADA 组态引擎（roc-wes）：基于 Vue 3 + AntV X6 的可视化工业监控系统，\n支持拖拽式画布编辑、多协议数据接入（WebSocket/MQTT/HTTP/SSE/Modbus/S7/OPC）、\n节点动画、路线编辑，并可打包为 Tauri 桌面应用。\n注意：package.json 是严格 JSON 格式不支持注释，因此用 _comment/_scripts 这类\nnpm 会忽略的字段来写说明。",
+  "_scripts": "dev: 启动开发服务器（含内置模拟数据服务）；build: 先做 TS 类型检查再打包；preview: 预览打包产物",
   "name": "roc-wes",
   "private": true,
   "version": "0.0.0",

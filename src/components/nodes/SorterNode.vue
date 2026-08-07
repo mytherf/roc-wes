@@ -1,3 +1,14 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     SorterNode.vue - 分拣机节点（把包裹分到不同格口）
+
+     画布上的分拣机图形：头部图标/名称 + 4 个分拣格口（显示当前计数与激活态）
+     + 状态点 + 分拣速度。
+     数据字段（useNodeData 声明）：
+       - name: 名称（默认 分拣机-01）
+       - speed: 分拣速度（件/分）
+       - chutes: 格口数组 [{ label, count, active }]，运行时更新计数/激活态
+       - status: 运行状态（idle/running/error，颜色区分）
+     ═══════════════════════════════════════════════════════════════ -->
 <template>
   <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="name" :status="status" />
   <div v-else class="sorter-node">
