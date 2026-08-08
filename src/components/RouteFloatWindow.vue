@@ -17,10 +17,14 @@
     class="route-float-window"
     :style="{ left: pos.x + 'px', top: pos.y + 'px', width: size.w + 'px', height: size.h + 'px' }"
   >
-    <!-- 标题栏：拖拽把手 + 回到底部/关闭 -->
+    <!-- 标题栏：拖拽把手 + 帮助说明 + 回到底部/关闭 -->
     <div class="rfw-header" @pointerdown="onDragStart">
       <span class="rfw-title">🛤️ 路线</span>
-      <span class="rfw-hint">浮动窗口 · 可拖动</span>
+      <!-- 帮助按钮：点击弹出浮动窗口使用说明气泡，点击外部关闭 -->
+      <span class="rfw-help-wrap" @pointerdown.stop>
+        <button type="button" class="rfw-help-btn" :aria-expanded="floatHintOpen" title="浮动窗口说明" @click="floatHintOpen = !floatHintOpen">?</button>
+        <div v-if="floatHintOpen" class="rfw-help-pop" role="note">浮动窗口：拖动标题栏可移动，拖动右下角手柄可调整大小。</div>
+      </span>
       <div class="rfw-spacer" />
       <button class="rfw-btn" title="弹出为独立窗口（可拖到其他屏幕）" @click="onPopout">🗗</button>
       <button class="rfw-btn" title="回到底部面板" @click="emit('dock')">⬇</button>
@@ -36,8 +40,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { openRouteWindow } from '@/platform/routeWindow'
+
+// 浮动窗口说明气泡开关（点击 ? 切换，点击外部关闭）
+const floatHintOpen = ref(false)
+function onDocPointerDownForFloatHelp(e: Event) {
+  if (!floatHintOpen.value) return
+  const t = e.target
+  if (!(t instanceof Element && t.closest('.rfw-help-wrap'))) floatHintOpen.value = false
+}
 
 const emit = defineEmits<{
   (e: 'dock'): void
@@ -135,6 +147,11 @@ function onResizeStart(e: PointerEvent) {
 
 onMounted(() => {
   initPosition()
+  document.addEventListener('pointerdown', onDocPointerDownForFloatHelp)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocPointerDownForFloatHelp)
 })
 </script>
 
@@ -172,9 +189,50 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
-.rfw-hint {
-  font-size: 11px;
+/* 帮助按钮定位容器（弹出气泡以此为锚点） */
+.rfw-help-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.rfw-help-btn {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: transparent;
   color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rfw-help-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.rfw-help-btn[aria-expanded='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+/* 浮动窗口说明气泡（绝对定位悬浮在按钮下方，不占布局空间） */
+.rfw-help-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  width: 220px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
 }
 
 .rfw-spacer { flex: 1; }

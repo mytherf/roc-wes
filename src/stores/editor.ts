@@ -49,6 +49,8 @@ export const useEditorStore = defineStore(
         const sidebarCollapsed = ref(false)
         // 右侧属性面板是否折叠
         const propertyCollapsed = ref(false)
+        // 数据源管理对话框是否打开（放入 store 以便属性面板等兄弟组件跳转打开）
+        const dataSourceDialogOpen = ref(false)
         // 历史记录（存储过去的状态快照）
         const history = ref<GraphData[]>([])
         // 当前历史索引（-1 表示无历史）
@@ -179,6 +181,13 @@ export const useEditorStore = defineStore(
         }
 
         /**
+         * 设置数据源管理对话框开关（供工具栏按钮与属性面板跳转使用）
+         */
+        function setDataSourceDialogOpen(open: boolean) {
+            dataSourceDialogOpen.value = open
+        }
+
+        /**
          * 设置当前选中元素
          * 选中具体元素（id 非空）时清除「画布选中」状态
          */
@@ -306,6 +315,7 @@ export const useEditorStore = defineStore(
             routeFloating,
             sidebarCollapsed,
             propertyCollapsed,
+            dataSourceDialogOpen,
             selectedElement,
             canUndo,
             canRedo,
@@ -321,6 +331,7 @@ export const useEditorStore = defineStore(
             toggleSidebarCollapsed,
             setPropertyCollapsed,
             togglePropertyCollapsed,
+            setDataSourceDialogOpen,
             setSelected,
             selectCanvas,
             pushHistory,

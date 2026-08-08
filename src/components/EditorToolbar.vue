@@ -106,8 +106,11 @@ const props = defineProps<{
 const editorStore = useEditorStore()
 const themeStore = useThemeStore()
 const routeStore = useRouteStore()
-// 数据源管理对话框显隐
-const showDataSourceDialog = ref(false)
+// 数据源管理对话框显隐（绑定 store，属性面板等兄弟组件也可跳转打开）
+const showDataSourceDialog = computed({
+  get: () => editorStore.dataSourceDialogOpen,
+  set: (v: boolean) => editorStore.setDataSourceDialogOpen(v),
+})
 // 「已保存」提示（保存成功后短暂显示）
 const savedTip = ref(false)
 let savedTipTimer: number | null = null

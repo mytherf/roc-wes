@@ -23,11 +23,15 @@
     <template v-else>
       <div class="sidebar-header">
         <h3 class="title">📦 组件库</h3>
+        <!-- 帮助按钮：点击弹出使用说明气泡，点击外部关闭 -->
+        <span class="sidebar-help-wrap">
+          <button type="button" class="sidebar-help-btn" :aria-expanded="sidebarHintOpen" title="使用说明" @click="sidebarHintOpen = !sidebarHintOpen">?</button>
+          <div v-if="sidebarHintOpen" class="sidebar-help-pop" role="note">按住组件拖拽到画布即可添加节点。</div>
+        </span>
         <button class="sidebar-collapse-btn" @click="editorStore.toggleSidebarCollapsed()" title="折叠组件库">
           ◀
         </button>
       </div>
-      <p class="hint">拖拽到画布</p>
 
       <!-- 按分组渲染：每组一个标题 + 两列网格 -->
       <div v-for="group in groups" :key="group.name" class="group">
@@ -50,9 +54,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { nodeTemplates, buildNodeConfig, type NodeTemplate } from '@/components/nodes/nodeTemplates'
 import { useEditorStore } from '@/stores/editor'
+
+// 使用说明气泡开关（点击 ? 切换，点击外部关闭）
+const sidebarHintOpen = ref(false)
+function onDocPointerDownForSidebarHelp(e: Event) {
+  if (!sidebarHintOpen.value) return
+  const t = e.target
+  if (!(t instanceof Element && t.closest('.sidebar-help-wrap'))) sidebarHintOpen.value = false
+}
+onMounted(() => document.addEventListener('pointerdown', onDocPointerDownForSidebarHelp))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointerDownForSidebarHelp))
 
 // 从父组件接收 graph 和 dnd 实例
 const props = defineProps<{
@@ -131,7 +145,55 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 2px;
+  margin-bottom: 14px;
+}
+
+/* 帮助按钮定位容器（弹出气泡以此为锚点） */
+.sidebar-help-wrap {
+  position: relative;
+  display: inline-flex;
+  margin-left: auto;
+  margin-right: 6px;
+}
+.sidebar-help-btn {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sidebar-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sidebar-help-btn:hover {
+  color: var(--sidebar-text);
+  border-color: var(--sidebar-text);
+}
+.sidebar-help-btn[aria-expanded='true'] {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+/* 使用说明气泡（绝对定位悬浮在按钮下方，不占布局空间） */
+.sidebar-help-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: 168px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--sidebar-text);
+  background: var(--panel-bg);
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
 }
 
 .sidebar-collapse-btn {
@@ -178,12 +240,6 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
   font-weight: 600;
   color: var(--sidebar-text);
   letter-spacing: -0.2px;
-}
-
-.hint {
-  margin: 0 0 16px 0;
-  font-size: 11px;
-  color: var(--sidebar-text-muted);
 }
 
 /* ===== 分组 ===== */
@@ -299,7 +355,7 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
     min-width: 36px;
   }
   .title,
-  .hint,
+  .sidebar-help-wrap,
   .group-title {
     display: none;
   }

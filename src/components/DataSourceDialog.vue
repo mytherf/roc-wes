@@ -159,7 +159,14 @@
 
             <!-- 连接模式（全类型统一：演示模式 / 真实设备） -->
             <div class="ds-field">
-              <label class="ds-label">连接模式</label>
+              <label class="ds-label">
+                连接模式
+                <!-- 帮助按钮：点击弹出连接模式说明气泡，点击外部关闭 -->
+                <span class="ds-help-wrap">
+                  <button type="button" class="ds-help-btn" :aria-expanded="modeHelpOpen" title="连接模式说明" @click="modeHelpOpen = !modeHelpOpen">?</button>
+                  <div v-if="modeHelpOpen" class="ds-help-pop" role="note">{{ modeHint }}</div>
+                </span>
+              </label>
               <div class="ds-radio-row">
                 <label class="ds-radio">
                   <input type="radio" v-model="form.demo" :value="true" /> 演示模式（内置模拟服务）
@@ -168,7 +175,6 @@
                   <input type="radio" v-model="form.demo" :value="false" /> 真实设备
                 </label>
               </div>
-              <div class="ds-cfg-hint">{{ modeHint }}</div>
             </div>
 
             <!-- 工业协议设备参数（S7 / OPC UA / Modbus 的真实设备模式），抽取为子组件 -->
@@ -219,7 +225,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, nextTick } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import DataSourceDeviceConfig from './DataSourceDeviceConfig.vue'
 import { useGatewayMonitor } from '@/composables/useGatewayMonitor'
 import type { MonitorState } from '@/services/GatewayMonitorService'
@@ -354,6 +360,16 @@ const modeHint = computed(() => {
       return '真实设备：请在下方填写真实服务地址'
   }
 })
+
+/** 连接模式说明气泡开关（点击 ? 切换，点击外部关闭） */
+const modeHelpOpen = ref(false)
+function onDocPointerDownForModeHelp(e: Event) {
+  if (!modeHelpOpen.value) return
+  const t = e.target
+  if (!(t instanceof Element && t.closest('.ds-help-wrap'))) modeHelpOpen.value = false
+}
+onMounted(() => document.addEventListener('pointerdown', onDocPointerDownForModeHelp))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointerDownForModeHelp))
 
 /** 地址输入框是否只读：演示模式（内置地址）或工业协议（固定网关地址）下自动填充、不可手改 */
 const urlReadonly = computed(() => form.demo || isIndustrial.value)
@@ -732,17 +748,26 @@ function handleClose() {
 }
 .ds-input {
   padding: 6px 10px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--input-border, var(--border-color));
   border-radius: var(--radius-sm);
   font-size: 13px;
   outline: none;
-  background: var(--panel-bg);
+  background: var(--input-bg, var(--panel-bg));
   color: var(--text-primary);
-  transition: border-color 0.2s;
+  box-shadow: var(--shadow-sm, none);
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+.ds-input:hover:not(:focus):not([readonly]) {
+  border-color: var(--input-border-hover, var(--color-primary));
 }
 .ds-input:focus {
   border-color: var(--color-primary);
+  background: var(--panel-bg);
   box-shadow: 0 0 0 2px var(--color-primary-ring);
+}
+.ds-input[readonly] {
+  color: var(--text-secondary);
+  border-style: dashed;
 }
 .ds-error {
   color: var(--color-danger);
@@ -778,11 +803,54 @@ function handleClose() {
   color: var(--text-primary);
   cursor: pointer;
 }
-.ds-cfg-hint {
-  margin-top: 4px;
-  font-size: 12px;
+/* 帮助按钮定位容器（弹出气泡以此为锚点） */
+.ds-help-wrap {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+.ds-help-btn {
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--panel-bg);
   color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ds-help-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.ds-help-btn[aria-expanded='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+/* 连接模式说明气泡（绝对定位悬浮在按钮下方，不占布局空间） */
+.ds-help-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -40px;
+  z-index: 30;
+  width: 300px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  white-space: normal;
 }
 .ds-field-row {
   display: flex;

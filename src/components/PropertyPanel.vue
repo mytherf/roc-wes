@@ -4,7 +4,7 @@
      点击画布上的元素后，这里会展示它的全部可编辑属性：
        1. 画布属性：点击画布空白处 → 背景色 / 网格显隐 / 网格大小与类型
        2. 节点属性：选中节点 → 四个标签页——
-          - 基础：ID、名称、标签、图标（预设/上传/尺寸）、货架维度（排/列/层）、位置与尺寸
+          - 基础：ID、名称、类型、标签、图标（预设/上传/尺寸）、货架维度（排/列/层）、位置与尺寸
           - 绑定：把节点绑定到数据源点位，实现实时数据驱动
           - 路线：选择路线、设置速度、启动/停止路线运动
           - 事件：配置条件触发规则（如“温度超限变红”）
@@ -93,15 +93,20 @@
 
           <!-- ====== 基础属性 tab ====== -->
           <div v-show="activeTab === 'basic'">
-            <div class="field">
+            <div class="field field-compact">
               <label>ID</label>
               <span class="id-value" :title="element.data.id">{{ element.data.id }}</span>
             </div>
-            <div class="field">
-              <label>类型</label>
-              <span>节点</span>
+            <!-- 名称（所有节点常显；节点未预置 name 字段时输入即创建） -->
+            <div class="field field-compact">
+              <label>名称</label>
+              <input :value="element.data.name ?? ''" placeholder="未设置" @input="onNameInput" />
             </div>
-            <div class="field">
+            <div class="field field-compact">
+              <label>类型</label>
+              <span>{{ nodeTypeLabel }}</span>
+            </div>
+            <div class="field field-compact">
               <label>标签</label>
               <input v-model="element.data.label" @input="updateNodeLabel" />
             </div>
@@ -109,29 +114,45 @@
             <!-- ====== 节点图标（默认图标 / 预设 / 上传自定义 / 尺寸） ====== -->
             <template v-if="iconEditable">
               <div class="section-divider">图标</div>
-              <div class="icon-current">
-                <div class="icon-preview" aria-hidden="true">
-                  <NodeIcon :icon="currentIcon" :size="Math.min(iconSizeModel, 36)" />
-                </div>
-                <div class="icon-current-info">
-                  <span class="icon-current-label">
-                    {{ isCustomImage ? '自定义图片' : isDefaultIcon ? '默认图标' : '预设图标' }}
-                  </span>
+              <div class="icon-picker" ref="iconPickerRef">
+                <!-- 当前图标 + 点击展开预设选择面板 -->
+                <div class="icon-current">
+                  <button
+                    type="button"
+                    class="icon-picker-trigger"
+                    :aria-expanded="iconPickerOpen"
+                    aria-haspopup="true"
+                    title="点击选择预设图标"
+                    @click="toggleIconPicker"
+                  >
+                    <span class="icon-preview" aria-hidden="true">
+                      <NodeIcon :icon="currentIcon" :size="Math.min(iconSizeModel, 24)" />
+                    </span>
+                    <span class="icon-current-info">
+                      <span class="icon-current-label">
+                        {{ isCustomImage ? '自定义图片' : isDefaultIcon ? '默认图标' : '预设图标' }}
+                      </span>
+                    </span>
+                    <span class="icon-picker-caret" :class="{ open: iconPickerOpen }" aria-hidden="true">▾</span>
+                  </button>
                   <button v-if="!isDefaultIcon" class="icon-reset-btn" @click="resetIcon">恢复默认</button>
                 </div>
-              </div>
 
-              <div class="icon-grid" role="radiogroup" aria-label="选择预设图标">
-                <button
-                  v-for="ic in PRESET_ICONS"
-                  :key="ic"
-                  type="button"
-                  class="icon-grid-item"
-                  :class="{ active: element.data.icon === ic }"
-                  :title="'选择图标 ' + ic"
-                  :aria-pressed="element.data.icon === ic"
-                  @click="selectIcon(ic)"
-                >{{ ic }}</button>
+                <!-- 预设图标下拉面板（点击触发按钮展开，选中或点击外部关闭） -->
+                <div v-show="iconPickerOpen" class="icon-picker-panel">
+                  <div class="icon-grid" role="radiogroup" aria-label="选择预设图标">
+                    <button
+                      v-for="ic in PRESET_ICONS"
+                      :key="ic"
+                      type="button"
+                      class="icon-grid-item"
+                      :class="{ active: element.data.icon === ic }"
+                      :title="'选择图标 ' + ic"
+                      :aria-pressed="element.data.icon === ic"
+                      @click="selectIcon(ic)"
+                    >{{ ic }}</button>
+                  </div>
+                </div>
               </div>
 
               <input
@@ -146,8 +167,20 @@
                 <button class="icon-upload-btn" :disabled="iconUploading" @click="triggerIconUpload">
                   {{ iconUploading ? '处理中…' : '⬆ 上传图片' }}
                 </button>
+                <!-- 帮助按钮：点击弹出上传格式说明气泡，点击外部关闭 -->
+                <span class="icon-help-wrap" ref="iconHelpWrapRef">
+                  <button
+                    type="button"
+                    class="icon-help-btn"
+                    :aria-expanded="iconUploadHelpOpen"
+                    title="上传格式说明"
+                    @click="iconUploadHelpOpen = !iconUploadHelpOpen"
+                  >?</button>
+                  <div v-if="iconUploadHelpOpen" class="icon-help-pop" role="note">
+                    PNG / JPG / WebP / SVG，≤2MB，自动压缩至 128px 内
+                  </div>
+                </span>
               </div>
-              <div class="icon-upload-hint">PNG / JPG / WebP / SVG，≤2MB，自动压缩至 128px 内</div>
               <div v-if="iconError" class="icon-error" role="alert">{{ iconError }}</div>
 
               <div class="field">
@@ -162,12 +195,6 @@
                 />
               </div>
             </template>
-
-            <!-- 设备名称（货架、堆垛机等 WCS 设备节点） -->
-            <div v-if="element.data.name !== undefined" class="field">
-              <label>名称</label>
-              <input v-model="element.data.name" @input="updateNodeName" />
-            </div>
 
             <!-- 货架维度属性：排/列/层 -->
             <template v-if="element.data.rows !== undefined">
@@ -206,26 +233,30 @@
               </div>
             </template>
 
-            <!-- 位置 -->
+            <!-- 位置（X/Y 同行显示） -->
             <div class="section-divider">位置</div>
-            <div class="field">
-              <label>X</label>
-              <input type="number" v-model.number="posX" @input="onPositionInput" />
-            </div>
-            <div class="field">
-              <label>Y</label>
-              <input type="number" v-model.number="posY" @input="onPositionInput" />
+            <div class="field-row">
+              <div class="field field-compact">
+                <label>X</label>
+                <input type="number" v-model.number="posX" @input="onPositionInput" />
+              </div>
+              <div class="field field-compact">
+                <label>Y</label>
+                <input type="number" v-model.number="posY" @input="onPositionInput" />
+              </div>
             </div>
 
-            <!-- 尺寸 -->
-            <div class="section-divider">大小</div>
-            <div class="field">
-              <label>宽度</label>
-              <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
-            </div>
-            <div class="field">
-              <label>高度</label>
-              <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
+            <!-- 尺寸（宽度/高度同行显示） -->
+            <div class="section-divider">尺寸</div>
+            <div class="field-row">
+              <div class="field field-compact">
+                <label>宽度</label>
+                <input type="number" min="40" v-model.number="nodeWidth" @input="onSizeInput" />
+              </div>
+              <div class="field field-compact">
+                <label>高度</label>
+                <input type="number" min="40" v-model.number="nodeHeight" @input="onSizeInput" />
+              </div>
             </div>
 
           </div>
@@ -237,6 +268,13 @@
                 <input type="checkbox" v-model="routeEnabled" @change="onRouteEnabledChange" />
                 <span>启用路线运动</span>
               </label>
+              <!-- 帮助按钮：路线运动使用说明气泡 -->
+              <span class="field-help-wrap">
+                <button type="button" class="field-help-btn" :aria-expanded="fieldHelpOpen === 'route'" title="路线运动说明" @click="toggleFieldHelp('route')">?</button>
+                <div v-if="fieldHelpOpen === 'route'" class="field-help-pop" role="note">
+                  勾选「启用路线运动」后可为节点绑定路线并控制运动。
+                </div>
+              </span>
             </div>
 
             <template v-if="routeEnabled">
@@ -259,18 +297,22 @@
                 </button>
               </div>
             </template>
-
-            <div v-else class="route-disabled-hint">
-              勾选「启用路线运动」后可为节点绑定路线并控制运动。
-            </div>
           </div>
 
           <!-- ====== 数据绑定 tab ====== -->
           <div v-show="activeTab === 'binding'">
             <div class="field">
-              <label>数据源 <span class="hint">（不选则使用模拟数据）</span></label>
+              <label>数据源
+                <!-- 帮助按钮：数据源选择说明气泡（跟在标签文字后，内含跳转入口） -->
+                <span class="field-help-wrap">
+                  <button type="button" class="field-help-btn" :aria-expanded="fieldHelpOpen === 'source'" title="数据源说明" @click="toggleFieldHelp('source')">?</button>
+                  <div v-if="fieldHelpOpen === 'source'" class="field-help-pop" role="note">
+                    必须选择「数据源管理」中已创建的数据源。<button type="button" class="no-source-btn" @click="gotoDataSourceManager">前往数据源管理</button>
+                  </div>
+                </span>
+              </label>
               <select v-model="bindingSourceId" @change="updateBinding">
-                <option value="">模拟数据</option>
+                <option value="">未选择数据源</option>
                 <option
                   v-for="ds in dataSourceStore.dataSources"
                   :key="ds.id"
@@ -283,7 +325,15 @@
               <div v-if="selectedDataSource.description" class="source-desc">{{ selectedDataSource.description }}</div>
             </div>
             <div class="field">
-              <label>点ID <span class="hint">（填写即启用数据绑定）</span></label>
+              <label>点ID
+                <!-- 帮助按钮：点ID 说明气泡（跟在标签文字后） -->
+                <span class="field-help-wrap">
+                  <button type="button" class="field-help-btn" :aria-expanded="fieldHelpOpen === 'point'" title="点ID 说明" @click="toggleFieldHelp('point')">?</button>
+                  <div v-if="fieldHelpOpen === 'point'" class="field-help-pop" role="note">
+                    填写即启用数据绑定。
+                  </div>
+                </span>
+              </label>
               <input v-model="bindingPointId" @input="updateBinding" placeholder="例如: sensor.temp.001" />
             </div>
             <div class="field">
@@ -291,7 +341,8 @@
               <input v-model="bindingTransform" @input="updateBinding" placeholder="(raw) => Math.round(raw)" />
             </div>
             <div class="binding-status">
-              <span v-if="bindingPointId.trim()" class="status-active">✅ 已启用数据绑定</span>
+              <span v-if="bindingPointId.trim() && !bindingSourceId" class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
+              <span v-else-if="bindingPointId.trim()" class="status-active">✅ 已启用数据绑定</span>
               <span v-else class="status-inactive">⏸ 未启用（请填写点ID）</span>
             </div>
           </div>
@@ -313,7 +364,15 @@
                 <input v-model="rule.name" placeholder="例如：温度越限告警" />
               </div>
               <div class="field">
-                <label>监听字段 <span class="hint">（留空监听 value）</span></label>
+                <label>监听字段
+                  <!-- 帮助按钮：监听字段说明气泡（跟在标签文字后） -->
+                  <span class="field-help-wrap">
+                    <button type="button" class="field-help-btn" :aria-expanded="fieldHelpOpen === 'watch'" title="监听字段说明" @click="toggleFieldHelp('watch')">?</button>
+                    <div v-if="fieldHelpOpen === 'watch'" class="field-help-pop" role="note">
+                      留空监听 value。
+                    </div>
+                  </span>
+                </label>
                 <input v-model="rule.field" placeholder="value" />
               </div>
               <div class="field">
@@ -385,10 +444,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { useNodeEvents } from '@/composables/useNodeEvents'
 import NodeIcon from './nodes/NodeIcon.vue'
+import { nodeTemplates } from './nodes/nodeTemplates'
 import {
   PRESET_ICONS,
   ICON_SIZE_MIN,
@@ -484,10 +544,16 @@ type PanelTab = 'basic' | 'binding' | 'route' | 'events'
 const activeTab = ref<PanelTab>('basic')
 
 // ===================== 数据绑定配置的本地状态 =====================
-// 数据源实例 ID（空字符串 = 使用模拟数据）
+// 数据源实例 ID（空字符串 = 未选择；必须选择数据源管理中维护的实例）
 const bindingSourceId = ref('')
 const bindingPointId = ref('')
 const bindingTransform = ref('')
+
+/** 跳转到数据源管理对话框（帮助气泡内的引导入口，跳转同时关闭气泡） */
+function gotoDataSourceManager() {
+  fieldHelpOpen.value = null
+  editorStore.setDataSourceDialogOpen(true)
+}
 
 /** 数据源类型显示名 */
 function typeLabel(type: DataSourceType): string {
@@ -578,12 +644,9 @@ function updateBinding() {
 
   let binding: any = null
 
-  if (pointId) {
-    binding = { pointId }
-    // 引用数据源实例（未选择则使用模拟数据，不写入 sourceId）
-    if (bindingSourceId.value) {
-      binding.sourceId = bindingSourceId.value
-    }
+  // 必须同时具备点ID与数据源实例才启用绑定（数据源必须来自数据源管理）
+  if (pointId && bindingSourceId.value) {
+    binding = { pointId, sourceId: bindingSourceId.value }
     const transformSrc = bindingTransform.value.trim()
     if (transformSrc) {
       // transformSource：可持久化源码（保存工程不丢失）；transform：运行期编译缓存
@@ -624,8 +687,8 @@ function updateBinding() {
       props.canvasRef.unbindNodeData(nodeId)
     }
 
-    // 如果有点ID，则绑定新订阅
-    if (pointId && props.canvasRef.bindNodeData) {
+    // 仅当绑定有效（点ID + 数据源实例均具备）时才建立新订阅
+    if (binding && props.canvasRef.bindNodeData) {
       props.canvasRef.bindNodeData(node)
     }
   } catch (error) {
@@ -641,6 +704,12 @@ function updateBinding() {
 }
 
 // ===================== 其他属性更新方法 =====================
+/** 当前选中元素的类型显示名（与节点详情对话框一致：取 nodeTemplates 模板 label，兜底形状名） */
+const nodeTypeLabel = computed(() => {
+  const shape = element.value?.type === 'node' ? (element.value.data.shape || '') : ''
+  return nodeTemplates.find((t) => t.type === shape)?.label || shape || '未知'
+})
+
 function updateNodeLabel() {
   if (!element.value || element.value.type !== 'node') return
   editorStore.updateNode(element.value.data.id, { label: element.value.data.label })
@@ -664,6 +733,13 @@ function updateNodeName() {
       node.setData({ ...currentData, name: newName })
     }
   }
+}
+
+/** 名称输入（所有节点可用；节点 data 未预置 name 时先写入再同步，避免 v-model 对 undefined 字段失效） */
+function onNameInput(e: Event) {
+  if (!element.value || element.value.type !== 'node') return
+  element.value.data.name = (e.target as HTMLInputElement).value
+  updateNodeName()
 }
 
 function updateNodeData() {
@@ -733,6 +809,55 @@ const iconSizeModel = ref(ICON_SIZE_DEFAULT)
 const iconFileInput = ref<HTMLInputElement | null>(null)
 const iconUploading = ref(false)
 const iconError = ref('')
+// 上传帮助说明弹出状态（点击上传按钮旁的 ? 按钮切换，点击外部关闭）
+const iconUploadHelpOpen = ref(false)
+const iconHelpWrapRef = ref<HTMLElement | null>(null)
+
+// 预设图标下拉面板状态（点击触发按钮展开，选中图标或点击面板外部关闭）
+const iconPickerOpen = ref(false)
+const iconPickerRef = ref<HTMLElement | null>(null)
+
+// 字段说明帮助气泡（单开模式：key 标识当前打开的气泡，点击 ? 切换，点击外部关闭）
+const fieldHelpOpen = ref<string | null>(null)
+/** 切换字段帮助气泡（再点同一个 ? 则收起） */
+function toggleFieldHelp(key: string) {
+  fieldHelpOpen.value = fieldHelpOpen.value === key ? null : key
+}
+
+/** 切换预设图标下拉面板展开/收起 */
+function toggleIconPicker() {
+  iconPickerOpen.value = !iconPickerOpen.value
+}
+
+/** 点击面板外部时关闭下拉面板 */
+function onDocumentClickForIconPicker(e: MouseEvent) {
+  if (iconPickerOpen.value) {
+    const root = iconPickerRef.value
+    if (root && e.target instanceof Node && !root.contains(e.target)) {
+      iconPickerOpen.value = false
+    }
+  }
+  if (iconUploadHelpOpen.value) {
+    const wrap = iconHelpWrapRef.value
+    if (wrap && e.target instanceof Node && !wrap.contains(e.target)) {
+      iconUploadHelpOpen.value = false
+    }
+  }
+  if (fieldHelpOpen.value) {
+    const t = e.target
+    if (!(t instanceof Element && t.closest('.field-help-wrap'))) {
+      fieldHelpOpen.value = null
+    }
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', onDocumentClickForIconPicker)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocumentClickForIconPicker)
+})
 
 /** 双写图标字段到 store 与 X6 节点 data（沿用面板既有同步模式） */
 function applyNodeIconData(patch: Record<string, any>) {
@@ -753,10 +878,11 @@ function applyNodeIconData(patch: Record<string, any>) {
   }
 }
 
-/** 选择预设图标 */
+/** 选择预设图标（选中后自动收起下拉面板） */
 function selectIcon(ic: string) {
   iconError.value = ''
   applyNodeIconData({ icon: ic })
+  iconPickerOpen.value = false
 }
 
 /** 恢复默认图标（清除 icon/iconSize，回退到形状默认图标与默认尺寸） */
@@ -793,6 +919,9 @@ watch(
   () => element.value?.data?.id,
   () => {
     iconError.value = ''
+    iconPickerOpen.value = false // 切换选中节点时收起下拉面板
+    iconUploadHelpOpen.value = false // 切换选中节点时关闭帮助气泡
+    fieldHelpOpen.value = null // 切换选中节点时关闭字段帮助气泡
     const graph = getGraph()
     if (!graph || !element.value || element.value.type !== 'node') {
       iconSizeModel.value = ICON_SIZE_DEFAULT
@@ -1100,7 +1229,7 @@ function toggleRouteMove() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .panel-header h3 {
@@ -1157,7 +1286,7 @@ function toggleRouteMove() {
 }
 
 .property-panel h3 {
-  margin: 0 0 12px 0;
+  margin: 0 0 8px 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
@@ -1171,11 +1300,11 @@ function toggleRouteMove() {
 
 /* ===================== 字段样式 ===================== */
 .field {
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 28px;
+  min-height: 26px;
 }
 .field-row {
   display: flex;
@@ -1184,6 +1313,13 @@ function toggleRouteMove() {
 .field-row .field {
   flex: 1;
   min-width: 0;
+}
+/* 紧凑字段（ID/名称/类型/标签/X/Y/宽度/高度）：缩短标签列宽与间距 */
+.field.field-compact {
+  gap: 4px;
+}
+.field.field-compact label {
+  width: 30px;
 }
 .field label {
   flex-shrink: 0;
@@ -1224,18 +1360,24 @@ function toggleRouteMove() {
   flex: 1;
   min-width: 0;
   padding: 4px 8px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--input-border, var(--border-color));
   border-radius: var(--radius-md);
   font-size: 12px;
   box-sizing: border-box;
-  background: var(--panel-bg);
+  background: var(--input-bg, var(--panel-bg));
   color: var(--text-primary);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: var(--shadow-sm, none);
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+.field input:hover:not(:focus):not(:disabled),
+.field select:hover:not(:focus):not(:disabled) {
+  border-color: var(--input-border-hover, var(--color-primary));
 }
 .field input:focus,
 .field select:focus {
   border-color: var(--color-primary);
   outline: none;
+  background: var(--panel-bg);
   box-shadow: 0 0 0 3px var(--color-primary-ring);
 }
 .field input:disabled,
@@ -1244,15 +1386,39 @@ function toggleRouteMove() {
   color: var(--text-muted);
   cursor: not-allowed;
 }
+/* select 下拉选项背景跟随面板（部分浏览器 option 继承 body 色，深色主题下防白底黑字刺眼） */
+.field select option {
+  background: var(--panel-bg);
+  color: var(--text-primary);
+}
 
 /* ===================== 画布属性区块样式 ===================== */
+/* 分节标题：左侧主题色短条 + 文字 + 右侧渐变分割线，三套主题下均有清晰层次 */
 .section-divider {
-  margin: 18px 0 10px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-light);
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--divider-color, var(--border-light));
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+.section-divider::before {
+  content: '';
+  width: 3px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--color-primary);
+  flex-shrink: 0;
+}
+.section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--divider-color, var(--border-light)), transparent);
 }
 .field .color-input {
   padding: 2px;
@@ -1282,13 +1448,13 @@ function toggleRouteMove() {
 .panel-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-color);
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   gap: 2px;
 }
 .panel-tab {
   flex: 1;
   text-align: center;
-  padding: 8px 4px;
+  padding: 6px 4px;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
@@ -1385,6 +1551,25 @@ function toggleRouteMove() {
 .status-inactive {
   color: var(--text-muted);
 }
+.status-warning {
+  color: var(--color-warning);
+}
+/* 帮助气泡内嵌的跳转链接（文字链样式，前往数据源管理） */
+.no-source-btn {
+  padding: 0 2px;
+  font-size: inherit;
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity 0.15s;
+}
+.no-source-btn:hover {
+  opacity: 0.75;
+}
 /* 数据源信息展示 */
 .source-info {
   margin: -4px 0 12px;
@@ -1406,19 +1591,45 @@ function toggleRouteMove() {
 }
 
 /* ===================== 节点图标选择区 ===================== */
+.icon-picker {
+  position: relative;
+  margin-bottom: 10px;
+}
 .icon-current {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px;
-  margin-bottom: 10px;
+}
+/* 当前图标触发按钮（点击展开/收起预设图标面板） */
+.icon-picker-trigger {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
   background: var(--statusbar-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.icon-picker-trigger:hover {
+  border-color: var(--color-primary);
+}
+.icon-picker-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
+}
+.icon-picker-trigger[aria-expanded='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 .icon-preview {
-  width: 48px;
-  height: 48px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1432,12 +1643,32 @@ function toggleRouteMove() {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   align-items: flex-start;
 }
 .icon-current-label {
   font-size: 11px;
   color: var(--text-secondary);
+}
+.icon-picker-caret {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+.icon-picker-caret.open {
+  transform: rotate(180deg);
+}
+/* 预设图标下拉面板（紧凑布局：多列小图标 + 限高滚动） */
+.icon-picker-panel {
+  margin-top: 6px;
+  padding: 6px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-height: 150px;
+  overflow-y: auto;
 }
 .icon-reset-btn {
   border: none;
@@ -1454,9 +1685,8 @@ function toggleRouteMove() {
 }
 .icon-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  margin-bottom: 10px;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 3px;
 }
 .icon-grid-item {
   width: 100%;
@@ -1464,7 +1694,7 @@ function toggleRouteMove() {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
@@ -1513,11 +1743,102 @@ function toggleRouteMove() {
   opacity: 0.5;
   cursor: wait;
 }
-.icon-upload-hint {
-  margin: 4px 0 8px;
-  font-size: 10px;
+/* 上传帮助按钮（? 圆形小按钮，点击展开格式说明） */
+.icon-help-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--panel-bg);
   color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.icon-help-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.icon-help-btn[aria-expanded='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+/* 帮助按钮定位容器（弹出气泡以此为锚点） */
+.icon-help-wrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+}
+/* 字段说明帮助按钮（? 圆形小按钮，跟在字段标签文字后面） */
+.field-help-wrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+.field-help-btn {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--panel-bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.field-help-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.field-help-btn[aria-expanded='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+/* 字段帮助气泡（绝对定位悬浮在按钮下方，不占布局空间） */
+/* 按钮位于标签左侧，气泡左对齐并向右展开，避免溢出面板左边缘 */
+.field-help-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: 172px;
+  padding: 8px 10px;
+  font-size: 10px;
   line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+/* 上传帮助气泡（绝对定位悬浮在按钮下方，不占布局空间） */
+.icon-help-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: 172px;
+  padding: 8px 10px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
 }
 .icon-error {
   margin: -2px 0 8px;
@@ -1593,13 +1914,6 @@ function toggleRouteMove() {
 .route-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-.route-disabled-hint {
-  font-size: 12px;
-  color: var(--text-muted);
-  padding: 16px 0;
-  text-align: center;
-  line-height: 1.6;
 }
 input[type='range'] {
   width: 100%;

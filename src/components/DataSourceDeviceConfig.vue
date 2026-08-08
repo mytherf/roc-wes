@@ -76,7 +76,7 @@ const isOpc = computed(() => props.form.type === 'opc')
   gap: 12px;
   padding: 12px;
   background: var(--statusbar-bg);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--divider-color, var(--border-light));
   border-radius: var(--radius-md);
 }
 .ds-field {
@@ -96,16 +96,21 @@ const isOpc = computed(() => props.form.type === 'opc')
 }
 .ds-input {
   padding: 6px 10px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--input-border, var(--border-color));
   border-radius: var(--radius-sm);
   font-size: 13px;
   outline: none;
-  background: var(--panel-bg);
+  background: var(--input-bg, var(--panel-bg));
   color: var(--text-primary);
-  transition: border-color 0.2s;
+  box-shadow: var(--shadow-sm, none);
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+.ds-input:hover:not(:focus) {
+  border-color: var(--input-border-hover, var(--color-primary));
 }
 .ds-input:focus {
   border-color: var(--color-primary);
+  background: var(--panel-bg);
   box-shadow: 0 0 0 2px var(--color-primary-ring);
 }
 .ds-input.num {

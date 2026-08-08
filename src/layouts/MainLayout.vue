@@ -160,6 +160,12 @@ const onNodeDblClick = (payload: { nodeId: string; shape: string }) => {
 
   --border-color: #e2e8f0;
   --border-light: #f1f5f9;
+  /* 输入框专用：微灰凹陷背景 + 更清晰的边框，悬停/聚焦态逐级增强 */
+  --input-bg: #f8fafc;
+  --input-border: #cbd5e1;
+  --input-border-hover: #94a3b8;
+  /* 分割线专用：比 border-light 更强的对比度 */
+  --divider-color: #dbe3ee;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
@@ -208,6 +214,12 @@ const onNodeDblClick = (payload: { nodeId: string; shape: string }) => {
 
   --border-color: #e2e8f0;
   --border-light: #f1f5f9;
+  /* 输入框专用：亮色主题下用浅灰底 + 清晰边框区分控件 */
+  --input-bg: #f8fafc;
+  --input-border: #cbd5e1;
+  --input-border-hover: #7dd3fc;
+  /* 分割线专用 */
+  --divider-color: #dbe3ee;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 12px 20px -4px rgba(0, 0, 0, 0.08);
@@ -253,6 +265,12 @@ const onNodeDblClick = (payload: { nodeId: string; shape: string }) => {
 
   --border-color: #1e3a5f;
   --border-light: #162a42;
+  /* 输入框专用：比面板更深的凹陷背景 + 明显的蓝边框，暗色下层次清晰 */
+  --input-bg: #0e2135;
+  --input-border: #2d5a8a;
+  --input-border-hover: #3f7cb8;
+  /* 分割线专用：深蓝主题下 border-light 过暗，适当提亮 */
+  --divider-color: #24466b;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.4);

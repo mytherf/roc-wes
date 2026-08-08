@@ -73,7 +73,17 @@
             </div>
 
             <!-- 航点编辑 -->
-            <div class="edit-section-title">航点 ({{ selectedRoute.points.length }})</div>
+            <div class="edit-section-title">
+              航点 ({{ selectedRoute.points.length }})
+              <!-- 帮助按钮：点击弹出航点操作说明气泡，点击外部关闭 -->
+              <span class="wp-help-wrap">
+                <button type="button" class="wp-help-btn" :aria-expanded="wpHelpOpen" title="航点操作说明" @click="wpHelpOpen = !wpHelpOpen">?</button>
+                <div v-if="wpHelpOpen" class="wp-help-pop" role="note">
+                  <template v-if="hasCanvas">点击「添加航点」后在画布上依次点击设置路径。右键航点可删除/插入/设为站点，右键线段可插入中间点。</template>
+                  <template v-else>独立窗口内没有画布：请在主窗口画布上添加/拖拽航点，或在坐标输入框中直接编辑，改动会实时同步。</template>
+                </div>
+              </span>
+            </div>
             <div class="edit-actions">
               <button
                 class="btn-edit"
@@ -110,10 +120,6 @@
                 <span v-if="wp.type === 'station'" class="wp-station-tag">{{ wp.stationName || '站点' }}</span>
                 <button class="wp-remove" @click="removePoint(idx)">×</button>
               </div>
-            </div>
-            <div v-else class="wp-hint">
-              <template v-if="hasCanvas">点击「添加航点」后在画布上依次点击设置路径。<br/>右键航点可删除/插入/设为站点，右键线段可插入中间点。</template>
-              <template v-else>独立窗口内没有画布：请在主窗口画布上添加/拖拽航点，<br/>或在下方坐标输入框中直接编辑，改动会实时同步。</template>
             </div>
 
             <!-- 分段配置 -->
@@ -219,6 +225,16 @@ const drawing = ref(false)
 const gridSnap = ref(true)
 const showCoordLabels = ref(false)
 const previewing = ref(false)
+
+// 航点操作说明气泡开关（点击 ? 切换，点击外部关闭）
+const wpHelpOpen = ref(false)
+function onDocPointerDownForWpHelp(e: Event) {
+  if (!wpHelpOpen.value) return
+  const t = e.target
+  if (!(t instanceof Element && t.closest('.wp-help-wrap'))) wpHelpOpen.value = false
+}
+onMounted(() => document.addEventListener('pointerdown', onDocPointerDownForWpHelp))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointerDownForWpHelp))
 
 // 分段显示（确保长度匹配）
 const displaySegments = computed<RouteSegment[]>(() => {
@@ -1139,12 +1155,24 @@ onBeforeUnmount(() => {
 .edit-field input:not([type]) {
   width: 100%;
   padding: 6px 10px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--input-border, var(--border-color));
   border-radius: 6px;
-  background: var(--statusbar-bg);
+  background: var(--input-bg, var(--statusbar-bg));
   color: var(--text-primary);
   font-size: 13px;
   box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+.edit-field input[type='text']:hover:not(:focus),
+.edit-field input:not([type]):hover:not(:focus) {
+  border-color: var(--input-border-hover, var(--color-primary));
+}
+.edit-field input[type='text']:focus,
+.edit-field input:not([type]):focus {
+  border-color: var(--color-primary);
+  outline: none;
+  background: var(--panel-bg);
+  box-shadow: 0 0 0 2px var(--color-primary-ring);
 }
 .edit-field input[type='range'] {
   width: 100%;
@@ -1174,7 +1202,7 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
   margin: 16px 0 8px;
   padding-top: 12px;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid var(--divider-color, var(--border-light));
 }
 .edit-actions {
   display: flex;
@@ -1286,11 +1314,54 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 .wp-remove:hover { color: #ff4d4f; }
-.wp-hint {
-  font-size: 12px;
+/* 航点帮助按钮定位容器（弹出气泡以此为锚点） */
+.wp-help-wrap {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.wp-help-btn {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: transparent;
   color: var(--text-muted);
-  padding: 12px 0;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.wp-help-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.wp-help-btn[aria-expanded='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+/* 航点操作说明气泡（绝对定位悬浮在按钮下方，不占布局空间） */
+.wp-help-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: 260px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.6;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  white-space: normal;
 }
 
 /* 分段配置 */
