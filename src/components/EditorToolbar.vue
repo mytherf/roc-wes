@@ -3,7 +3,7 @@
 
      按功能分组：
        1. 文件操作：保存（Ctrl+S，落盘 editor.json）/ 导出 JSON / 导入 JSON / 清空画布
-       2. 数据：数据源管理对话框 / 路线面板
+       2. 数据：数据源管理对话框
        3. 视图：节点显示模式切换（极简 / 图标）
        4. 运行：▶ 预览（序列化画布写入 run-preview.json 文件，新窗口打开运行态）
        5. 右侧：主题切换（暗色工业 / 亮色现代 / 深蓝科技）
@@ -35,9 +35,6 @@
     <div class="toolbar-group">
       <button class="toolbar-btn" @click="showDataSourceDialog = true" title="管理数据源实例">
         🔌 数据源
-      </button>
-      <button class="toolbar-btn" @click="openRoutePanel" title="管理路线">
-        🛤️ 路线
       </button>
     </div>
 
@@ -134,11 +131,6 @@ async function handleSave() {
 
 // 节点显示模式（图标模式 ↔ 极简模式）
 const displayMode = computed(() => editorStore.displayMode)
-
-// 展开底部路线面板
-function openRoutePanel() {
-  editorStore.setBottomCollapsed(false)
-}
 
 /**
  * 运行模式：序列化画布写入 run-preview.json 文件，在新窗口打开运行态页面
