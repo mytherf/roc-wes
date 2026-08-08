@@ -34,9 +34,16 @@ export function isDemoSource(sourceType: string, sourceUrl?: string, sourceConfi
     return false
 }
 
+/** 支持波形档位的四种 Web 协议（演示模式下 Rust 按其生成特征波形） */
+type WebDemoProfile = 'websocket' | 'http' | 'sse' | 'mqtt'
+const WEB_DEMO_PROFILES = new Set<string>(['websocket', 'http', 'sse', 'mqtt'])
+
 /**
  * 依据数据源类型与配置构建 Rust DeviceConfig。
- * 演示模式统一映射为 `{ kind:'demo' }`（由 Rust DemoAdapter 生成模拟数据）。
+ * 演示模式统一映射为 `{ kind:'demo', profile?, pollIntervalMs }`：
+ * Rust DemoAdapter 按 profile 生成对应协议的特征波形
+ *（websocket=正弦 / http=随机游走 / sse=锯齿 / mqtt=档位）；
+ * 工业协议演示省略 profile，由 Rust 侧默认波形兜底。
  * @param sourceType 数据源类型（modbus/s7/opc/...）
  * @param sourceUrl 数据源地址（用于演示模式判断）
  * @param sourceConfig 数据源管理里保存的设备参数
@@ -52,6 +59,10 @@ export function buildDeviceConfig(
 
     // 演示模式：不连接任何真实设备，由 Rust 的 DemoAdapter 定时生成模拟数据
     if (isDemoSource(sourceType, sourceUrl, cfg)) {
+        // 四种 Web 协议传递波形档位；工业协议演示省略（Rust 默认波形）
+        if (WEB_DEMO_PROFILES.has(sourceType)) {
+            return { kind: 'demo', profile: sourceType as WebDemoProfile, pollIntervalMs }
+        }
         return { kind: 'demo', pollIntervalMs }
     }
 

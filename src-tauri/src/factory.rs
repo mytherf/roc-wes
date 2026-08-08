@@ -10,7 +10,7 @@ pub fn create_adapter(config: DeviceConfig) -> Result<(Box<dyn DeviceAdapter>, u
     let poll_interval_ms = config.poll_interval_ms();
     let adapter: Box<dyn DeviceAdapter> = match config {
         DeviceConfig::Modbus(cfg) => Box::new(gateway_modbus::ModbusAdapter::new(cfg)),
-        DeviceConfig::Demo(_) => Box::new(gateway_demo::DemoAdapter::new()),
+        DeviceConfig::Demo(cfg) => Box::new(gateway_demo::DemoAdapter::new(cfg.profile)),
         DeviceConfig::S7(_) => {
             return Err(GatewayError::Unsupported(
                 "S7 适配器待 spike（snap7 绑定 / 自研 S7comm），见 docs/tauri-迁移方案.md".into(),

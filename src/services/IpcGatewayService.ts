@@ -28,7 +28,7 @@ export type DeviceConfig =
     | { kind: 'modbus'; host: string; port: number; unitId: number; pollIntervalMs: number } // Modbus TCP 参数
     | { kind: 's7'; host: string; port: number; rack: number; slot: number; pollIntervalMs: number } // 西门子 S7 参数
     | { kind: 'opc'; endpoint: string; pollIntervalMs: number } // OPC UA 端点
-    | { kind: 'demo'; pollIntervalMs: number } // 演示模式（不连真实设备）
+    | { kind: 'demo'; pollIntervalMs: number; profile?: 'websocket' | 'http' | 'sse' | 'mqtt' } // 演示模式（不连真实设备，profile 决定波形特征）
 
 /** gateway://status 事件载荷：设备连接状态变化 */
 interface StatusPayload {

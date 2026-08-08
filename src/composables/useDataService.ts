@@ -18,7 +18,7 @@ import { OpcService } from '@/services/OpcService'
 import { ModbusService } from '@/services/ModbusService'
 import { IpcGatewayService } from '@/services/IpcGatewayService'
 import { isTauri } from '@/platform/isTauri'
-import { buildDeviceConfig } from '@/platform/deviceConfig'
+import { buildDeviceConfig, isDemoSource } from '@/platform/deviceConfig'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { evaluateNodeEvents } from '@/services/NodeEventService'
 
@@ -73,9 +73,11 @@ export function useDataService() {
     }
     const key = serviceKey(sourceType, sourceUrl, sourceConfig)
     if (!dataServiceMap.has(key)) {
-      // Tauri 桌面运行时：工业协议（S7 / OPC UA / Modbus，含其演示模式）
-      // 浏览器无法直连原生 TCP，统一经 Rust 原生网关（invoke + event IPC），不再经过本地 WS
-      if (isTauri() && INDUSTRIAL_TYPES.has(sourceType)) {
+      // Tauri 桌面运行时：工业协议（S7 / OPC UA / Modbus）与所有演示模式数据源
+      //（含 WebSocket / HTTP / SSE / MQTT）统一由 Rust 原生网关接管——
+      // 演示数据由桌面端内置 DemoAdapter 生成（不再依赖 Node mock 服务与本地端口），
+      // 工业设备由 Rust 原生 TCP 直连，前端经 invoke + event IPC 通信
+      if (isTauri() && (isDemoSource(sourceType, sourceUrl, sourceConfig) || INDUSTRIAL_TYPES.has(sourceType))) {
         const service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), sourceType.toUpperCase())
         dataServiceMap.set(key, service)
         return service

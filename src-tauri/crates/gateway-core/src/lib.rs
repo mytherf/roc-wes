@@ -9,6 +9,6 @@ pub mod error;
 pub mod telemetry;
 
 pub use adapter::DeviceAdapter;
-pub use config::{DemoConfig, DeviceConfig, ModbusConfig, OpcConfig, S7Config};
+pub use config::{DemoConfig, DemoProfile, DeviceConfig, ModbusConfig, OpcConfig, S7Config};
 pub use error::GatewayError;
 pub use telemetry::{Quality, StatusEvent, Telemetry, TelemetryBatch};

@@ -8,7 +8,7 @@
           编辑、删除；可一键“监控全部”
        2. 新增/编辑表单：
           - 7 种类型：WebSocket / MQTT / HTTP / SSE / S7 / OPC UA / Modbus
-          - 两种连接模式：演示模式（内置模拟服务，免配置）/ 真实设备（需填参数）
+          - 两种连接模式：演示模式（桌面端内置模拟引擎，免配置）/ 真实设备（需填参数）
           - 工业协议（S7/OPC/Modbus）真实设备模式：填写主机/端口/机架/槽号等
             （表单由 DataSourceDeviceConfig 子组件提供）
        3. 监控详情：展开后显示连接状态、建连耗时、设备状态、
@@ -100,7 +100,7 @@
                   {{ monitor.getState(ds.id).deviceMessage }}
                 </div>
                 <div v-if="ds.url === BUILTIN_MOCK_URLS[ds.type]" class="ds-mon-demo-note">
-                  演示模式：下列为内置模拟服务推送的样例点位与实时模拟数据
+                  演示模式：下列为桌面端内置模拟引擎生成的样例点位与实时模拟数据
                 </div>
 
                 <!-- 数据点实时值 -->
@@ -169,7 +169,7 @@
               </label>
               <div class="ds-radio-row">
                 <label class="ds-radio">
-                  <input type="radio" v-model="form.demo" :value="true" /> 演示模式（内置模拟服务）
+                  <input type="radio" v-model="form.demo" :value="true" /> 演示模式（桌面端内置模拟引擎）
                 </label>
                 <label class="ds-radio">
                   <input type="radio" v-model="form.demo" :value="false" /> 真实设备
@@ -347,7 +347,7 @@ function defaultPortFor(t: DataSourceType): number {
 /** 连接模式提示文案（随类型与模式变化） */
 const modeHint = computed(() => {
   if (form.demo) {
-    return `演示模式：使用内置模拟服务（开发环境自动启动），地址自动填充为 ${BUILTIN_MOCK_URLS[form.type]}，无需真实设备`
+    return `演示模式：由桌面端内置模拟引擎生成数据（无需真实设备），地址自动填充为 ${BUILTIN_MOCK_URLS[form.type]}`
   }
   switch (form.type) {
     case 'modbus':
@@ -392,7 +392,7 @@ const urlPlaceholder = computed(() => {
 
 /**
  * 按「连接模式 + 类型」推导地址：
- * - 演示模式：内置模拟服务地址；
+ * - 演示模式：内置模拟地址（仅作演示标识，数据由 Rust DemoAdapter 生成）；
  * - 工业协议真实设备：固定独立网关地址（设备地址在下方设备参数中配置）；
  * - 非工业协议真实设备：由用户手动填写（若当前仍是内置地址则清空待填）。
  */

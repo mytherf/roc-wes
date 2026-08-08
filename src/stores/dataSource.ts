@@ -45,13 +45,14 @@ export const DATA_SOURCE_TYPE_LABELS: Record<DataSourceType, string> = {
 }
 
 /**
- * 内置模拟服务地址（开发环境随系统自动启动，见 mock/server.ts）
- * websocket / http / sse / mqtt 四项端口需与 mock/server.ts 中的 MOCK_PORTS 保持一致。
+ * 内置模拟地址（仅作演示模式标识，桌面端无对应本地端口）。
  *
- * 注意：s7 / opc / modbus 三项已无对应本地服务——工业协议的演示与真实接入
- * 均已迁移至 Tauri 桌面端 Rust 原生网关（演示模式由 DemoAdapter 生成）。
- * 此处保留这些地址仅用于识别历史数据源的演示模式
- * （地址等于内置模拟地址即视为演示，见 platform/deviceConfig.ts）。
+ * Node 版内置模拟服务器（原 mock/server.ts）已随 Tauri 迁移移除：
+ * 所有协议的演示模式数据均由桌面端 Rust 原生网关内置 DemoAdapter 生成
+ *（经 IPC 推送，不占用任何端口）。此处保留这些地址仅用于：
+ * 1. 演示模式下表单预填；
+ * 2. 识别历史数据源的演示模式（地址等于内置模拟地址即视为演示，
+ *    见 platform/deviceConfig.ts 的 isDemoSource）。
  */
 export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
     websocket: 'ws://localhost:8080/ws',
