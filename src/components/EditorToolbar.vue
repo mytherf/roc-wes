@@ -134,7 +134,7 @@ const displayMode = computed(() => editorStore.displayMode)
 
 /**
  * 运行模式：序列化画布写入 run-preview.json 文件，在新窗口打开运行态页面
- * （文件落盘替代 sessionStorage：文件容量不受限，且新窗口可可靠读取）
+ * （文件交接容量不受限，且新窗口可可靠读取）
  */
 async function handleRun() {
   if (!props.graph) {

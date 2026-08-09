@@ -56,7 +56,7 @@ export interface DataBindingConfig {
      * - 多语句：    "(raw) => { const v = Number(raw); return { status: v > 80 ? 'error' : 'idle' } }"
      * 序列化保存工程时保留此字符串；加载后由 useDataService 在订阅时编译为 transform。
      * 为什么用字符串？因为函数（Function）无法被 JSON 序列化，
-     * 而工程文件（画布 JSON）需要存到 localStorage/导出，所以存源码字符串。
+     * 而工程文件（画布 JSON）需要落盘保存/导出，所以存源码字符串。
      */
     transformSource?: string
     /**

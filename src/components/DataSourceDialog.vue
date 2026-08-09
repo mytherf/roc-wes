@@ -15,7 +15,7 @@
           点位实时值表格（点位 ID / 值 / 质量码 / 时间）、错误告警列表
 
      监控能力由 useGatewayMonitor 提供（探针向数据源发起真实请求测量连通性）。
-     数据持久化到 dataSourceStore（localStorage）。
+     数据持久化到 dataSourceStore（文件落盘 datasources.json）。
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <Teleport to="body">

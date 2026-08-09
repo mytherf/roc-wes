@@ -77,7 +77,7 @@ import NodeDetailDialog from '@/components/NodeDetailDialog.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useEditorStore } from '@/stores/editor'
 
-// 初始化主题（读取 localStorage 并设置 data-theme 属性）
+// 初始化主题（从 theme.json 文件恢复用户选择并设置 data-theme 属性）
 useThemeStore()
 
 const editorStore = useEditorStore()

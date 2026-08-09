@@ -969,7 +969,7 @@ async function onIconFileChange(e: Event) {
 
 /**
  * 读取图片 → canvas 等比缩放至 ICON_UPLOAD_MAX_DIMENSION 内 → 导出 PNG data URL。
- * 压缩后体积通常仅数 KB，写入节点 data 后随工程持久化到 localStorage 不会撑爆存储。
+ * 压缩后体积通常仅数 KB，写入节点 data 后随工程文件落盘持久化。
  */
 function compressImageToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

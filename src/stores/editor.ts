@@ -260,7 +260,7 @@ export const useEditorStore = defineStore(
             historyIndex.value = -1
         }
 
-        // ---------- 持久化（文件落盘，替代 localStorage） ----------
+        // ---------- 持久化（文件落盘） ----------
         // 数据保存在「应用配置目录」的 editor.json 中（由 fileStorage 写入）：
         // 容量不受限、不随 WebView2 缓存清理丢失。
         // 仍由工具栏「保存」按钮显式触发；启动时异步从文件恢复。
