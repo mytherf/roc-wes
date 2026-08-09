@@ -1,50 +1,46 @@
 
-下面结合实例代码，从"模拟服务端 → 数据源注册 → 节点绑定 → 数据流动"完整讲一遍内置 WebSocket 数据源的流程。
+下面结合实例代码，从"内置模拟引擎 → 数据源注册 → 节点绑定 → 数据流动"完整讲一遍内置 WebSocket 数据源（演示模式）的流程。
+
+> 注：Node 版内置模拟服务器（原 mock/server.ts）已移除，演示模式改由桌面端 Rust 网关内置 `DemoAdapter` 生成数据，经 Tauri IPC 推送，不占用任何端口。
 
 ## 整体链路
 
 ```mermaid
 graph TB
-    A[mock/server.ts 内置WS服务 :8080] -->|每秒推送 topic,value| B[WebSocketService 连接+订阅分发]
-    C[DataSourceDialog 创建数据源] --> D[dataSource Store datasources.json]
-    E[PropertyPanel 绑定页 选数据源+点ID] --> F[node.data.binding]
-    F --> G[useDataService.bindNodeData]
-    D --> G
-    G --> B
-    B -->|回调写入 node.data.value| H[节点Vue组件 change:data 刷新]
+    A[Rust DemoAdapter 正弦波生成 gateway-demo] -->|轮询读取 批量遥测| B[gateway-engine 会话任务]
+    B -->|gateway://telemetry 事件| C[IpcGatewayService 分发回调]
+    D[DataSourceDialog 创建数据源] --> E[dataSource Store datasources.json]
+    F[PropertyPanel 绑定页 选数据源+点ID] --> G[node.data.binding]
+    G --> H[useDataService.bindNodeData]
+    E --> H
+    H -->|invoke gateway_connect/subscribe| B
+    C -->|回调写入 node.data.value| I[节点Vue组件 change:data 刷新]
 ```
 
 
-## ① 内置模拟服务端（dev 环境自动启动）
+## ① 内置模拟引擎（桌面端 Rust，无端口）
 
-[mock/server.ts](file://C:/myf/project/allinone/roc-wes/mock/server.ts) 由 vite dev 插件拉起，WebSocket 服务跑在 `ws://localhost:8080/ws`，采用**订阅制协议**：前端发订阅指令，服务端按 1 秒周期向已订阅的点推数据：
+[gateway-demo/src/lib.rs](file://C:/myf/project/allinone/roc-wes/src-tauri/crates/gateway-demo/src/lib.rs) 的 `DemoAdapter`（`profile = Websocket`）实现 `DeviceAdapter` 端口，由 gateway-engine 会话任务按轮询周期调用 `read()` 生成一批遥测：
 
-```ts
-// 前端 → 服务端：登记数据点
-if (msg.action === 'subscribe' && msg.topic) points.add(msg.topic)
-
-// 服务端 → 前端：周期推送（setInterval 1000ms）
-ws.send(JSON.stringify({ topic: pointId, value: gen(pointId, t), timestamp: t, quality: 'good' }))
-```
-
-
-模拟值由 [generators.ts](file://C:/myf/project/allinone/roc-wes/mock/generators.ts) 的 `wsValue` 生成——**20~80 的正弦波 + 微噪声**，不同 pointId 相位错开（哈希偏移），所以多个仪表的曲线不会重叠：
-
-```ts
-export function wsValue(pointId: string, t: number): number {
-  const phase = hashPhase(pointId)
-  return round1(50 + 30 * Math.sin(t / 5000 + phase) + (Math.random() - 0.5) * 2)
+```rust
+// Rust 侧：按点位 ID 生成正弦波 + 确定性伪噪声（约 20~80）
+fn ws_value(point_id: &str, now_ms: u64) -> f64 {
+    let phase = (hash_u64(point_id) % 628) as f64 / 100.0;   // 0~2π，错开各点波形
+    let noise = (pseudo_noise(point_id, now_ms) - 0.5) * 2.0; // ±1
+    round1(50.0 + 30.0 * (now_ms as f64 / 5000.0 + phase).sin() + noise)
 }
 ```
+
+不同 pointId 的相位由哈希派生错开，多个仪表的曲线不会重叠；数据经 `gateway://telemetry` 事件批量推给前端（每轮询一次推一批，减少 IPC 开销）。
 
 
 ## ② 数据源注册（配置层）
 
-用户在「数据源管理」对话框选 WebSocket 类型 + 演示模式时，地址自动预填为内置地址（[dataSource.ts](file://C:/myf/project/allinone/roc-wes/src/stores/dataSource.ts)）：
+用户在「数据源管理」对话框选 WebSocket 类型 + 演示模式时，地址自动预填为演示标识地址（[dataSource.ts](file://C:/myf/project/allinone/roc-wes/src/stores/dataSource.ts)）：
 
 ```ts
 export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
-    websocket: 'ws://localhost:8080/ws',
+    websocket: 'ws://localhost:8080/ws',   // 仅作演示模式标识，无对应本地服务
     // ...
 }
 ```
@@ -82,9 +78,11 @@ const ds = dataSourceStore.getDataSource(binding.sourceId)
 sourceType = ds.type   // 'websocket'
 sourceUrl = ds.url     // 'ws://localhost:8080/ws'
 
-// 2. 按类型路由到服务（同数据源只建一条连接，按 key 缓存）
-case 'websocket':
-  service = new WebSocketService(sourceUrl)
+// 2. 按类型路由：Tauri 环境下演示模式（含 ws/http/sse/mqtt）与工业协议统一走 IPC
+if (isTauri() && (isDemoSource(sourceType, sourceUrl, sourceConfig) || INDUSTRIAL_TYPES.has(sourceType))) {
+  // 演示模式映射为 { kind:'demo', profile:'websocket', pollIntervalMs }
+  service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), 'WEBSOCKET')
+}
 
 // 3. 订阅点ID，回调里把值写入节点
 service.subscribe(binding.pointId, (point) => {
@@ -96,27 +94,23 @@ service.subscribe(binding.pointId, (point) => {
 ```
 
 
-**关键设计**：10 个节点绑同一个数据源，只会创建 **1 条** WebSocket 连接（`dataServiceMap` 按 `类型:URL:配置` 缓存），各自订阅不同的 pointId。
+**关键设计**：10 个节点绑同一个数据源，只会创建 **1 个** IPC 会话（`dataServiceMap` 按 `类型:URL:配置` 缓存），各自订阅不同的 pointId。
 
-## ⑤ 连接与订阅分发（WebSocketService）
+## ⑤ 连接与订阅分发（IpcGatewayService → Rust）
 
-[WebSocketService.ts](file://C:/myf/project/allinone/roc-wes/src/services/WebSocketService.ts) 实现 `IDataService` 接口：
+[IpcGatewayService.ts](file://C:/myf/project/allinone/roc-wes/src/services/IpcGatewayService.ts) 实现与 WebSocketService 相同的 `IDataService` 接口，底层换成 Tauri IPC：
 
 ```ts
-// 订阅：本地登记回调 + 通知服务端
-subscribe(pointId, callback) {
-  this.callbacks.get(pointId)!.push(callback)
-  this.ws.send(JSON.stringify({ action: 'subscribe', topic: pointId }))
-}
+// 建会话：请求 Rust 创建演示适配器并启动轮询任务
+await invoke('gateway_connect', { deviceId, config: { kind: 'demo', profile: 'websocket', pollIntervalMs: 1000 } })
 
-// 收到推送：按 topic 分发给该点的所有回调
-const pointId = data.topic || data.id || data.pointId   // 兼容多种消息格式
-for (const cb of this.callbacks.get(pointId) || []) cb(point)
+// 订阅：登记回调 + 通知 Rust（连接建立前的订阅会补发）
+await invoke('gateway_subscribe', { deviceId, pointId })
 
-// 断线 3 秒自动重连，重连成功后自动重新订阅所有主题
-this.ws.onopen = () => {
-  for (const [topic] of this.callbacks) this.sendSubscribe(topic)
-}
+// 接收遥测：批量事件按 pointId 分发给该点的所有回调
+listen('gateway://telemetry', (e) => {
+  for (const p of e.payload.points) { /* 分发给 callbacks.get(p.pointId) */ }
+})
 ```
 
 
@@ -132,17 +126,17 @@ const { value } = useNodeData(props.node, { value: 0 })  // 模板里 {{ value }
 ## ⑦ 生命周期清理
 
 - 改绑定点ID：`unbindNodeData(nodeId)` 先取消旧订阅再重建
-- 画布重载：`unbindAllNodes()` 只退订**不断连接**（连接可复用）
-- 组件卸载：`dispose()` 退订 + `disconnect()` 关闭全部连接
+- 画布重载：`unbindAllNodes()` 只退订**不断会话**（会话可复用）
+- 组件卸载：`dispose()` 退订 + `disconnect()` 销毁全部 IPC 会话（应用退出时 Rust 侧也会统一 shutdown）
 
 ## 一个完整例子
 
 给仪表节点绑定 `sensor.temp.001`：
-1. 数据源管理新建 WebSocket 演示数据源 → `ws://localhost:8080/ws`
+1. 数据源管理新建 WebSocket 演示数据源 → 预填 `ws://localhost:8080/ws`（仅标识）
 2. 属性面板选该数据源、点ID 填 `sensor.temp.001`
-3. 前端发 `{"action":"subscribe","topic":"sensor.temp.001"}`
-4. mock 服务每秒推 `{"topic":"sensor.temp.001","value":63.4,...}`
+3. 前端 `invoke('gateway_subscribe', { pointId: 'sensor.temp.001' })`
+4. Rust 会话每秒调 `DemoAdapter.read()`，经 `gateway://telemetry` 推回 `{pointId:'sensor.temp.001', value:63.4, ...}`
 5. 回调写入 `node.data.value = 63.4` → 仪表盘指针每秒跳动一次
 6. 若配置了转换函数 `(raw) => Math.round(raw)`，显示前会先取整；若事件规则设了 `value > 75 告警`，正弦波升过 75 时触发上升沿告警
 
-切换到真实设备时，只需把数据源地址改成真实 WS 服务（消息格式兼容 `topic/id/pointId` 任一字段标识点位即可），前端代码零改动。
+切换到真实设备时，把数据源改为真实模式并填入真实 WS 服务地址（消息格式兼容 `topic/id/pointId` 任一字段标识点位即可），前端代码零改动。
