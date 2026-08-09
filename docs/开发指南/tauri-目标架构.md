@@ -4,7 +4,7 @@
 > 新架构不再保留 WebSocket 协议与本地端口，改用 Tauri 原生 IPC（命令 + 事件流），
 > Rust 侧按六边形架构分层，前端仅改动数据服务路由一处。
 
-![目标架构图](./tauri-目标架构图.png)
+![目标架构图](tauri-目标架构图.png)
 
 ## 1. 设计原则
 
@@ -134,8 +134,8 @@ sequenceDiagram
 | 文件 | 改动 |
 |---|---|
 | `src/platform/runtime.ts`（新增） | `isTauri()` 运行时探测（`__TAURI_INTERNALS__`） |
-| `src/services/IpcGatewayService.ts`（新增） | 实现既有 `IDataService` 接口：invoke 命令 + 单例事件总线按 `deviceId` 分发；`@tauri-apps/api` 动态 import，浏览器构建零负担 |
-| `src/composables/useDataService.ts` | `getDataService` 路由：桌面运行时下 modbus/s7/opc 及 demo 数据源 → `IpcGatewayService`；ws/http/sse/mqtt 真实地址仍走 WebView 原生连接 |
+| `../../src/services/IpcGatewayService.ts`（新增） | 实现既有 `IDataService` 接口：invoke 命令 + 单例事件总线按 `deviceId` 分发；`@tauri-apps/api` 动态 import，浏览器构建零负担 |
+| `../../src/composables/useDataService.ts` | `getDataService` 路由：桌面运行时下 modbus/s7/opc 及 demo 数据源 → `IpcGatewayService`；ws/http/sse/mqtt 真实地址仍走 WebView 原生连接 |
 | 其余（UI、节点组件、属性面板、X6Canvas） | **零改动** |
 
 浏览器开发模式不受影响：`npm run dev` 仍启动 mock 服务器与 Node 网关，行为与现在完全一致；桌面端由 `npm run tauri dev` 启动。
@@ -145,7 +145,7 @@ sequenceDiagram
 - **CSP**：`PropertyPanel.vue` 与 `useDataService.ts` 使用 `new Function` 编译 transform，`tauri.conf.json` 的 `script-src` 必须包含 `'unsafe-eval'`（已配置）
 - **数据源记录中的 url 字段**：桌面模式下 modbus/s7/opc 的 url 不再被消费（传输走 IPC），保留仅为浏览器模式兼容与可读性
 - **轮询下限**：引擎强制 ≥200ms，防止前端误配打满设备链路
-- **持久化**：全部工程数据经 `src/platform/fileStorage.ts` 由 tauri-plugin-fs 落盘为应用配置目录下的 JSON 文件（`editor.json` / `datasources.json` / `routes.json` / `theme.json` / `run-preview.json`，原子写入防损坏）；localStorage / sessionStorage 已全面移除
+- **持久化**：全部工程数据经 `../../src/platform/fileStorage.ts` 由 tauri-plugin-fs 落盘为应用配置目录下的 JSON 文件（`editor.json` / `datasources.json` / `routes.json` / `theme.json` / `run-preview.json`，原子写入防损坏）；localStorage / sessionStorage 已全面移除
 - **退出清理**：`RunEvent::Exit` 时 `engine.shutdown()` 断开全部设备 TCP 连接
 
 ## 7. 与旧方案的差异（为什么放弃内嵌 WS）

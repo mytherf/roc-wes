@@ -15,6 +15,14 @@ export default defineConfig({
   plugins: [
     vue(),
   ],
+  server: {
+    // 固定开发端口为 1420（Tauri 官方推荐端口）：
+    // 5173 在部分 Windows 机器上会落入 Hyper-V/WinNAT 动态保留端口范围，
+    // 导致 listen EACCES（permission denied）；strictPort 保证端口固定，
+    // 与 tauri.conf.json 的 devUrl 保持一致（被占用时直接报错而非静默换端口）
+    port: 1420,
+    strictPort: true,
+  },
   resolve: {
     alias: {
       // 路径别名：代码里 import xxx from '@/...' 会被解析为 src/... 目录下的文件

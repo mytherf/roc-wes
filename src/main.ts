@@ -1,5 +1,5 @@
 // ========== 应用入口文件 ==========
-// 浏览器加载 index.html 后会执行本文件，把 Vue 应用启动起来。
+// 桌面端 WebView 加载 index.html 后会执行本文件，把 Vue 应用启动起来。
 // 整个应用的“启动顺序”：创建 Vue 实例 → 挂载状态管理 → 挂载路由 → 渲染到页面
 
 import { createApp } from 'vue' // Vue 3 核心：createApp 用来创建一个应用实例

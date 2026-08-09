@@ -3,7 +3,7 @@
 //   - broker（消息代理）：中转站，如 mosquitto、EMQX
 //   - topic（主题）：消息的“频道”，如 'sensors/temp'
 //   - 发布者往主题发消息，订阅者订阅主题收消息，双方互不认识
-// 本项目用 mqtt.js 库（浏览器通过 WebSocket 连接 broker）。
+// 本项目用 mqtt.js 库（WebView 通过 WebSocket 连接 broker）。
 // pointId 直接当作 topic 使用。
 
 import mqtt from 'mqtt' // mqtt.js 客户端库
@@ -34,7 +34,7 @@ function topicMatches(filter: string, topic: string): boolean {
 
 /**
  * MQTT 数据服务
- * 通过 mqtt.js 连接 broker（浏览器经 WebSocket，如 ws://localhost:8083），
+ * 通过 mqtt.js 连接 broker（WebView 经 WebSocket，如 ws://192.168.0.10:8083），
  * 以 pointId 作为主题（topic）订阅，接收发布的数据。
  */
 export class MqttService implements IDataService {

@@ -1,28 +1,23 @@
 // ========== 数据服务管理 Composable（数据绑定的“总调度”）==========
 // 用途：把“节点绑定数据”这件事集中管理起来——
-//   1. 按配置选择正确的数据服务（模拟/WebSocket/HTTP/MQTT/SSE/工业协议/IPC）
+//   1. 按配置选择正确的数据服务（演示模式 IPC/WebSocket/HTTP/MQTT/SSE/工业协议 IPC）
 //   2. 缓存服务实例（同一数据源只建一条连接，不重复浪费）
 //   3. 订阅数据并把最新值写入节点 data.value（同时触发节点事件规则）
 //   4. 清理：解绑节点时取消订阅，组件卸载时断开全部连接
 // 什么是 Composable？Vue 3 中把可复用的逻辑抽成函数，名字以 use 开头。
 
 import type { Graph, Node } from '@antv/x6'
-import { MockDataService } from '@/services/MockDataService'
 import type { DataBindingConfig, IDataService } from '@/services/DataService'
 import { WebSocketService } from '@/services/WebSocketService'
 import { HttpPollingService } from '@/services/HttpPollingService'
 import { SseService } from '@/services/SseService'
 import { MqttService } from '@/services/MqttService'
-import { S7Service } from '@/services/S7Service'
-import { OpcService } from '@/services/OpcService'
-import { ModbusService } from '@/services/ModbusService'
 import { IpcGatewayService } from '@/services/IpcGatewayService'
-import { isTauri } from '@/platform/isTauri'
 import { buildDeviceConfig, isDemoSource } from '@/platform/deviceConfig'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { evaluateNodeEvents } from '@/services/NodeEventService'
 
-/** 工业协议类型：浏览器无法直连（原生 TCP），Tauri 桌面运行时统一走 Rust 原生网关（IPC） */
+/** 工业协议类型：WebView 无法直连（原生 TCP），统一走 Rust 原生网关（IPC） */
 const INDUSTRIAL_TYPES = new Set(['s7', 'opc', 'modbus'])
 
 /**
@@ -33,7 +28,8 @@ const INDUSTRIAL_TYPES = new Set(['s7', 'opc', 'modbus'])
  * dataServiceMap / nodeDataSubscriptions / bindNodeData / unbindNodeData / unbindAllNodes 代码。
  *
  * 设计说明：
- * - 默认数据服务：当 binding 未指定 sourceUrl 时使用的兜底服务（默认 MockDataService）。
+ * - 未绑定数据源（无 sourceId 且无旧字段 sourceUrl）的节点不订阅任何数据，保持静态值；
+ *   演示/模拟数据须显式创建演示模式数据源并绑定。
  * - 具名数据服务：按 `${sourceType}:${sourceUrl}` 缓存，避免同一数据源重复创建连接。
  * - unbindAllNodes 仅取消订阅、不断开连接（支持重载后重新绑定）；
  *   dispose 才断开并清空全部服务（组件卸载时调用）。
@@ -43,41 +39,30 @@ export function useDataService() {
   const dataSourceStore = useDataSourceStore()
   // 数据服务实例（根据 sourceType + sourceUrl 缓存）
   const dataServiceMap = new Map<string, IDataService>()
-  // 默认数据服务（无 sourceUrl 时的兜底）
-  let defaultDataService: IDataService | null = null
   // 存储节点 ID → 数据服务 key 的映射
   const nodeServiceKeys = new Map<string, string>()
   // 存储节点 ID → 数据点 ID 的映射，用于清理
   const nodeDataSubscriptions = new Map<string, string>()
 
   /**
-   * 设置默认数据服务（无 sourceUrl 时的兜底）
-   * 若不调用，首次获取时自动创建 MockDataService
-   */
-  function setDefaultService(service: IDataService) {
-    defaultDataService = service
-  }
-
-  /**
    * 根据 sourceType 和 sourceUrl 获取或创建数据服务实例
-   * - 无 sourceUrl：返回默认模拟服务（MockDataService）
-   * - 有 sourceUrl：按类型路由到 WebSocket / HTTP 轮询 / SSE / MQTT / S7 / OPC UA / Modbus 服务
+   * - 无 sourceUrl：返回 null（未绑定数据源的节点不接收任何数据）
+   * - 演示模式数据源与工业协议：Rust 原生网关（IPC）
+   * - 其余真实地址：按类型路由到 WebSocket / HTTP 轮询 / SSE / MQTT 服务
    * - sourceConfig：协议特定的设备连接参数（如 Modbus 的 host/port/unitId），传给对应服务
    */
   function getDataService(sourceType: string, sourceUrl?: string, sourceConfig?: Record<string, any>): IDataService | null {
     if (!sourceUrl) {
-      if (!defaultDataService) {
-        defaultDataService = new MockDataService()
-      }
-      return defaultDataService
+      // 未绑定数据源 → 不提供任何数据服务（节点保持静态值）
+      return null
     }
     const key = serviceKey(sourceType, sourceUrl, sourceConfig)
     if (!dataServiceMap.has(key)) {
-      // Tauri 桌面运行时：工业协议（S7 / OPC UA / Modbus）与所有演示模式数据源
+      // 工业协议（S7 / OPC UA / Modbus）与所有演示模式数据源
       //（含 WebSocket / HTTP / SSE / MQTT）统一由 Rust 原生网关接管——
-      // 演示数据由桌面端内置 DemoAdapter 生成（不再依赖 Node mock 服务与本地端口），
+      // 演示数据由桌面端内置 DemoAdapter 生成（不依赖本地端口），
       // 工业设备由 Rust 原生 TCP 直连，前端经 invoke + event IPC 通信
-      if (isTauri() && (isDemoSource(sourceType, sourceUrl, sourceConfig) || INDUSTRIAL_TYPES.has(sourceType))) {
+      if (isDemoSource(sourceType, sourceUrl, sourceConfig) || INDUSTRIAL_TYPES.has(sourceType)) {
         const service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), sourceType.toUpperCase())
         dataServiceMap.set(key, service)
         return service
@@ -96,21 +81,10 @@ export function useDataService() {
         case 'mqtt':
           service = new MqttService(sourceUrl)
           break
-        case 's7':
-          service = new S7Service(sourceUrl, sourceConfig)
-          break
-        case 'opc':
-          service = new OpcService(sourceUrl, sourceConfig)
-          break
-        case 'modbus':
-          service = new ModbusService(sourceUrl, sourceConfig)
-          break
+        // 工业协议（s7 / opc / modbus）已在上方统一路由到 IpcGatewayService，不会走到这里
         default:
-          console.warn(`[useDataService] 不支持的数据源类型: ${sourceType}，回退为模拟数据`)
-          if (!defaultDataService) {
-            defaultDataService = new MockDataService()
-          }
-          return defaultDataService
+          console.warn(`[useDataService] 不支持的数据源类型: ${sourceType}，不订阅数据`)
+          return null
       }
       dataServiceMap.set(key, service)
     }
@@ -159,7 +133,7 @@ export function useDataService() {
     // 先取消旧订阅（避免重复绑定）
     unbindNodeData(node.id)
 
-    // 解析数据源：优先 sourceId（数据源管理实例），回退旧字段 sourceType/sourceUrl，否则模拟数据
+    // 解析数据源：优先 sourceId（数据源管理实例），回退旧字段 sourceType/sourceUrl
     let sourceType = binding.sourceType
     let sourceUrl = binding.sourceUrl
     let sourceConfig: Record<string, any> | undefined
@@ -170,8 +144,13 @@ export function useDataService() {
         sourceUrl = ds.url
         sourceConfig = ds.config
       } else {
-        console.warn(`[useDataService] 未找到数据源实例: ${binding.sourceId}，回退为模拟数据`)
+        console.warn(`[useDataService] 未找到数据源实例: ${binding.sourceId}，不订阅数据`)
       }
+    }
+
+    // 未绑定数据源（无 sourceId 且无旧字段 sourceUrl）→ 不订阅，节点保持静态值
+    if (!sourceUrl) {
+      return
     }
 
     // 根据配置获取对应的数据服务
@@ -182,9 +161,7 @@ export function useDataService() {
     }
 
     // 记录该节点使用的服务 key（使用解析后的数据源类型、地址与配置，兼容 sourceId 方式）
-    if (sourceUrl) {
-      nodeServiceKeys.set(node.id, serviceKey(sourceType ?? 'websocket', sourceUrl, sourceConfig))
-    }
+    nodeServiceKeys.set(node.id, serviceKey(sourceType ?? 'websocket', sourceUrl, sourceConfig))
 
     // 解析转换函数（运行期 Function 优先，否则从持久化的 transformSource 编译）
     const transform = resolveTransform(binding)
@@ -231,8 +208,6 @@ export function useDataService() {
       const serviceKey = nodeServiceKeys.get(nodeId)
       if (serviceKey && dataServiceMap.has(serviceKey)) {
         dataServiceMap.get(serviceKey)!.unsubscribe(pointId)
-      } else {
-        defaultDataService?.unsubscribe(pointId)
       }
       nodeDataSubscriptions.delete(nodeId)
       nodeServiceKeys.delete(nodeId)
@@ -259,8 +234,6 @@ export function useDataService() {
       const serviceKey = nodeServiceKeys.get(nodeId)
       if (serviceKey && dataServiceMap.has(serviceKey)) {
         dataServiceMap.get(serviceKey)!.unsubscribe(pointId)
-      } else {
-        defaultDataService?.unsubscribe(pointId)
       }
     }
     nodeDataSubscriptions.clear()
@@ -276,12 +249,9 @@ export function useDataService() {
       service.disconnect()
     }
     dataServiceMap.clear()
-    defaultDataService?.disconnect()
-    defaultDataService = null
   }
 
   return {
-    setDefaultService,
     getDataService,
     bindNodeData,
     rebindIfChanged,

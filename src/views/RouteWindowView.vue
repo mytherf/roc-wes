@@ -10,7 +10,7 @@
          画布操作函数检测到无画布会自动跳过；「添加航点 / 预览动画」等
          依赖画布的按钮会被禁用
        - 路线数据通过 routeStore 的跨窗口同步机制与主窗口实时保持一致
-         （Tauri 事件广播 / 浏览器 BroadcastChannel），落盘文件为 routes.json
+         （Tauri 事件广播），落盘文件为 routes.json
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <div class="route-window-page">

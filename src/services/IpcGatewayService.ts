@@ -1,17 +1,16 @@
 // ========== IPC 网关数据服务（Tauri 桌面运行时专用）==========
-// 在桌面版（Tauri）里，浏览器版本无法直连的工业协议（Modbus/S7/OPC UA）
+// 工业协议（Modbus/S7/OPC UA）为原生 TCP，WebView 无法直连，
 // 由 Rust 原生网关直接实现。前端通过 Tauri 的 IPC 机制调用 Rust 命令：
 //   - invoke('gateway_connect', ...)  → 请求建立设备会话
 //   - listen('gateway://telemetry')   → 接收 Rust 推来的实时数据
 // 本类实现了与 WebSocketService 相同的 IDataService 接口，
-// 因此上层代码无需区分“浏览器”还是“桌面”，用法完全一样。
+// 因此上层代码用法与其他 Web 协议服务完全一样。
 
 /**
  * IPC 网关数据服务（Tauri 桌面运行时专用）
  *
- * 工业协议（Modbus / S7 / OPC UA）为原生 TCP，浏览器无法直连。
- * 浏览器时代经 Node WebSocket 网关桥接；迁移 Tauri 后改由 Rust 核心
- * （gateway-engine + DeviceAdapter）原生实现，前端通过 Tauri IPC 访问：
+ * 工业协议（Modbus / S7 / OPC UA）为原生 TCP，WebView 无法直连，
+ * 由 Rust 核心（gateway-engine + DeviceAdapter）原生实现，前端通过 Tauri IPC 访问：
  *   - 命令：gateway_connect / gateway_subscribe / gateway_unsubscribe / gateway_disconnect
  *   - 事件：gateway://status、gateway://telemetry（camelCase 载荷，与 Rust serde 对齐）
  *

@@ -10,8 +10,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, toRaw } from 'vue'
 import { readJsonFile, writeJsonFile } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
-import { isTauri } from '@/platform/isTauri' // 运行时环境探测（Tauri 事件 / 浏览器 BroadcastChannel）
-import { emit, listen } from '@tauri-apps/api/event' // Tauri 跨窗口事件（仅桌面壳内使用，浏览器环境不会调用）
+import { emit, listen } from '@tauri-apps/api/event' // Tauri 跨窗口事件
 
 /**
  * 路线航点：路线上的一个关键点（路径的“拐弯处”或“站点”）
@@ -99,26 +98,19 @@ export const useRouteStore = defineStore('route', () => {
   // ---------- 跨窗口同步 ----------
   // 路线编辑器可以弹出为独立 OS 窗口（拖到其他屏幕）。
   // 每个窗口都有自己独立的 Pinia store 实例，本地修改不会自动
-  // 反映到另一个窗口，因此每次保存后把最新路线广播出去：
-  //   - Tauri 桌面壳：用 @tauri-apps/api/event 的 emit/listen 跨窗口广播
-  //   - 浏览器开发模式：退化为 BroadcastChannel（同源标签页间通信）
+  // 反映到另一个窗口，因此每次保存后用 @tauri-apps/api/event 的
+  // emit/listen 把最新路线跨窗口广播出去。
   const SYNC_EVENT = 'routes://sync' // Tauri 事件名
-  const BC_NAME = 'roc-wes-routes'   // BroadcastChannel 频道名
   // 最近一次同步的 JSON 快照：用于去重（Tauri emit 会广播给所有窗口
   // 包括自己，数据一致时直接跳过，避免无谓的重复渲染）
   let lastSyncJson = ''
-  let syncChannel: BroadcastChannel | null = null
 
   /** 把当前路线数据广播给其他窗口 */
   function broadcastRoutes() {
     const json = JSON.stringify(toRaw(routes.value))
     lastSyncJson = json
-    if (isTauri()) {
-      emit(SYNC_EVENT, json)
-        .catch(e => console.warn('[RouteStore] 跨窗口同步失败:', e))
-    } else if (syncChannel) {
-      syncChannel.postMessage(json)
-    }
+    emit(SYNC_EVENT, json)
+      .catch(e => console.warn('[RouteStore] 跨窗口同步失败:', e))
   }
 
   /** 收到其他窗口的同步消息：校验后整体替换本地路线 */
@@ -132,13 +124,8 @@ export const useRouteStore = defineStore('route', () => {
   }
 
   // 注册同步监听（store 初始化时执行一次）
-  if (isTauri()) {
-    listen(SYNC_EVENT, (ev) => applyRemoteSync(ev.payload))
-      .catch(e => console.warn('[RouteStore] 注册跨窗口监听失败:', e))
-  } else if (typeof BroadcastChannel !== 'undefined') {
-    syncChannel = new BroadcastChannel(BC_NAME)
-    syncChannel.addEventListener('message', (ev) => applyRemoteSync(ev.data))
-  }
+  listen(SYNC_EVENT, (ev) => applyRemoteSync(ev.payload))
+    .catch(e => console.warn('[RouteStore] 注册跨窗口监听失败:', e))
 
   // 启动时加载
   loadFromStorage()

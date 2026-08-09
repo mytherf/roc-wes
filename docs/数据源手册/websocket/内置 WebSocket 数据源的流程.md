@@ -78,8 +78,8 @@ const ds = dataSourceStore.getDataSource(binding.sourceId)
 sourceType = ds.type   // 'websocket'
 sourceUrl = ds.url     // 'ws://localhost:8080/ws'
 
-// 2. 按类型路由：Tauri 环境下演示模式（含 ws/http/sse/mqtt）与工业协议统一走 IPC
-if (isTauri() && (isDemoSource(sourceType, sourceUrl, sourceConfig) || INDUSTRIAL_TYPES.has(sourceType))) {
+// 2. 按类型路由：演示模式（含 ws/http/sse/mqtt）与工业协议统一走 IPC
+if (isDemoSource(sourceType, sourceUrl, sourceConfig) || INDUSTRIAL_TYPES.has(sourceType)) {
   // 演示模式映射为 { kind:'demo', profile:'websocket', pollIntervalMs }
   service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), 'WEBSOCKET')
 }

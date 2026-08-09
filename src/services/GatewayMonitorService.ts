@@ -9,7 +9,6 @@
 
 import { MqttService } from './MqttService'
 import { IpcGatewayService } from './IpcGatewayService'
-import { isTauri } from '@/platform/isTauri'
 import { buildDeviceConfig } from '@/platform/deviceConfig'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DataSource, DataSourceType } from '@/stores/dataSource'
@@ -73,10 +72,10 @@ function isIndustrialType(t: DataSourceType): boolean {
  * - 错误告警：连接失败、设备未连接、坏质量（bad）帧等。
  *
  * 各类型探测方式：
- * - s7 / opc / modbus（Tauri 桌面运行时）：经 Rust 原生网关 IPC 探测——
+ * - s7 / opc / modbus：经 Rust 原生网关 IPC 探测——
  *   IpcGatewayService 建立独立监控会话（deviceId 前缀 mon:），
  *   监听 gateway://status 获取设备连接状态，订阅回调记录点位读数；
- * - websocket（以及浏览器环境下的 s7 / opc / modbus）：订阅制 WebSocket；
+ * - websocket：订阅制 WebSocket；
  * - http：fetch 轮询 `${url}?pointId=xxx`；
  * - sse：EventSource 接收推送流；
  * - mqtt：复用 MqttService（mqtt.js），轮询其连接状态。
@@ -132,9 +131,8 @@ export class GatewayMonitorService {
                 this.startMqtt()
                 break
             default:
-                // Tauri 桌面运行时：工业协议经 Rust 原生网关 IPC 探测；
-                // 其余（websocket，及浏览器环境下的工业类型）走订阅制 WS
-                if (isTauri() && isIndustrialType(this.ds.type)) {
+                // 工业协议经 Rust 原生网关 IPC 探测；其余（websocket）走订阅制 WS
+                if (isIndustrialType(this.ds.type)) {
                     void this.startIpcGateway()
                 } else {
                     this.startWsSubscribe()
@@ -180,7 +178,7 @@ export class GatewayMonitorService {
         this.emit(true)
     }
 
-    // ---------- 订阅制 WebSocket（websocket / s7 / opc / modbus） ----------
+    // ---------- 订阅制 WebSocket（仅 websocket 类型） ----------
     private startWsSubscribe() {
         this.t0 = performance.now()
         try {
@@ -189,10 +187,6 @@ export class GatewayMonitorService {
             ws.onopen = () => {
                 this.state.latencyMs = Math.round(performance.now() - this.t0)
                 this.setStatus('online')
-                // 工业协议下发设备配置：内置 mock 忽略此消息，真实网关据此连接设备并回报 status
-                if (isIndustrialType(this.ds.type)) {
-                    this.send({ action: 'configure', config: this.ds.config || {} })
-                }
                 for (const p of this.pointIds) this.send({ action: 'subscribe', topic: p })
             }
             ws.onmessage = (ev) => {
@@ -238,7 +232,7 @@ export class GatewayMonitorService {
     // ---------- Tauri IPC（工业协议：s7 / opc / modbus） ----------
 
     /**
-     * 经 Rust 原生网关探测工业协议（仅 Tauri 桌面运行时）。
+     * 经 Rust 原生网关探测工业协议。
      *
      * 监控会话使用独立 deviceId（mon: 前缀），与业务链路的会话隔离，
      * 互不影响对方的订阅；重连由引擎侧指数退避自动完成，

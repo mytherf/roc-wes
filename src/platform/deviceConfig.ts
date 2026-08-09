@@ -1,17 +1,16 @@
 // ========== 设备配置转换层（数据源配置 → Rust 网关配置）==========
-// 背景：在 Tauri 桌面运行态下，工业设备（Modbus/S7/OPC）的连接由 Rust 原生网关负责。
+// 背景：工业设备（Modbus/S7/OPC）与演示模式的连接均由 Rust 原生网关负责。
 // 前端「数据源管理」里保存的通用配置（host/port/unitId 等）格式与 Rust 的
 // DeviceConfig 结构不同，本模块负责把两者互相翻译。
 
 /**
- * 数据源配置 → Rust DeviceConfig 映射（Tauri 桌面运行时）
+ * 数据源配置 → Rust DeviceConfig 映射
  *
- * 浏览器时代设备参数经 WS `{action:'configure'}` 发给 Node 网关；
- * 迁移后由本模块把「数据源管理」里保存的 config 直接映射为
+ * 把「数据源管理」里保存的 config 映射为
  * Rust `gateway_core::config::DeviceConfig`（camelCase），交给 gateway_connect。
  */
 
-import { BUILTIN_MOCK_URLS } from '@/stores/dataSource' // 内置模拟服务地址表（用于识别演示模式）
+import { BUILTIN_MOCK_URLS } from '@/stores/dataSource' // 内置演示标识地址表（用于识别演示模式）
 import type { DeviceConfig } from '@/services/IpcGatewayService' // Rust 侧设备配置的 TS 类型定义
 
 // 工具函数：把任意值安全地转成数字；
@@ -24,12 +23,12 @@ const num = (v: unknown, fallback: number): number => {
 /**
  * 判定某数据源是否为演示模式。
  * 优先读 config.demo（用户显式选择）；
- * 兼容旧数据：地址等于内置模拟地址即视为演示（历史版本没有 demo 字段）。
+ * 兼容旧数据：地址等于内置演示标识地址即视为演示（历史版本没有 demo 字段）。
  */
 export function isDemoSource(sourceType: string, sourceUrl?: string, sourceConfig?: Record<string, any>): boolean {
     // 显式配置了 demo 布尔值 → 直接采信
     if (typeof sourceConfig?.demo === 'boolean') return sourceConfig.demo
-    // 旧数据兼容：url 与内置模拟地址一致 → 视为演示
+    // 旧数据兼容：url 与内置演示标识地址一致 → 视为演示
     if (sourceUrl && sourceUrl === (BUILTIN_MOCK_URLS as Record<string, string>)[sourceType]) return true
     return false
 }

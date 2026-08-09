@@ -84,10 +84,9 @@ interface DataPoint {
 | 模块 | 路径 |
 | --- | --- |
 | 统一类型定义 | `src/services/DataService.ts` |
-| 浏览器直连类前端服务（Web 协议真实模式） | `src/services/{WebSocket,HttpPolling,Sse,Mqtt}Service.ts` |
-| 工业协议前端服务（浏览器保留实现） | `src/services/{S7,Opc,Modbus}Service.ts` + `GatewayService.ts` |
+| WebView 直连类前端服务（Web 协议真实模式） | `src/services/{WebSocket,HttpPolling,Sse,Mqtt}Service.ts` |
 | IPC 数据服务（桌面工业协议 + 全部演示模式） | `src/services/IpcGatewayService.ts` |
-| 桌面平台接缝 | `src/platform/isTauri.ts` + `src/platform/deviceConfig.ts` |
+| 桌面平台接缝 | `src/platform/deviceConfig.ts` |
 | 类型路由与节点绑定 | `src/composables/useDataService.ts` |
 | 网关监控探针 | `src/services/GatewayMonitorService.ts`（桌面工业协议走 `mon:` 独立 IPC 会话） |
 | 数据源实例 Store | `src/stores/dataSource.ts` |

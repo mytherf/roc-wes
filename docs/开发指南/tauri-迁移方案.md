@@ -3,7 +3,7 @@
 > **⚠ 本文档的传输层子决策（B2 内嵌本地 WS）已被取代。** 实施阶段重新评估后采用 **IPC-first** 架构：
 > 前端经 Tauri `invoke` 命令 + `gateway://status` / `gateway://telemetry` 事件流与 Rust 网关通信，
 > **不再内嵌本地 WS Server、不占用任何端口**。网关分层、会话状态机与演示模式等其余结论仍然有效。
-> 最新设计以 [tauri-目标架构.md](./tauri-目标架构.md) 与 [tauri-目标架构图.png](./tauri-目标架构图.png) 为准。
+> 最新设计以 [tauri-目标架构.md](tauri-目标架构.md) 与 [tauri-目标架构图.png](tauri-目标架构图.png) 为准。
 
 > 已确认决策：**网关策略 = B（Rust 原生重写）**；**目标平台 = 仅 Windows**；**演示模式 = 保留**。
 > 目标：单一可分发 Windows 桌面应用，设备接入全部在 Rust 侧实现，无 Node 运行时。
@@ -95,7 +95,7 @@ flowchart TB
     class PLC_MB,PLC_S7,OPC_SRV dev;
 ```
 
-> 独立文件见 `docs/tauri-架构图.mermaid`。
+> 独立文件见 `tauri-架构图.mermaid`。
 
 **一次订阅的数据流（时序）**：
 
