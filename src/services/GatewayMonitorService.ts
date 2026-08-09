@@ -9,7 +9,7 @@
 
 import { MqttService } from './MqttService'
 import { IpcGatewayService } from './IpcGatewayService'
-import { buildDeviceConfig } from '@/platform/deviceConfig'
+import { buildDeviceConfig, isDemoSource } from '@/platform/deviceConfig'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DataSource, DataSourceType } from '@/stores/dataSource'
 
@@ -72,7 +72,8 @@ function isIndustrialType(t: DataSourceType): boolean {
  * - 错误告警：连接失败、设备未连接、坏质量（bad）帧等。
  *
  * 各类型探测方式：
- * - s7 / opc / modbus：经 Rust 原生网关 IPC 探测——
+ * - 演示模式（任意协议）：与业务链路一致，经 Rust 演示引擎 IPC 探测（DemoAdapter 生成模拟数据）；
+ * - s7 / opc / modbus（真实模式）：经 Rust 原生网关 IPC 探测——
  *   IpcGatewayService 建立独立监控会话（deviceId 前缀 mon:），
  *   监听 gateway://status 获取设备连接状态，订阅回调记录点位读数；
  * - websocket：订阅制 WebSocket；
@@ -120,6 +121,12 @@ export class GatewayMonitorService {
     start() {
         this.stopped = false
         this.setStatus('connecting')
+        // 演示模式（任意协议）与业务链路一致：经 Rust 演示引擎 IPC 探测，
+        // 不能直连内置演示标识地址（如 ws://localhost:8080/ws 背后没有本地服务）
+        if (isDemoSource(this.ds.type, this.ds.url, this.ds.config)) {
+            void this.startIpcGateway()
+            return
+        }
         switch (this.ds.type) {
             case 'http':
                 this.startHttp()
@@ -229,10 +236,14 @@ export class GatewayMonitorService {
         if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj))
     }
 
-    // ---------- Tauri IPC（工业协议：s7 / opc / modbus） ----------
+    // ---------- Tauri IPC（工业协议真实模式：s7 / opc / modbus；任意协议的演示模式） ----------
 
     /**
-     * 经 Rust 原生网关探测工业协议。
+     * 经 Rust 原生网关探测。
+     *
+     * 演示模式下 buildDeviceConfig 会映射为 { kind:'demo', profile }，
+     * 由 Rust DemoAdapter 生成模拟数据，无需任何本地端口；
+     * 真实模式下按工业协议连接设备。
      *
      * 监控会话使用独立 deviceId（mon: 前缀），与业务链路的会话隔离，
      * 互不影响对方的订阅；重连由引擎侧指数退避自动完成，
