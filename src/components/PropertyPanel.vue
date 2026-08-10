@@ -702,8 +702,13 @@ function updateBinding() {
 
   let binding: any = null
 
-  // 必须同时具备主点ID与数据源实例才启用绑定（数据源必须来自数据源管理）
-  if (primary && bindingSourceId.value) {
+  // 有主点即提交绑定配置，sourceId 允许后补：
+  // 点位是用户录入的设计数据，若要求"主点 + 数据源同时具备才写入"，
+  // ① 未选数据源时录入的点位只存在于面板草稿，切换选中节点即丢失；
+  // ② 切换数据源（先置空再改选）会把已录入的点位整段清空。
+  // 无 sourceId 的绑定运行期不会订阅——bindNodeData 解析不到数据源即静默返回，
+  // 节点保持静态值，语义安全
+  if (primary) {
     // 点组列表：主点组在前；pointId / transformSource 顶层字段保留主点信息兼容旧工程
     binding = {
       pointId: primary.pointId,
@@ -712,7 +717,7 @@ function updateBinding() {
         pointId: g.pointId,
         transformSource: g.transformSource || undefined,
       })),
-      sourceId: bindingSourceId.value,
+      sourceId: bindingSourceId.value || undefined,
     }
   } else {
     binding = undefined
@@ -732,12 +737,12 @@ function updateBinding() {
       return
     }
 
-    // 将 binding 同步写入 X6 节点数据（含 transform，保证重新绑定时不丢失）
-    const currentData = node.getData() || {}
-    node.setData({
-      ...currentData,
-      binding,
-    })
+    // 将 binding 同步写入 X6 节点数据。
+    // 必须用 updateData（顶层整体替换，deep:false），不能用默认 setData 深合并——
+    // X6 深合并即 lodash.merge：数组按下标逐项合并（删除点组后 points 尾部旧条目残留
+    // → 运行期继续订阅已删点位）、undefined 值被跳过（旧字段清不掉），
+    // 都会导致画布 binding 与 store 分叉，进而误判"实质变化"触发整画布重建
+    node.updateData({ binding })
 
     // 取消旧订阅
     if (props.canvasRef.unbindNodeData) {

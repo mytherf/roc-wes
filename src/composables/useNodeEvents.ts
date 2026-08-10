@@ -63,7 +63,9 @@ export function useNodeEvents(getGraph: () => Graph | null, activeTab: Ref<strin
     if (JSON.stringify(currentEvents ?? null) === JSON.stringify(nextEvents ?? null)) return
 
     // 先更新 X6 节点再更新 store（两者同步完成，同步 watcher 不会误判为数据变化）
-    node.setData({ ...(node.getData() || {}), events: nextEvents })
+    // updateData = 顶层整体替换（deep:false）：不能用默认深合并——events 是数组，
+    // lodash.merge 按下标合并会残留已删除的规则，且 undefined 被跳过导致规则清不空
+    node.updateData({ events: nextEvents })
     const storeNode = editorStore.graphData.nodes.find((n) => n.id === nodeId)
     if (storeNode) {
       editorStore.updateNode(nodeId, { data: { ...(storeNode.data || {}), events: nextEvents } })
