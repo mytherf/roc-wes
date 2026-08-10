@@ -23,6 +23,18 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init()) // 文件系统插件：前端工程数据落盘到应用配置目录
         .setup(|app| {
+            // 确保应用配置目录存在：plugin-fs 写文件不会自动创建父目录，
+            // 首次启动时 $APPCONFIG（Windows 为 %APPDATA%\<identifier>）不存在，
+            // 会导致前端全部落盘写入失败（保存失败）
+            match app.path().app_config_dir() {
+                Ok(config_dir) => {
+                    if let Err(e) = std::fs::create_dir_all(&config_dir) {
+                        tracing::warn!("创建应用配置目录失败 {:?}: {e}", config_dir);
+                    }
+                }
+                Err(e) => tracing::warn!("解析应用配置目录失败: {e}"),
+            }
+
             let sink = Arc::new(TauriEventSink::new(app.handle().clone()));
             let engine = Arc::new(gateway_engine::GatewayEngine::new(sink));
             app.manage(AppState { engine });

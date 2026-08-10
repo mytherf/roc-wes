@@ -92,7 +92,7 @@ import { useEditorStore } from '@/stores/editor'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { useRouteStore } from '@/stores/route'
 import { serializeGraph } from '@/utils/graphSerializer'
-import { writeJsonFile } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
+import { writeJsonFile, getLastFileError } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
 import DataSourceDialog from '@/components/DataSourceDialog.vue'
 import { useThemeStore, THEMES } from '@/stores/theme'
 
@@ -118,7 +118,8 @@ let savedTipTimer: number | null = null
 async function handleSave() {
   const ok = await editorStore.saveToStorage()
   if (!ok) {
-    alert('保存失败，请检查控制台错误')
+    // 展示具体失败原因（fileStorage 记录的最近一次错误），便于定位环境问题
+    alert(`保存失败：${getLastFileError() || '未知错误，请查看控制台'}`)
     return
   }
   savedTip.value = true
@@ -154,7 +155,7 @@ async function handleRun() {
   // 2. 写入预览快照文件（运行态窗口启动后由 RunView 读取）
   const ok = await writeJsonFile('run-preview.json', data)
   if (!ok) {
-    alert('运行数据写入失败，请检查控制台错误')
+    alert(`运行数据写入失败：${getLastFileError() || '未知错误，请查看控制台'}`)
     return
   }
 

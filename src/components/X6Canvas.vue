@@ -52,6 +52,11 @@
         <span class="ctx-icon">🌐</span> 跟随全局
         <span v-if="ctxMenu.currentMode === undefined" class="ctx-check">✓</span>
       </div>
+      <div class="ctx-menu-divider"></div>
+      <!-- 删除节点：removeCells 会自动触发 cell:removed 同步链（写回 Store + 推历史 + 释放点 ID） -->
+      <div class="ctx-menu-item ctx-danger" @click="deleteCtxNode">
+        <span class="ctx-icon">🗑️</span> 删除节点
+      </div>
     </div>
   </Teleport>
 </template>
@@ -158,6 +163,15 @@ function onDocClick() {
   hideCtxMenu()
 }
 
+/** 删除右键菜单当前指向的节点（删除后由 cell:removed 事件链同步 Store、推历史并释放点 ID） */
+function deleteCtxNode() {
+  if (!graph || !ctxMenu.nodeId) return
+  const node = graph.getCellById(ctxMenu.nodeId)
+  hideCtxMenu()
+  if (!node) return
+  graph.removeCells([node])
+}
+
 // ===================== 3. 使用 Store 与 Composables =====================
 const editorStore = useEditorStore()
 const routeStore = useRouteStore()
@@ -196,9 +210,13 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, s
       cell.setSize(iconModeSizeFor(data))
     }
   },
-  // 移除节点：释放点 ID（含绑定的全部点位：主点 + 附加点）
+  // 移除节点：释放点 ID（含绑定的全部点位：主点 + 附加点）并清理订阅与路线覆盖层
   onNodeRemoved: (cell) => {
     const data = cell.getData()
+    // 取消数据订阅（避免残留回调持续写入已删除节点）
+    dataService.unbindNodeData(cell.id)
+    // 清除该节点的路线覆盖层（虚线路径 + 航点标记）
+    clearRouteOverlay(cell.id)
     const generator = PointIdGenerator.getInstance()
     if (data?.pointId) {
       generator.release(data.pointId)
@@ -820,11 +838,12 @@ onMounted(() => {
     emit('node-dblclick', {nodeId: node.id, shape: node.shape})
   })
 
-  // 右键节点：弹出显示模式切换菜单
+  // 右键节点：弹出显示模式切换菜单（路线覆盖层/坐标标签等辅助图形不弹）
   graph.on('node:contextmenu', ({e, node}) => {
     e.preventDefault()
     e.stopPropagation()
     const nodeData = node.getData() || {}
+    if (nodeData.isRouteOverlay || nodeData.isRoutePath || nodeData.isCoordLabel) return
     ctxMenu.nodeId = node.id
     ctxMenu.currentMode = nodeData.displayMode ?? undefined // null → undefined（跟随全局）
     ctxMenu.x = e.clientX
@@ -1103,5 +1122,12 @@ onBeforeUnmount(() => {
   height: 1px;
   margin: 4px 8px;
   background: var(--border-light);
+}
+/* 危险操作项（删除节点）：红色文字，悬停浅红底 */
+.ctx-menu-item.ctx-danger {
+  color: var(--color-danger, #ff4d4f);
+}
+.ctx-menu-item.ctx-danger:hover {
+  background: rgba(255, 77, 79, .1);
 }
 </style>
