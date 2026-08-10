@@ -338,8 +338,6 @@
       "data": {
         "title": "系统综合负载",
         "unit": "%",
-        "min": 0,
-        "max": 100,
         "value": 50,
         "pointId": "sensor.temp.1",
         "binding": {

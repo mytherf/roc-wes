@@ -152,8 +152,6 @@
       "data": {
         "title": "车队平均电量",
         "unit": "%",
-        "min": 0,
-        "max": 100,
         "value": 50,
         "pointId": "sensor.temp.1",
         "binding": {

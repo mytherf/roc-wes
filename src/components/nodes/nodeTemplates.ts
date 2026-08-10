@@ -293,7 +293,7 @@ export const nodeTemplates: NodeTemplate[] = [
     group: 'IoT 监控',
     pointIdTemplate: 'sensor.temp',
     width: 200, height: 180,
-    data: { title: '温度', unit: '°C', min: 0, max: 100, value: 50 },
+    data: { title: '温度', unit: '°C', value: 50 },
     transform: (raw: any) => Math.round(raw * 10) / 10,
   },
   {

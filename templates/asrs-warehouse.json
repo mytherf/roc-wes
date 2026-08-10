@@ -202,8 +202,6 @@
       "data": {
         "title": "堆垛机负载",
         "unit": "%",
-        "min": 0,
-        "max": 100,
         "value": 50,
         "pointId": "sensor.temp.1",
         "binding": {
