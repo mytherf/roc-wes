@@ -39,15 +39,15 @@ function isDemoSource(ds: DataSource): boolean {
 }
 
 /**
- * 各类型演示模式下的样例监控点位。
+ * 各类型演示模式下的样例监控点位（统一以 sample- 前缀标识，与业务点位区分）。
  * 桌面端内置演示引擎（Rust DemoAdapter）会为任意订阅的 pointId 生成模拟值，故此处挑选具代表性的点位，
  * 让演示模式下即使没有节点绑定也能展示一组实时数据。
  * 工业协议采用真实地址格式（与 19502-19504 仿真器一致），切到真实设备/仿真器同样可用。
  */
 const DEMO_POINTS: Record<DataSourceType, string[]> = {
-    websocket: ['ws-temperature', 'ws-humidity', 'ws-pressure'],
-    http: ['http-temperature', 'http-throughput'],
-    sse: ['sse-counter', 'sse-level'],
+    websocket: ['sample-temperature', 'sample-humidity', 'sample-pressure'],
+    http: ['sample-temperature', 'sample-throughput'],
+    sse: ['sample-counter', 'sample-level'],
     mqtt: ['factory/line1/temperature', 'factory/line1/status'],
     s7: ['DB1,REAL0', 'DB1,REAL4', 'DB1,INT0'],
     opc: ['ns=2;s=Ramp', 'ns=2;s=Sine', 'ns=2;s=Counter'],
@@ -78,14 +78,20 @@ export function useGatewayMonitor() {
     /** dsId → 探针实例（非响应式，仅内部持有） */
     const monitors = new Map<string, GatewayMonitorService>()
 
-    /** 收集某数据源被画布节点绑定的所有 pointId（去重；兼容 sourceId 与旧 sourceUrl 引用） */
+    /** 收集某数据源被画布节点绑定的所有 pointId（去重；多点绑定取全部点组，条目兼容字符串/对象；兼容 sourceId 与旧 sourceUrl 引用） */
     function collectPoints(ds: DataSource): string[] {
         const set = new Set<string>()
         for (const node of editorStore.graphData.nodes as any[]) {
             const b = node?.data?.binding
             if (!b?.pointId) continue
             if (b.sourceId === ds.id || (b.sourceUrl && b.sourceUrl === ds.url)) {
-                set.add(b.pointId)
+                const points = Array.isArray(b.points) && b.points.length > 0
+                    ? b.points
+                    : [b.pointId]
+                for (const entry of points) {
+                    const pid = typeof entry === 'string' ? entry : entry?.pointId
+                    if (pid) set.add(pid)
+                }
             }
         }
         return [...set]

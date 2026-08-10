@@ -70,11 +70,11 @@ async fn demo_session_streams_telemetry_and_stops() {
 
     // connect 是异步建连：命令立即返回，会话任务自行完成连接并推送状态
     engine
-        .connect("dev-demo".into(), Box::new(DemoAdapter::new()), 200)
+        .connect("dev-demo".into(), Box::new(DemoAdapter::default()), 200)
         .expect("创建会话应成功");
 
     // 重复 connect 同一设备必须被拒绝
-    let dup = engine.connect("dev-demo".into(), Box::new(DemoAdapter::new()), 200);
+    let dup = engine.connect("dev-demo".into(), Box::new(DemoAdapter::default()), 200);
     assert!(matches!(dup, Err(GatewayError::AlreadyExists(_))));
 
     engine.subscribe("dev-demo", "temperature".into()).unwrap();

@@ -38,12 +38,29 @@ export interface IDataService {
 }
 
 /**
+ * 绑定点条目：点 ID 与转换函数为一组（属性面板中按组添加/删除）
+ */
+export interface BindingPointEntry {
+    /** 点 ID（用于订阅） */
+    pointId: string
+    /** 该点专属的转换函数源码（可选；主点兼容回退顶层 transformSource） */
+    transformSource?: string
+}
+
+/**
  * 数据绑定配置（存储在节点 data 中）
  * 画布上每个节点都可以配置“绑定哪个数据点”，字段如下：
  */
 export interface DataBindingConfig {
-    /** 数据点 ID（用于订阅） */
+    /** 主点 ID（points[0].pointId，节点渲染值 data.value 由它驱动；保留单字段兼容旧工程） */
     pointId: string
+    /**
+     * 全部绑定点组列表：每组 = 点 ID + 转换函数；points[0] 为主点组（属性面板中固定不可删），
+     * 其余为用户自由添加/删除的附加点组。条目兼容字符串（旧格式，视为无转换函数）。
+     * 旧工程无此字段时，按 [{ pointId, transformSource }] 单组兼容处理。
+     * 附加点数据写入 data.values[pointId]，主点同时写入 data.value。
+     */
+    points?: Array<BindingPointEntry | string>
     /** 数据源实例 ID（引用「数据源管理」中创建的实例；为空则使用模拟数据） */
     sourceId?: string
     /** 数据源类型（兼容旧数据；新数据通过 sourceId 解析） */

@@ -2,11 +2,10 @@
      NodeDetailDialog.vue - 节点详情弹窗（双击画布节点时打开）
 
      展示节点的“体检报告”：
-       1. 基本信息：节点 ID、类型、位置坐标、尺寸
-       2. 运行数据：节点 data 中除内部字段外的所有数据（
-          过滤 binding/pointId/floorGrids/history/animation 等内部字段，
+       1. 基本信息：节点 ID、名称、类型、标签
+       2. 运行数据：按点 ID 分组显示，每组含数据源类型/地址及节点 data 中除内部字段外的所有数据
+          （过滤 binding/pointId/floorGrids/history/animation 等内部字段，
           函数/数组/对象等复杂值以 JSON 形式展示）
-       3. 数据绑定：绑定的点位 ID、数据源类型与地址（未配置时显示提示）
 
      数据为打开时的实时快照（直接从 X6 节点实例读取，不订阅实时刷新）。
      货架节点（rack-node）有专属正视图弹窗，不会走此通用弹窗。
@@ -28,56 +27,43 @@
             <div class="info-grid">
               <div class="info-item">
                 <span class="info-label">节点 ID</span>
-                <span class="info-value mono">{{ nodeInfo.id }}</span>
+                <span class="info-value mono" :title="nodeInfo.id">{{ nodeInfo.id }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">名称</span>
+                <span class="info-value" :title="nodeName">{{ nodeName }}</span>
               </div>
               <div class="info-item">
                 <span class="info-label">类型</span>
-                <span class="info-value">{{ nodeTypeLabel }}</span>
+                <span class="info-value" :title="nodeTypeLabel">{{ nodeTypeLabel }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">位置</span>
-                <span class="info-value">({{ nodeInfo.x }}, {{ nodeInfo.y }})</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">尺寸</span>
-                <span class="info-value">{{ nodeInfo.width }} × {{ nodeInfo.height }}</span>
+                <span class="info-label">标签</span>
+                <span class="info-value" :title="nodeInfo.label || '-'">{{ nodeInfo.label || '-' }}</span>
               </div>
             </div>
           </div>
 
-          <!-- 运行数据 -->
-          <div class="detail-section" v-if="dataEntries.length > 0">
+          <!-- 运行数据（按点 ID 分组） -->
+          <div class="detail-section">
             <div class="section-title">运行数据</div>
-            <div class="data-table">
-              <div v-for="entry in dataEntries" :key="entry.key" class="data-row">
-                <span class="data-key">{{ entry.key }}</span>
-                <span class="data-value" :class="{ 'data-complex': entry.complex }">{{ entry.display }}</span>
+            <template v-if="groupedData.length > 0">
+              <div v-for="group in groupedData" :key="group.pointId" class="point-group">
+                <div class="point-header">
+                  <span class="point-id mono">{{ group.pointId || '未绑定点位' }}</span>
+                  <span v-if="group.sourceType" class="point-src">{{ group.sourceType }}</span>
+                  <span v-if="group.sourceUrl" class="point-url mono">{{ group.sourceUrl }}</span>
+                </div>
+                <div class="data-table">
+                  <div v-for="entry in group.entries" :key="entry.key" class="data-row">
+                    <span class="data-key">{{ entry.key }}</span>
+                    <span class="data-value" :class="{ 'data-complex': entry.complex }">{{ entry.display }}</span>
+                  </div>
+                  <div v-if="group.entries.length === 0" class="no-binding">暂无运行数据</div>
+                </div>
               </div>
-            </div>
-          </div>
-
-          <!-- 数据绑定 -->
-          <div class="detail-section" v-if="bindingInfo">
-            <div class="section-title">📡 数据绑定</div>
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="info-label">点 ID</span>
-                <span class="info-value mono">{{ bindingInfo.pointId || '-' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">数据源类型</span>
-                <span class="info-value">{{ bindingInfo.sourceType || '-' }}</span>
-              </div>
-              <div class="info-item" v-if="bindingInfo.sourceUrl">
-                <span class="info-label">数据源地址</span>
-                <span class="info-value mono">{{ bindingInfo.sourceUrl }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 无绑定提示 -->
-          <div class="detail-section" v-else>
-            <div class="no-binding">⏸ 未配置数据绑定</div>
+            </template>
+            <div v-else class="no-binding">⏸ 未配置数据绑定，暂无运行数据</div>
           </div>
         </div>
 
@@ -116,15 +102,10 @@ const nodeInfo = computed(() => {
   const cell = props.graph.getCellById(props.nodeId)
   if (!cell || !cell.isNode()) return null
 
-  const pos = cell.getPosition()
-  const size = cell.getSize()
   return {
     id: cell.id,
     shape: cell.shape,
-    x: Math.round(pos.x),
-    y: Math.round(pos.y),
-    width: Math.round(size.width),
-    height: Math.round(size.height),
+    label: cell.getData()?.label ?? '',
     data: cell.getData() || {},
   }
 })
@@ -141,37 +122,67 @@ const nodeName = computed(() => {
   return data?.name || data?.title || data?.label || nodeTypeLabel.value
 })
 
-// ===== 数据绑定信息 =====
-const bindingInfo = computed(() => {
-  const binding = nodeInfo.value?.data?.binding
-  if (!binding || !binding.pointId) return null
-  return binding
-})
+// ===== 运行数据展示（按点 ID 分组：多点绑定时每个点一组，组头点 ID + 数据源信息） =====
+/** 内部字段：不在运行数据中展示（名称/标签已在基本信息显示，values 已按点分组展示，其余为结构/历史/动画内部字段） */
+const HIDDEN_KEYS = new Set(['name', 'title', 'label', 'binding', 'pointId', 'values', 'floorGrids', 'history', 'animation'])
 
-// ===== 运行数据展示（过滤内部字段，格式化复杂值） =====
-const HIDDEN_KEYS = new Set(['binding', 'pointId', 'floorGrids', 'history', 'animation'])
+/** 将单个值格式化为可展示条目（函数/数组/对象等复杂值以 JSON 展示） */
+function toEntry(key: string, value: any) {
+  if (value === null || value === undefined) {
+    return { key, display: '-', complex: false }
+  }
+  if (typeof value === 'function') {
+    return { key, display: '[函数]', complex: true }
+  }
+  if (Array.isArray(value) || typeof value === 'object') {
+    return { key, display: JSON.stringify(value), complex: true }
+  }
+  return { key, display: String(value), complex: false }
+}
 
-const dataEntries = computed(() => {
+const groupedData = computed(() => {
   const data = nodeInfo.value?.data
   if (!data) return []
 
-  return Object.entries(data)
+  const entries = Object.entries(data)
     .filter(([key]) => !HIDDEN_KEYS.has(key))
-    .map(([key, value]) => {
-      if (value === null || value === undefined) {
-        return { key, display: '-', complex: false }
+    .map(([key, value]) => toEntry(key, value))
+
+  const binding = data.binding
+  if (binding && binding.pointId) {
+    // 归一化绑定点列表：优先 points（点组，条目兼容字符串/对象），旧数据回退单字段 pointId
+    const rawPoints = Array.isArray(binding.points) && binding.points.length > 0
+      ? binding.points
+      : [binding.pointId]
+    const points = rawPoints
+      .map((p: any) => (typeof p === 'string' ? p : p?.pointId))
+      .filter((pid: any) => !!pid)
+    // 各点的实时值（由 useDataService 写入 data.values[pointId]）
+    const values = (data.values || {}) as Record<string, { value?: any; timestamp?: number; quality?: string }>
+    // 每个绑定点一组：组头点 ID + 数据源信息，组内优先展示该点实时值，
+    // 主点额外追加节点顶层运行字段（value/_timestamp/_quality 等）
+    return points.map((pid: string, idx: number) => {
+      const pv = values[pid]
+      const groupEntries = pv
+        ? [
+            toEntry('value', pv.value),
+            toEntry('timestamp', pv.timestamp),
+            toEntry('quality', pv.quality ?? 'good'),
+          ]
+        : []
+      if (idx === 0) groupEntries.push(...entries)
+      return {
+        pointId: pid,
+        sourceType: binding.sourceType,
+        sourceUrl: binding.sourceUrl,
+        entries: groupEntries,
       }
-      if (typeof value === 'function') {
-        return { key, display: '[函数]', complex: true }
-      }
-      if (Array.isArray(value)) {
-        return { key, display: JSON.stringify(value), complex: true }
-      }
-      if (typeof value === 'object') {
-        return { key, display: JSON.stringify(value), complex: true }
-      }
-      return { key, display: String(value), complex: false }
     })
+  }
+  // 未绑定但存在运行字段时，仍展示为“未绑定点位”组
+  return entries.length > 0
+    ? [{ pointId: '', sourceType: '', sourceUrl: '', entries }]
+    : []
 })
 </script>
 
@@ -244,23 +255,31 @@ const dataEntries = computed(() => {
   border-bottom: 1px solid var(--color-primary-light);
 }
 .info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.info-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
+}
+/* 标签与值同行：标签固定列宽，值占满剩余宽度 */
+.info-item {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
 }
 .info-label {
-  font-size: 11px;
+  width: 52px;
+  flex-shrink: 0;
+  font-size: 12px;
   color: var(--text-muted);
 }
 .info-value {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   color: var(--text-primary);
+  /* 长值溢出处理：自动换行完整展示（不截断），配合 title 悬停查看 */
   word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .info-value.mono {
   font-family: var(--font-mono);
@@ -298,6 +317,33 @@ const dataEntries = computed(() => {
   max-height: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 点 ID 分组 */
+.point-group + .point-group { margin-top: 10px; }
+.point-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.point-id {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+.point-src {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: 11px;
+}
+.point-url {
+  font-size: 11px;
+  color: var(--text-muted);
+  word-break: break-all;
 }
 .no-binding {
   font-size: 13px;

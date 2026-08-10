@@ -41,8 +41,8 @@ export function useDataService() {
   const dataServiceMap = new Map<string, IDataService>()
   // 存储节点 ID → 数据服务 key 的映射
   const nodeServiceKeys = new Map<string, string>()
-  // 存储节点 ID → 数据点 ID 的映射，用于清理
-  const nodeDataSubscriptions = new Map<string, string>()
+  // 存储节点 ID → 已订阅点 ID 列表的映射（多点绑定，用于清理）
+  const nodeDataSubscriptions = new Map<string, string[]>()
 
   /**
    * 根据 sourceType 和 sourceUrl 获取或创建数据服务实例
@@ -97,38 +97,62 @@ export function useDataService() {
     return `${sourceType}:${sourceUrl}:${cfg}`
   }
 
+  /** 归一化后的绑定点：点 ID + 该点专属转换函数源码 */
+  interface ResolvedBindingPoint {
+    pointId: string
+    transformSource?: string
+  }
+
   /**
-   * 解析数据绑定的转换函数（修复 transform 持久化 bug 的核心）。
-   *
-   * 背景：binding.transform 是 Function，无法被 JSON.stringify 序列化，
-   * 保存工程（graph.toJSON）后会静默丢失。因此持久化依赖字符串字段 transformSource，
-   * 运行期在订阅时按需编译为函数并缓存回 binding.transform。
-   *
-   * @returns 可用的转换函数；无配置或编译失败时返回 undefined
+   * 归一化绑定点组列表：优先 points（点 ID + 转换函数成组，去重去空），
+   * 旧数据回退 [{ pointId, transformSource }] 单组；条目兼容字符串（视为无转换函数）。
+   * 返回列表首项即主点组（节点渲染值由它驱动）
    */
-  function resolveTransform(binding: DataBindingConfig): ((raw: any) => any) | undefined {
-    if (typeof binding.transform === 'function') return binding.transform
-    const src = binding.transformSource?.trim()
-    if (!src) return undefined
+  function resolveBindingPoints(binding: DataBindingConfig): ResolvedBindingPoint[] {
+    const raw: Array<any> = Array.isArray(binding.points) && binding.points.length > 0
+      ? binding.points
+      : [{ pointId: binding.pointId, transformSource: binding.transformSource }]
+    const seen = new Set<string>()
+    const result: ResolvedBindingPoint[] = []
+    raw.forEach((entry, idx) => {
+      const pid = (typeof entry === 'string' ? entry : entry?.pointId ?? '').trim()
+      if (!pid || seen.has(pid)) return
+      seen.add(pid)
+      // 转换函数：优先点组自带源码；主点回退顶层 transformSource（兼容旧工程）
+      const own = typeof entry === 'object' ? entry?.transformSource?.trim() : ''
+      const transformSource = own || (idx === 0 ? binding.transformSource : undefined)
+      result.push({ pointId: pid, transformSource })
+    })
+    return result
+  }
+
+  /** 编译转换函数源码为可调用函数（失败返回 undefined，不中断订阅） */
+  function compileTransform(src?: string): ((raw: any) => any) | undefined {
+    const s = src?.trim()
+    if (!s) return undefined
     try {
-      // transformSource 约定为箭头函数源码，参数固定为 raw
-      const fn = new Function('raw', `return (${src})(raw)`) as (raw: any) => any
-      binding.transform = fn // 缓存，避免每次数据更新重复编译
-      return fn
+      // 约定为箭头函数源码，参数固定为 raw
+      return new Function('raw', `return (${s})(raw)`) as (raw: any) => any
     } catch (e) {
-      console.warn(`[useDataService] 转换函数编译失败: ${src}`, e)
+      console.warn(`[useDataService] 转换函数编译失败: ${s}`, e)
       return undefined
     }
   }
 
   /**
-   * 为节点绑定数据源
-   * 订阅成功后，数据点更新会自动写入 node.data.value（并附带 _timestamp / _quality）
+   * 为节点绑定数据源（支持多点组：每组 = 点 ID + 转换函数；points[0] 为主点组）
+   * - 主点更新写入 node.data.value（并附带 _timestamp / _quality），驱动节点渲染
+   * - 所有点（含主点）同步写入 node.data.values[pointId]，供详情/扩展使用
+   * - 每个点使用自己组内的转换函数
    */
   function bindNodeData(node: Node) {
     const nodeData = node.getData()
     const binding = nodeData?.binding as DataBindingConfig | undefined
     if (!binding?.pointId) return
+
+    // 归一化点组列表：为空则不订阅
+    const points = resolveBindingPoints(binding)
+    if (points.length === 0) return
 
     // 先取消旧订阅（避免重复绑定）
     unbindNodeData(node.id)
@@ -163,51 +187,63 @@ export function useDataService() {
     // 记录该节点使用的服务 key（使用解析后的数据源类型、地址与配置，兼容 sourceId 方式）
     nodeServiceKeys.set(node.id, serviceKey(sourceType ?? 'websocket', sourceUrl, sourceConfig))
 
-    // 解析转换函数（运行期 Function 优先，否则从持久化的 transformSource 编译）
-    const transform = resolveTransform(binding)
+    const primaryPointId = points[0].pointId
+    for (const p of points) {
+      // 每个点编译自己组内的转换函数（主点已在归一化时回退顶层 transformSource）
+      const transform = compileTransform(p.transformSource)
+      service.subscribe(p.pointId, (point) => {
+        const currentData = node.getData()
+        const prevValues = (currentData?.values || {}) as Record<string, any>
+        // 每个点先应用自己组内的转换函数（每点独立转换），再写入 values
+        const converted = transform ? transform(point.value) : point.value
+        const nextData: Record<string, any> = {
+          ...currentData,
+          values: {
+            ...prevValues,
+            [p.pointId]: { value: converted, timestamp: point.timestamp, quality: point.quality },
+          },
+        }
+        // 主点：转换后的值写入 data.value 驱动节点渲染（保持既有行为与事件评估）
+        if (p.pointId === primaryPointId) {
+          nextData.value = converted
+          nextData._timestamp = point.timestamp
+          nextData._quality = point.quality
+        }
+        node.setData(nextData)
+        // 评估节点数据变化事件（比较类条件上升沿触发，不会重复告警）
+        evaluateNodeEvents(node.id, currentData, nextData)
+      })
+    }
 
-    service.subscribe(binding.pointId, (point) => {
-      const currentData = node.getData()
-      let newValue = point.value
-      if (transform) {
-        newValue = transform(point.value)
-      }
-      const nextData = {
-        ...currentData,
-        value: newValue,
-        _timestamp: point.timestamp,
-        _quality: point.quality,
-      }
-      node.setData(nextData)
-      // 评估节点数据变化事件（比较类条件上升沿触发，不会重复告警）
-      evaluateNodeEvents(node.id, currentData, nextData)
-    })
-
-    nodeDataSubscriptions.set(node.id, binding.pointId)
+    nodeDataSubscriptions.set(node.id, points.map((p) => p.pointId))
   }
 
   /**
-   * 若节点的 binding.pointId 与当前已订阅的点 ID 不一致，则重新绑定
+   * 若节点的绑定点列表与当前已订阅的点 ID 列表不一致，则重新绑定
    * 用于属性面板修改绑定配置后自动切换数据源（避免每次数据更新都重复订阅）
    */
   function rebindIfChanged(node: Node) {
     const data = node.getData()
-    const currentPointId = nodeDataSubscriptions.get(node.id)
-    const newPointId = data?.binding?.pointId
-    if (currentPointId !== newPointId) {
+    const currentKey = (nodeDataSubscriptions.get(node.id) || []).join('|')
+    const binding = data?.binding as DataBindingConfig | undefined
+    const newKey = binding?.pointId ? resolveBindingPoints(binding).map((p) => p.pointId).join('|') : ''
+    if (currentKey !== newKey) {
       bindNodeData(node)
     }
   }
 
   /**
-   * 取消节点的数据订阅
+   * 取消节点的数据订阅（退订全部绑定点）
    */
   function unbindNodeData(nodeId: string) {
     if (nodeDataSubscriptions.has(nodeId)) {
-      const pointId = nodeDataSubscriptions.get(nodeId)!
+      const pointIds = nodeDataSubscriptions.get(nodeId)!
       const serviceKey = nodeServiceKeys.get(nodeId)
-      if (serviceKey && dataServiceMap.has(serviceKey)) {
-        dataServiceMap.get(serviceKey)!.unsubscribe(pointId)
+      const service = serviceKey ? dataServiceMap.get(serviceKey) : undefined
+      if (service) {
+        for (const pid of pointIds) {
+          service.unsubscribe(pid)
+        }
       }
       nodeDataSubscriptions.delete(nodeId)
       nodeServiceKeys.delete(nodeId)
@@ -230,10 +266,13 @@ export function useDataService() {
    * 取消所有节点的订阅（不断开服务连接，可在重新加载后再次绑定）
    */
   function unbindAllNodes() {
-    for (const [nodeId, pointId] of nodeDataSubscriptions) {
+    for (const [nodeId, pointIds] of nodeDataSubscriptions) {
       const serviceKey = nodeServiceKeys.get(nodeId)
-      if (serviceKey && dataServiceMap.has(serviceKey)) {
-        dataServiceMap.get(serviceKey)!.unsubscribe(pointId)
+      const service = serviceKey ? dataServiceMap.get(serviceKey) : undefined
+      if (service) {
+        for (const pid of pointIds) {
+          service.unsubscribe(pid)
+        }
       }
     }
     nodeDataSubscriptions.clear()

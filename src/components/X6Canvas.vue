@@ -196,15 +196,23 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, s
       cell.setSize(iconModeSizeFor(data))
     }
   },
-  // 移除节点：释放点 ID
+  // 移除节点：释放点 ID（含绑定的全部点位：主点 + 附加点）
   onNodeRemoved: (cell) => {
     const data = cell.getData()
     const generator = PointIdGenerator.getInstance()
     if (data?.pointId) {
       generator.release(data.pointId)
     }
-    if (data?.binding?.pointId) {
-      generator.release(data.binding.pointId)
+    const binding = data?.binding
+    if (binding) {
+      const points = Array.isArray(binding.points) && binding.points.length > 0
+        ? binding.points
+        : (binding.pointId ? [binding.pointId] : [])
+      for (const entry of points) {
+        // 条目兼容字符串/对象（点组 = 点ID + 转换函数）
+        const pid = typeof entry === 'string' ? entry : entry?.pointId
+        if (pid) generator.release(pid)
+      }
     }
   },
 })

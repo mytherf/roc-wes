@@ -100,13 +100,13 @@
                   {{ monitor.getState(ds.id).deviceMessage }}
                 </div>
                 <div v-if="ds.url === BUILTIN_MOCK_URLS[ds.type]" class="ds-mon-demo-note">
-                  演示模式：下列为桌面端内置模拟引擎生成的样例点位与实时模拟数据
+                  演示模式：下列为内置模拟引擎生成的样例点位(sample-*)与实时模拟数据
                 </div>
 
                 <!-- 数据点实时值 -->
                 <div class="ds-mon-title">数据点实时值</div>
                 <div v-if="Object.keys(monitor.getState(ds.id).points).length === 0" class="ds-mon-empty">
-                  {{ ds.url === BUILTIN_MOCK_URLS[ds.type] ? '等待模拟服务推送…' : '暂无数据（未绑定节点点位或服务未推送）' }}
+                  {{ ds.url === BUILTIN_MOCK_URLS[ds.type] ? '等待内置演示引擎推送…' : '暂无数据（未绑定节点点位或服务未推送）' }}
                 </div>
                 <table v-else class="ds-mon-table">
                   <thead>

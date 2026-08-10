@@ -133,12 +133,12 @@ sequenceDiagram
 
 | 文件 | 改动 |
 |---|---|
-| `src/platform/runtime.ts`（新增） | `isTauri()` 运行时探测（`__TAURI_INTERNALS__`） |
-| `../../src/services/IpcGatewayService.ts`（新增） | 实现既有 `IDataService` 接口：invoke 命令 + 单例事件总线按 `deviceId` 分发；`@tauri-apps/api` 动态 import，浏览器构建零负担 |
-| `../../src/composables/useDataService.ts` | `getDataService` 路由：桌面运行时下 modbus/s7/opc 及 demo 数据源 → `IpcGatewayService`；ws/http/sse/mqtt 真实地址仍走 WebView 原生连接 |
+| `src/platform/runtime.ts`（已移除） | 早期曾用 `isTauri()` 运行时探测分支；纯桌面化后无需探测，文件删除 |
+| `../../src/services/IpcGatewayService.ts`（新增） | 实现既有 `IDataService` 接口：invoke 命令 + 单例事件总线按 `deviceId` 分发；`@tauri-apps/api` 动态 import |
+| `../../src/composables/useDataService.ts` | `getDataService` 路由：演示模式（`isDemoSource` 判定）与 modbus/s7/opc 工业协议**无条件**走 `IpcGatewayService`；ws/http/sse/mqtt 真实地址走 WebView 原生连接 |
 | 其余（UI、节点组件、属性面板、X6Canvas） | **零改动** |
 
-浏览器开发模式不受影响：`npm run dev` 仍启动 mock 服务器与 Node 网关，行为与现在完全一致；桌面端由 `npm run tauri dev` 启动。
+应用为纯桌面版，统一经 `npx tauri dev` 启动（vite dev server 固定端口 1420，仅作 WebView 资源来源，无任何本地数据端口）。
 
 ## 6. 已知要点
 
@@ -163,17 +163,21 @@ sequenceDiagram
 
 已完成（本次落地）：
 
-- Cargo workspace 全部骨架：`gateway-core`（模型 + trait）、`gateway-engine`（会话/轮询/重连/EventSink）、`gateway-modbus`（tokio-modbus 适配器，4 项单元测试）、`gateway-demo`（演示适配器）
+- Cargo workspace 全部骨架：`gateway-core`（模型 + trait）、`gateway-engine`（会话/轮询/重连/EventSink）、`gateway-modbus`（tokio-modbus 适配器，4 项单元测试）、`gateway-demo`（演示适配器，按协议 profile 生成特征波形，5 项单元测试）
 - `gateway-engine` 端到端集成测试（`tests/demo_session.rs`）：DemoAdapter 全链路（connect → subscribe → 周期遥测 → unsubscribe → disconnect）、重复 connect 幂等保护、连接失败指数退避重连（退避期间订阅不丢、恢复后自动产出遥测）
 - Tauri 壳：4 个 IPC 命令、事件分发、退出清理、CSP/窗口配置、应用图标（`icons/icon.ico`）
-- 前端平台层：`isTauri()` + `IpcGatewayService` + useDataService 路由
+- 前端平台层：`IpcGatewayService` + useDataService 路由
 - 开发链路打通：`@tauri-apps/cli` 已安装，`npx tauri dev` 首次完整编译并启动成功（WebView2 正常加载 vite dev server）
 - Modbus / 演示模式在桌面端可用
-- 代码清理（A+B+C）：移除 Node 网关 `gateway/`（约 1000 行）与 mock 工业桥接（端口 8084/8085/8086）、相关 scripts 与依赖（modbus-serial / node-opcua / nodes7 / tsx / ts-node）；`GatewayMonitorService` 工业类型在 Tauri 下改经 IPC 探测（独立 `mon:` 前缀会话，避免与业务会话冲突）；S7 slot 默认值统一为 2；clippy 零警告、workspace 测试 6/6 通过
+- 代码清理（A+B+C）：移除 Node 网关 `gateway/`（约 1000 行）与 mock 工业桥接（端口 8084/8085/8086）、相关 scripts 与依赖（modbus-serial / node-opcua / nodes7 / tsx / ts-node）；`GatewayMonitorService` 工业类型在 Tauri 下改经 IPC 探测（独立 `mon:` 前缀会话，避免与业务会话冲突）；S7 slot 默认值统一为 2；clippy 零警告
+- 纯桌面化：移除 `mock/` 内置模拟服务与浏览器版 WS 桥接服务（GatewayService / Modbus / S7 / Opc Service），数据链路统一为 IPC；vite dev 端口固定 1420（规避 Hyper-V 保留端口）；演示标识地址（`BUILTIN_MOCK_URLS`）仅作模式识别与表单预填
+- 演示波形 profile 化：`DemoAdapter` 按 `DemoProfile` 复刻原 mock 各协议特征波形（正弦/阶梯/锯齿/离散档位/三角波等）；演示模式（任意协议）的监控探针与业务链路一致，统一经 Rust 演示引擎 IPC 探测
+- 多点绑定（点组）：`binding.points[]`（点 ID + 转换函数成组），首组为主点驱动节点渲染，全部点写入 `data.values`，兼容旧单点工程；配套前端测试（vitest + jsdom，2 文件 6 项）
+- 持久化升级：tauri-plugin-fs + `platform/fileStorage`（原子写入），全部工程数据落盘为应用配置目录 JSON 文件，全面替代 localStorage / sessionStorage
 
 后续（按风险排序）：
 
 1. **S7 spike**（风险最高）：snap7 绑定 vs 自研 S7comm（TPKT/COTP 已有 JS 逆向经验），产出 `gateway-s7` 并在 factory 注册
 2. OPC UA：引入 `opcua` crate，`gateway-opcua`
-3. 打包：应用图标、NSIS 安装器、（可选）tauri-plugin-updater 自动更新
+3. 打包完善：NSIS 安装器调优、（可选）tauri-plugin-updater 自动更新
 4. 日志落盘：tracing-appender 滚动文件（AppData）

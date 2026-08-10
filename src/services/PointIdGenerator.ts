@@ -53,9 +53,16 @@ export class PointIdGenerator {
             if (data.pointId) {
                 this.usedIds.add(data.pointId)
             }
-            // 检查 binding 中的 pointId
-            if (data.binding?.pointId) {
-                this.usedIds.add(data.binding.pointId)
+            // 检查 binding 中的点位（多点组：优先 points 列表，条目兼容字符串/对象；旧数据回退单字段 pointId）
+            const binding = data.binding
+            if (binding) {
+                const points = Array.isArray(binding.points) && binding.points.length > 0
+                    ? binding.points
+                    : (binding.pointId ? [binding.pointId] : [])
+                for (const entry of points) {
+                    const pid = typeof entry === 'string' ? entry : entry?.pointId
+                    if (pid) this.usedIds.add(pid)
+                }
             }
         }
     }

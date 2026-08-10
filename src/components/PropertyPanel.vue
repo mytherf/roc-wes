@@ -326,24 +326,37 @@
             </div>
             <div class="field">
               <label>点ID
-                <!-- 帮助按钮：点ID 说明气泡（跟在标签文字后） -->
+                <!-- 帮助按钮：点组说明气泡（跟在标签文字后） -->
                 <span class="field-help-wrap">
                   <button type="button" class="field-help-btn" :aria-expanded="fieldHelpOpen === 'point'" title="点ID 说明" @click="toggleFieldHelp('point')">?</button>
                   <div v-if="fieldHelpOpen === 'point'" class="field-help-pop" role="note">
-                    填写即启用数据绑定。
+                    点ID 与转换函数为一组，按组添加/删除。主点组（第一个）固定不可删，驱动节点画面；附加点组实时值见节点详情。
                   </div>
                 </span>
               </label>
-              <input v-model="bindingPointId" @input="updateBinding" placeholder="例如: sensor.temp.001" />
             </div>
-            <div class="field">
-              <label>转换函数 (可选)</label>
-              <input v-model="bindingTransform" @input="updateBinding" placeholder="(raw) => Math.round(raw)" />
+            <!-- 绑定点组列表：每组 = 点ID + 转换函数；主点组（第一个）固定不可删 -->
+            <div v-for="(g, idx) in bindingGroups" :key="idx" class="binding-group-card">
+              <div class="binding-group-head">
+                <span class="binding-group-tag" :class="{ primary: idx === 0 }">{{ idx === 0 ? '主点' : `附加点 ${idx}` }}</span>
+                <button v-if="idx > 0" type="button" class="extra-point-remove" title="删除该点组" @click="removePointGroup(idx)">×</button>
+              </div>
+              <input
+                v-model="g.pointId"
+                @input="updateBinding"
+                :placeholder="idx === 0 ? '主点，例如: sensor.temp.001' : '附加点 ID，例如: sensor.humi.001'"
+              />
+              <input
+                v-model="g.transformSource"
+                @input="updateBinding"
+                placeholder="转换函数(可选): (raw) => Math.round(raw)"
+              />
             </div>
+            <button type="button" class="add-extra-point-btn" @click="addPointGroup">＋ 添加点组（点ID + 转换函数）</button>
             <div class="binding-status">
-              <span v-if="bindingPointId.trim() && !bindingSourceId" class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
-              <span v-else-if="bindingPointId.trim()" class="status-active">✅ 已启用数据绑定</span>
-              <span v-else class="status-inactive">⏸ 未启用（请填写点ID）</span>
+              <span v-if="hasPrimaryPoint && !bindingSourceId" class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
+              <span v-else-if="hasPrimaryPoint" class="status-active">✅ 已启用数据绑定</span>
+              <span v-else class="status-inactive">⏸ 未启用（请填写主点ID）</span>
             </div>
           </div>
 
@@ -546,8 +559,29 @@ const activeTab = ref<PanelTab>('basic')
 // ===================== 数据绑定配置的本地状态 =====================
 // 数据源实例 ID（空字符串 = 未选择；必须选择数据源管理中维护的实例）
 const bindingSourceId = ref('')
-const bindingPointId = ref('')
-const bindingTransform = ref('')
+
+/** 绑定点组草稿：点 ID 与转换函数为一组（bindingGroups[0] 为主点组，固定不可删） */
+interface BindingGroupDraft {
+  pointId: string
+  transformSource: string
+}
+// 点组列表（按组添加/删除；数据写入 data.values[pointId]，主点额外驱动 data.value）
+const bindingGroups = ref<BindingGroupDraft[]>([{ pointId: '', transformSource: '' }])
+
+/** 主点 ID 是否已填写（驱动绑定状态提示） */
+const hasPrimaryPoint = computed(() => !!bindingGroups.value[0]?.pointId.trim())
+
+/** 添加一个空的点组（点ID + 转换函数） */
+function addPointGroup() {
+  bindingGroups.value.push({ pointId: '', transformSource: '' })
+}
+
+/** 删除指定附加点组（主点组 idx=0 不允许删除）并立即同步绑定 */
+function removePointGroup(idx: number) {
+  if (idx <= 0) return
+  bindingGroups.value.splice(idx, 1)
+  updateBinding()
+}
 
 /** 跳转到数据源管理对话框（帮助气泡内的引导入口，跳转同时关闭气泡） */
 function gotoDataSourceManager() {
@@ -565,8 +599,6 @@ const selectedDataSource = computed(() =>
   bindingSourceId.value ? dataSourceStore.getDataSource(bindingSourceId.value) ?? null : null
 )
 
-let isUpdatingFromWatch = false
-
 // ===================== 事件规则（逻辑抽取至 useNodeEvents composable） =====================
 const { eventsDraft, addEventRule, removeEventRule } = useNodeEvents(getGraph, activeTab)
 
@@ -578,37 +610,56 @@ const nodeHeight = ref(0)
 let positionRafId: number | null = null
 let lastSyncedNodeId: string | null = null
 
-// ===================== 监听选中元素变化，加载绑定配置 =====================
+// ===================== 监听选中节点切换，加载绑定配置 =====================
+// 只监听节点 ID（而非 element 深度监听）：updateBinding 会把 binding 写回 store，
+// selectedElement 随之生成新对象，若深度监听会每次击键都把草稿回填一遍
+//（未选数据源时 binding 为 undefined，草稿被清空 → 点ID 无法输入）。
+// 切换选中节点时才需要重新回填草稿。
 watch(
-    () => element.value,
-    (newElement) => {
-      if (newElement && newElement.type === 'node') {
-        const data = newElement.data
-        let binding = data?.binding || {}
+    () => element.value?.data?.id,
+    (newId) => {
+      const newElement = element.value
+      if (!newId || !newElement || newElement.type !== 'node') {
+        bindingSourceId.value = ''
+        bindingGroups.value = [{ pointId: '', transformSource: '' }]
+        return
+      }
+      const data = newElement.data
+      let binding = data?.binding || {}
 
-        // 如果 store 中没有 binding 数据，尝试从 X6 节点实例直接读取
-        if (!binding.pointId) {
-          const graph = getGraph()
-          if (graph) {
-            const node = graph.getCellById(newElement.data.id)
-            if (node && node.isNode()) {
-              const nodeData = node.getData()
-              if (nodeData?.binding?.pointId) {
-                binding = nodeData.binding
-              }
+      // 如果 store 中没有 binding 数据，尝试从 X6 节点实例直接读取
+      if (!binding.pointId) {
+        const graph = getGraph()
+        if (graph) {
+          const node = graph.getCellById(newElement.data.id)
+          if (node && node.isNode()) {
+            const nodeData = node.getData()
+            if (nodeData?.binding?.pointId) {
+              binding = nodeData.binding
             }
           }
         }
+      }
 
-        bindingSourceId.value = binding.sourceId || ''
-        bindingPointId.value = binding.pointId || ''
-        bindingTransform.value =
-          binding.transformSource || (binding.transform ? binding.transform.toString() : '')
+      bindingSourceId.value = binding.sourceId || ''
+      // 点组回填：优先 points（每组 = 点ID + 转换函数，条目兼容字符串），
+      // 旧数据回退单组 [{ pointId, transformSource }]
+      if (Array.isArray(binding.points) && binding.points.length > 0) {
+        bindingGroups.value = binding.points.map((p: any) => ({
+          pointId: typeof p === 'string' ? p : (p?.pointId ?? ''),
+          transformSource: typeof p === 'string' ? '' : (p?.transformSource ?? ''),
+        }))
+      } else if (binding.pointId) {
+        bindingGroups.value = [{
+          pointId: binding.pointId,
+          transformSource: binding.transformSource
+            || (binding.transform ? binding.transform.toString() : ''),
+        }]
       } else {
-        bindingPointId.value = ''
+        bindingGroups.value = [{ pointId: '', transformSource: '' }]
       }
     },
-    { immediate: true, deep: true }
+    { immediate: true }
 )
 
 watch(
@@ -637,25 +688,31 @@ function updateBinding() {
     return
   }
 
-  if (isUpdatingFromWatch) return
-
   const nodeId = element.value.data.id
-  const pointId = bindingPointId.value.trim()
+  // 有效点组：点ID 非空且去重（保留首个）；转换函数随组携带
+  const validGroups: BindingGroupDraft[] = []
+  const seen = new Set<string>()
+  for (const g of bindingGroups.value) {
+    const pid = g.pointId.trim()
+    if (!pid || seen.has(pid)) continue
+    seen.add(pid)
+    validGroups.push({ pointId: pid, transformSource: g.transformSource.trim() })
+  }
+  const primary = validGroups[0]
 
   let binding: any = null
 
-  // 必须同时具备点ID与数据源实例才启用绑定（数据源必须来自数据源管理）
-  if (pointId && bindingSourceId.value) {
-    binding = { pointId, sourceId: bindingSourceId.value }
-    const transformSrc = bindingTransform.value.trim()
-    if (transformSrc) {
-      // transformSource：可持久化源码（保存工程不丢失）；transform：运行期编译缓存
-      binding.transformSource = transformSrc
-      try {
-        binding.transform = new Function('raw', `return (${transformSrc})(raw)`)
-      } catch (e) {
-        console.warn('[PropertyPanel] 转换函数无效:', e)
-      }
+  // 必须同时具备主点ID与数据源实例才启用绑定（数据源必须来自数据源管理）
+  if (primary && bindingSourceId.value) {
+    // 点组列表：主点组在前；pointId / transformSource 顶层字段保留主点信息兼容旧工程
+    binding = {
+      pointId: primary.pointId,
+      transformSource: primary.transformSource || undefined,
+      points: validGroups.map((g) => ({
+        pointId: g.pointId,
+        transformSource: g.transformSource || undefined,
+      })),
+      sourceId: bindingSourceId.value,
     }
   } else {
     binding = undefined
@@ -1356,7 +1413,8 @@ function toggleRouteMove() {
   text-overflow: ellipsis;
 }
 .field input,
-.field select {
+.field select,
+.binding-group-card input {
   flex: 1;
   min-width: 0;
   padding: 4px 8px;
@@ -1370,11 +1428,13 @@ function toggleRouteMove() {
   transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
 .field input:hover:not(:focus):not(:disabled),
-.field select:hover:not(:focus):not(:disabled) {
+.field select:hover:not(:focus):not(:disabled),
+.binding-group-card input:hover:not(:focus):not(:disabled) {
   border-color: var(--input-border-hover, var(--color-primary));
 }
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.binding-group-card input:focus {
   border-color: var(--color-primary);
   outline: none;
   background: var(--panel-bg);
@@ -1390,6 +1450,73 @@ function toggleRouteMove() {
 .field select option {
   background: var(--panel-bg);
   color: var(--text-primary);
+}
+
+/* ===================== 绑定点组（点ID + 转换函数为一组，按组增删） ===================== */
+.binding-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--statusbar-bg);
+}
+.binding-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.binding-group-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--border-light);
+}
+.binding-group-tag.primary {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+.binding-group-card input {
+  width: 100%;
+}
+.extra-point-remove {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--input-border, var(--border-color));
+  border-radius: var(--radius-sm);
+  background: var(--input-bg, var(--panel-bg));
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.extra-point-remove:hover {
+  color: #fff;
+  background: var(--color-danger, #ff4d4f);
+  border-color: var(--color-danger, #ff4d4f);
+}
+.add-extra-point-btn {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 4px 0;
+  border: 1px dashed var(--input-border, var(--border-color));
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.add-extra-point-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 
 /* ===================== 画布属性区块样式 ===================== */
