@@ -81,7 +81,6 @@ import NodeDetailDialog from '@/components/NodeDetailDialog.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useEditorStore } from '@/stores/editor'
 import { useProjectStore } from '@/stores/project'
-import { notifyAppReady } from '@/platform/notifyAppReady' // 通知 Rust 侧主界面就绪：关闭 splash 启动画面并显示主窗口
 
 // 初始化主题（从 theme.json 文件恢复用户选择并设置 data-theme 属性）
 useThemeStore()
@@ -123,11 +122,6 @@ const onCanvasReady = (payload: { graph: any; dnd: any }) => {
   // 供 Sidebar（拖拽建节点）和 EditorToolbar（操作画布）等兄弟组件使用
   graphInstance.value = payload.graph
   dndInstance.value = payload.dnd
-  // 界面已完全就绪（工具栏/侧边栏/画布均已渲染）：通知 Rust 侧关闭 splash
-  // 启动画面并显示主窗口；rAF 确保本帧 DOM 绘制完成后再通知
-  requestAnimationFrame(() => {
-    notifyAppReady()
-  })
 }
 
 /**

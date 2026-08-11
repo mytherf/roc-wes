@@ -8,22 +8,9 @@ mod state;
 
 use state::{AppState, TauriEventSink};
 use std::sync::Arc;
-use tauri::{Listener, Manager};
+use tauri::Manager;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tracing_subscriber::EnvFilter;
-
-/// 关闭启动画面（splash）并显示/聚焦主窗口。
-/// 操作幂等：正常就绪事件与兜底超时都可能调用，重复执行无副作用。
-fn switch_splash_to_main(handle: &tauri::AppHandle) {
-    if let Some(main) = handle.get_webview_window("main") {
-        let _ = main.show();
-        let _ = main.unminimize();
-        let _ = main.set_focus();
-    }
-    if let Some(splash) = handle.get_webview_window("splashscreen") {
-        let _ = splash.close();
-    }
-}
 
 pub fn run() {
     tracing_subscriber::fmt()
@@ -37,12 +24,8 @@ pub fn run() {
         // 单实例插件（必须最先注册）：已有实例运行时再次启动不会闪崩，
         // 新实例立即退出，并触发已有实例的回调——显示/聚焦主窗口 + 友好提示
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            // 把用户当前能看到的窗口带到前台：启动中聚焦 splash，已就绪聚焦主窗口
-            //（隐藏启动模式下主窗口可能尚未显示，先 show 再 focus）
-            if let Some(win) = app
-                .get_webview_window("splashscreen")
-                .or_else(|| app.get_webview_window("main"))
-            {
+            // 把主窗口带到前台（可能被最小化，先 unminimize 再 focus）
+            if let Some(win) = app.get_webview_window("main") {
                 let _ = win.show();
                 let _ = win.unminimize();
                 let _ = win.set_focus();
@@ -73,25 +56,6 @@ pub fn run() {
             let sink = Arc::new(TauriEventSink::new(app.handle().clone()));
             let engine = Arc::new(gateway_engine::GatewayEngine::new(sink));
             app.manage(AppState { engine });
-
-            // ========== Rust 侧启动画面（splash）→ 主窗口切换 ==========
-            // splash 窗口是纯静态 HTML/CSS（零 JS），进程启动即瞬间渲染；
-            // 前端主界面就绪后 emit "app-ready"，由这里关闭 splash 并显示主窗口。
-            let handle = app.handle().clone();
-            handle.clone().listen_any("app-ready", move |_event| {
-                switch_splash_to_main(&handle);
-            });
-
-            // 兜底保护：若前端异常导致 app-ready 永远不发出（如 JS 崩溃），
-            // 15 秒后强制切换，避免用户永远停在 splash 画面无法进入应用
-            let fallback = app.handle().clone();
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(15));
-                if fallback.get_webview_window("splashscreen").is_some() {
-                    tracing::warn!("未收到 app-ready 事件（前端可能卡在加载），强制切换到主窗口");
-                    switch_splash_to_main(&fallback);
-                }
-            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
