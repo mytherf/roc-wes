@@ -7,6 +7,7 @@ import { createPinia } from 'pinia' // Pinia 状态管理库：集中管理全�
 import './style.css' // 全局基础样式
 import router from './router' // 路由配置（见 src/router/index.ts）
 import App from './App.vue' // 根组件（整个应用的入口组件）
+import { showMainWindow } from './platform/showMainWindow' // 隐藏启动的主窗口显示函数
 
 // 统一注册所有 X6 自定义 Vue 节点（导入即注册）
 // 注意：registry.ts 内部会调用 X6 的 register 方法，必须在使用画布前导入一次
@@ -18,3 +19,9 @@ const pinia = createPinia()
 
 // 创建 Vue 应用 → 安装 Pinia（状态管理）→ 安装路由 → 挂载到 index.html 的 #app 元素
 createApp(App).use(pinia).use(router).mount('#app')
+
+// 窗口显示兜底：正常路径由 MainLayout 画布就绪后显示主窗口；
+// 这里设超时兜底，防止任何异常（如画布初始化失败）导致窗口永远隐藏
+setTimeout(() => {
+  void showMainWindow()
+}, 6000)

@@ -2,16 +2,16 @@
      StatusBar.vue - 编辑器底部状态栏
 
      功能：
-       1. 左侧：授权状态（当前为占位，直接显示“已授权”）
+       1. 左侧：当前工程名（多工程管理）
        2. 中间：实时统计画布节点数 / 连线数（每 500ms 刷新一次）
        3. 右侧：版本号（来自 .env 的 VITE_APP_VERSION）
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <div class="status-bar">
-    <!-- 左侧：授权状态（直接显示“已授权”，无交互） -->
+    <!-- 左侧：当前工程名（多工程管理） -->
     <div class="status-item">
-      <span class="status-icon"></span>
-      <span class="status-text"></span>
+      <span class="status-icon">📁</span>
+      <span class="status-text">{{ projectStore.currentProject?.name ?? '—' }}</span>
     </div>
 
     <!-- 中间：节点/边统计 -->
@@ -29,10 +29,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { useProjectStore } from '@/stores/project' // 多工程：状态栏显示当前工程名
 
 const props = defineProps<{
   graph: any
 }>()
+
+const projectStore = useProjectStore()
 
 const version = import.meta.env.VITE_APP_VERSION || '1.0.0'
 const nodeCount = ref(0) // 画布节点数（实时统计）

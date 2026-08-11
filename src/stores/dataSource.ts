@@ -7,8 +7,9 @@
 // 本文件职责：数据源实例的增删改查 + 类型定义 + 内置模拟地址 + 持久化。
 
 import { defineStore } from 'pinia'
-import { ref, watch, toRaw } from 'vue'
+import { ref, watch, toRaw, nextTick } from 'vue'
 import { readJsonFile, writeJsonFile } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
+import { useProjectStore } from './project' // 多工程：数据源按工程隔离，路径由 project store 提供
 
 /** 数据源类型：目前支持 7 种协议/方式 */
 export type DataSourceType = 'websocket' | 'mqtt' | 'http' | 'sse' | 's7' | 'opc' | 'modbus'
@@ -78,7 +79,7 @@ export const REAL_GATEWAY_URLS: Partial<Record<DataSourceType, string>> = {
 
 /**
  * 数据源管理 Store
- * 负责数据源实例的 CRUD 与持久化（文件落盘：应用配置目录的 datasources.json）。
+ * 负责数据源实例的 CRUD 与持久化（文件落盘：当前工程的 datasources.json）。
  */
 export const useDataSourceStore = defineStore(
     'dataSource',
@@ -87,20 +88,60 @@ export const useDataSourceStore = defineStore(
         const dataSources = ref<DataSource[]>([])
 
         // ---------- 持久化（文件落盘，替代 pinia-plugin-persistedstate） ----------
+        // 数据源按工程隔离：保存在当前工程的 projects/<工程id>/datasources.json
         const STORAGE_FILE = 'datasources.json'
+        // 重载抑制标志：切换工程重载数据期间不触发 watch 回写
+        let suppressWatch = false
 
-        // 初始化：异步从文件加载（加载完成后赋值，界面自动刷新）
-        readJsonFile<{ dataSources: DataSource[] }>(STORAGE_FILE).then(parsed => {
-            if (parsed && Array.isArray(parsed.dataSources)) {
-                dataSources.value = parsed.dataSources
+        /** 拼接当前工程内的存储路径 */
+        function storagePath(): string {
+            return useProjectStore().projectPath(STORAGE_FILE)
+        }
+
+        // 初始化：等 project store 就绪后从当前工程文件加载
+        void (async () => {
+            await useProjectStore().ready
+            await loadFromStorage()
+        })()
+
+        /** 从当前工程文件加载数据源列表
+         * @param resetWhenMissing 文件不存在时是否清空。
+         *   切换工程时传 true，避免残留上一工程的数据；
+         *   首次初始化不传——默认本就是空列表，
+         *   且异步加载晚于外部同步写入时不应覆盖（如测试环境）。 */
+        async function loadFromStorage(resetWhenMissing = false) {
+            suppressWatch = true
+            try {
+                const parsed = await readJsonFile<{ dataSources: DataSource[] }>(storagePath())
+                if (parsed && Array.isArray(parsed.dataSources)) {
+                    dataSources.value = parsed.dataSources
+                } else if (resetWhenMissing) {
+                    dataSources.value = []
+                }
+                // 等 watch 回调周期过去再解除抑制，避免重载数据被回写
+                await nextTick()
+            } finally {
+                suppressWatch = false
             }
-        })
+        }
+
+        /** 切换工程时重载数据源 */
+        async function reloadForProject() {
+            await loadFromStorage(true)
+        }
+
+        /** 立即保存当前数据源到文件（切换工程前由 project store 调用） */
+        function saveNow() {
+            if (suppressWatch) return
+            void writeJsonFile(storagePath(), { dataSources: toRaw(dataSources.value) })
+        }
 
         // 数据源列表变化时自动保存到文件（增删改均走此通道，无需手动调用）
         watch(
             dataSources,
             () => {
-                void writeJsonFile(STORAGE_FILE, { dataSources: toRaw(dataSources.value) })
+                if (suppressWatch) return // 重载期间的整体替换不回写
+                void writeJsonFile(storagePath(), { dataSources: toRaw(dataSources.value) })
             },
             { deep: true }
         )
@@ -144,6 +185,8 @@ export const useDataSourceStore = defineStore(
             updateDataSource,
             deleteDataSource,
             getDataSource,
+            saveNow,
+            reloadForProject,
         }
     }
 )

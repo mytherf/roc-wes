@@ -55,6 +55,9 @@ vi.mock('@/services/IpcGatewayService', () => ({ IpcGatewayService: FakeIpcServi
 vi.mock('@/platform/fileStorage', () => ({
     readJsonFile: vi.fn(async () => null),
     writeJsonFile: vi.fn(async () => undefined),
+    getLastFileError: vi.fn(() => ''),
+    existsFile: vi.fn(async () => false),
+    removePath: vi.fn(async () => true),
 }))
 
 import { useDataSourceStore, BUILTIN_MOCK_URLS } from '@/stores/dataSource'

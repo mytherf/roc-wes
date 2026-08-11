@@ -11,6 +11,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, toRaw } from 'vue'
 import { readJsonFile, writeJsonFile } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
 import { emit, listen } from '@tauri-apps/api/event' // Tauri 跨窗口事件
+import { useProjectStore } from './project' // 多工程：路线按工程隔离，路径由 project store 提供
 
 /**
  * 路线航点：路线上的一个关键点（路径的“拐弯处”或“站点”）
@@ -69,30 +70,70 @@ export const useRouteStore = defineStore('route', () => {
   const routes = ref<RouteDefinition[]>([])
   const STORAGE_FILE = 'routes.json'
 
-  // 初始化：异步从文件加载
-  // 加载时做了“数据兼容”：旧版本可能缺少 segments/smooth 等字段，逐一补齐默认值
-  function loadFromStorage() {
-    readJsonFile<any[]>(STORAGE_FILE).then(parsed => {
-      if (!Array.isArray(parsed)) return
-      routes.value = parsed.map((r: any) => ({
-        ...r,
-        segments: r.segments || [], // 没有分段配置就默认为空数组
-        smooth: r.smooth ?? false, // 没有平滑开关就默认为关
-        points: (r.points || []).map((p: any) => ({
-          x: p.x,
-          y: p.y,
-          type: p.type || 'waypoint', // 航点类型默认普通航点
-          stationName: p.stationName,
-        })),
-      }))
-    }).catch(e => console.warn('[RouteStore] 加载路线数据失败:', e))
+  /** 拼接当前工程内的存储路径 */
+  function storagePath(): string {
+    return useProjectStore().projectPath(STORAGE_FILE)
+  }
+
+  /** 把解析出的路线数组做字段兼容后整体替换（旧版本可能缺 segments/smooth 等字段，逐一补默认值） */
+  function applyParsed(parsed: any) {
+    if (!Array.isArray(parsed)) return
+    routes.value = parsed.map((r: any) => ({
+      ...r,
+      segments: r.segments || [], // 没有分段配置就默认为空数组
+      smooth: r.smooth ?? false, // 没有平滑开关就默认为关
+      points: (r.points || []).map((p: any) => ({
+        x: p.x,
+        y: p.y,
+        type: p.type || 'waypoint', // 航点类型默认普通航点
+        stationName: p.stationName,
+      })),
+    }))
+  }
+
+  // 从当前工程文件加载（内部 await project store 就绪；启动与切换工程均走此入口）
+  // resetWhenMissing：切换工程时传 true，新工程无文件则清空，避免残留上一工程路线；
+  // 首次初始化不传——默认本就是空列表，且异步加载晚于外部同步写入时不应覆盖
+  async function loadFromStorage(resetWhenMissing = false) {
+    const projectStore = useProjectStore()
+    await projectStore.ready
+    const parsed = await readJsonFile<any[]>(storagePath())
+    if (parsed === null) {
+      if (resetWhenMissing) routes.value = []
+      return
+    }
+    applyParsed(parsed)
+  }
+
+  /**
+   * 切换工程时重载路线
+   * @param remoteRoutesJson 跨窗口同步携带的路线 JSON（避免读到对端尚未写完的文件）
+   */
+  async function reloadForProject(remoteRoutesJson?: string) {
+    if (typeof remoteRoutesJson === 'string') {
+      try {
+        const parsed = JSON.parse(remoteRoutesJson)
+        if (Array.isArray(parsed)) {
+          routes.value = parsed
+          lastSyncJson = remoteRoutesJson // 与广播源保持一致，避免回环
+        }
+      } catch { /* 脏数据忽略 */ }
+      void writeJsonFile(storagePath(), toRaw(routes.value))
+      return
+    }
+    await loadFromStorage(true)
   }
 
   // 保存到文件（每次增删改后调用；内部异步写入，不阻塞调用方）
   function saveToStorage() {
-    void writeJsonFile(STORAGE_FILE, toRaw(routes.value))
+    void writeJsonFile(storagePath(), toRaw(routes.value))
       .catch(e => console.warn('[RouteStore] 保存路线数据失败:', e))
     broadcastRoutes() // 同步通知其他窗口（路线独立窗口/多屏）
+  }
+
+  /** 立即保存当前路线到文件（不广播；切换工程前由 project store 调用） */
+  function saveNow() {
+    void writeJsonFile(storagePath(), toRaw(routes.value))
   }
 
   // ---------- 跨窗口同步 ----------
@@ -105,15 +146,15 @@ export const useRouteStore = defineStore('route', () => {
   // 包括自己，数据一致时直接跳过，避免无谓的重复渲染）
   let lastSyncJson = ''
 
-  /** 把当前路线数据广播给其他窗口 */
+  /** 把当前路线数据广播给其他窗口（携带工程 id，接收端据此跟随切换工程） */
   function broadcastRoutes() {
     const json = JSON.stringify(toRaw(routes.value))
     lastSyncJson = json
-    emit(SYNC_EVENT, json)
+    emit(SYNC_EVENT, { projectId: useProjectStore().currentId, json })
       .catch(e => console.warn('[RouteStore] 跨窗口同步失败:', e))
   }
 
-  /** 收到其他窗口的同步消息：校验后整体替换本地路线 */
+  /** 收到同工程的同步消息：校验后整体替换本地路线 */
   function applyRemoteSync(json: unknown) {
     if (typeof json !== 'string' || json === lastSyncJson) return
     lastSyncJson = json
@@ -124,11 +165,22 @@ export const useRouteStore = defineStore('route', () => {
   }
 
   // 注册同步监听（store 初始化时执行一次）
-  listen(SYNC_EVENT, (ev) => applyRemoteSync(ev.payload))
+  // payload 携带 projectId：若与当前工程不一致，说明另一窗口切了工程，
+  // 本窗口跟随切换（路线数据随 payload 传入，避免读文件时序竞争）
+  listen(SYNC_EVENT, async (ev) => {
+    const payload = ev.payload as { projectId?: string | null; json?: string }
+    if (!payload || typeof payload.json !== 'string') return
+    const projectStore = useProjectStore()
+    if (payload.projectId && payload.projectId !== projectStore.currentId) {
+      await projectStore.switchProject(payload.projectId, payload.json)
+      return
+    }
+    applyRemoteSync(payload.json)
+  })
     .catch(e => console.warn('[RouteStore] 注册跨窗口监听失败:', e))
 
   // 启动时加载
-  loadFromStorage()
+  void loadFromStorage()
 
   // ---------- 查询 ----------
   const routeList = computed(() => routes.value)
@@ -257,5 +309,7 @@ export const useRouteStore = defineStore('route', () => {
     exportRoutes,
     importRoutes,
     saveToStorage,
+    saveNow,
+    reloadForProject,
   }
 })

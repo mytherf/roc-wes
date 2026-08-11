@@ -2,7 +2,7 @@
      EditorToolbar.vue - 编辑器顶部工具栏（一排“主操作按钮”）
 
      按功能分组：
-       1. 文件操作：保存（Ctrl+S，落盘 editor.json）/ 导出 JSON / 导入 JSON / 清空画布
+       1. 文件操作：保存（Ctrl+S，落盘 editor.json）/ 清空画布（工程导入导出在工程管理弹窗中）
        2. 数据：数据源管理对话框
        3. 视图：节点显示模式切换（极简 / 图标）
        4. 运行：▶ 预览（序列化画布写入 run-preview.json 文件，新窗口打开运行态）
@@ -13,16 +13,36 @@
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <div class="editor-toolbar">
+    <!-- 分组：工程（多工程选择器：切换 / 新建 / 管理） -->
+    <div class="toolbar-group project-selector">
+      <button class="toolbar-btn project-btn" @click.stop="toggleProjectMenu" title="切换或管理工程">
+        📁 {{ projectStore.currentProject?.name ?? '工程' }} ▾
+      </button>
+      <div v-if="projectMenuOpen" class="project-menu" @click.stop>
+        <div class="project-menu-title">切换到工程</div>
+        <div
+          v-for="p in projectStore.projects"
+          :key="p.id"
+          class="project-menu-item"
+          :class="{ active: p.id === projectStore.currentId }"
+          @click="chooseProject(p.id)"
+        >
+          <span class="project-menu-name">{{ p.name }}</span>
+          <span v-if="p.id === projectStore.currentId" class="project-menu-check">✓</span>
+        </div>
+        <div class="project-menu-divider" />
+        <div class="project-menu-item" @click="openProjectDialog">➕ 新建工程…</div>
+        <div class="project-menu-item" @click="handleImportProject">📤 导入工程…</div>
+        <div class="project-menu-item" @click="openProjectDialog">🗂 管理工程…</div>
+      </div>
+    </div>
+
+    <div class="toolbar-separator" />
+
     <!-- 分组：文件操作 -->
     <div class="toolbar-group">
       <button class="toolbar-btn primary" @click="handleSave" title="保存画布到本地（Ctrl+S）">
         {{ savedTip ? '✅ 已保存' : '💾 保存' }}
-      </button>
-      <button class="toolbar-btn" @click="handleExport" title="导出为 JSON">
-        📥 导出
-      </button>
-      <button class="toolbar-btn" @click="handleImport" title="从 JSON 文件导入">
-        📤 导入
       </button>
       <button class="toolbar-btn danger" @click="handleClear" title="清空画布">
         🗑 清空
@@ -83,17 +103,20 @@
       v-if="showDataSourceDialog"
       @close="showDataSourceDialog = false"
     />
+
+    <!-- 工程管理对话框（新建/切换/重命名/复制/删除） -->
+    <ProjectManagerDialog v-if="showProjectDialog" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/stores/editor'
-import { useDataSourceStore } from '@/stores/dataSource'
-import { useRouteStore } from '@/stores/route'
+import { useProjectStore } from '@/stores/project' // 多工程管理
 import { serializeGraph } from '@/utils/graphSerializer'
 import { writeJsonFile, getLastFileError } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
 import DataSourceDialog from '@/components/DataSourceDialog.vue'
+import ProjectManagerDialog from '@/components/ProjectManagerDialog.vue'
 import { useThemeStore, THEMES } from '@/stores/theme'
 
 const props = defineProps<{
@@ -102,12 +125,72 @@ const props = defineProps<{
 
 const editorStore = useEditorStore()
 const themeStore = useThemeStore()
-const routeStore = useRouteStore()
+const projectStore = useProjectStore()
 // 数据源管理对话框显隐（绑定 store，属性面板等兄弟组件也可跳转打开）
 const showDataSourceDialog = computed({
   get: () => editorStore.dataSourceDialogOpen,
   set: (v: boolean) => editorStore.setDataSourceDialogOpen(v),
 })
+// 工程管理对话框显隐（绑定 store，供工程管理弹窗内部关闭时同步状态）
+const showProjectDialog = computed(() => editorStore.projectDialogOpen)
+
+// ---------- 工程选择器下拉 ----------
+const projectMenuOpen = ref(false)
+
+function toggleProjectMenu() {
+  projectMenuOpen.value = !projectMenuOpen.value
+}
+
+/** 选择切换到某个工程（先保存当前工程再重载） */
+async function chooseProject(id: string) {
+  projectMenuOpen.value = false
+  await projectStore.switchProject(id)
+}
+
+/** 打开工程管理弹窗（新建/管理共用） */
+function openProjectDialog() {
+  projectMenuOpen.value = false
+  editorStore.setProjectDialogOpen(true)
+}
+
+/**
+ * 导入工程文件（一级菜单入口）：选择 JSON → 新建一个工程并载入三件套 → 切换过去。
+ * 兼容 rocwes-project 工程文件格式与旧版画布格式 { nodes, edges }。
+ */
+function handleImportProject() {
+  projectMenuOpen.value = false
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = async () => {
+      try {
+        const payload = JSON.parse(reader.result as string)
+        const meta = await projectStore.importProjectFile(payload)
+        if (!meta) {
+          alert('无效的工程文件：需要 rocwes-project 格式，或旧版画布格式 { nodes: [], edges: [] }')
+          return
+        }
+        console.log(`✅ 导入工程成功：「${meta.name}」`)
+      } catch (err) {
+        console.error('导入失败:', err)
+        alert('JSON 解析失败，请检查文件格式')
+      }
+    }
+    reader.readAsText(file)
+  }
+  input.click()
+}
+
+// 点击工具栏以外区域关闭工程下拉菜单
+function onDocClickCloseProjectMenu() {
+  projectMenuOpen.value = false
+}
+onMounted(() => document.addEventListener('click', onDocClickCloseProjectMenu))
+onBeforeUnmount(() => document.removeEventListener('click', onDocClickCloseProjectMenu))
 // 「已保存」提示（保存成功后短暂显示）
 const savedTip = ref(false)
 let savedTipTimer: number | null = null
@@ -162,77 +245,6 @@ async function handleRun() {
   // 3. 在新窗口打开运行态页面
   const runUrl = `${window.location.origin}/run`
   window.open(runUrl, '_blank')
-}
-
-/**
- * 导出画布为 JSON（Store 格式：{ nodes: [], edges: [], routes: [] }）
- * 路线数据随画布一并导出
- */
-function handleExport() {
-  if (!props.graph) return
-  const data = serializeGraph(props.graph)
-  const payload = { ...data, routes: routeStore.routes }
-  const json = JSON.stringify(payload, null, 2)
-  const blob = new Blob([json], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `scada-${Date.now()}.json`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-/**
- * 从 JSON 文件导入画布数据（Store 格式：{ nodes: [], edges: [] }）
- */
-function handleImport() {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.json'
-  input.onchange = () => {
-    const file = input.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        const json = JSON.parse(reader.result as string)
-        if (!json.nodes || !json.edges) {
-          alert('无效的 JSON 格式，需要 { nodes: [], edges: [] } 结构')
-          return
-        }
-        editorStore.setGraphData({ nodes: json.nodes, edges: json.edges })
-        editorStore.pushHistory()
-
-        // 模板文件可携带 dataSources，导入时自动合并（跳过已存在的同 id 数据源）
-        if (Array.isArray(json.dataSources) && json.dataSources.length > 0) {
-          const dsStore = useDataSourceStore()
-          let added = 0
-          for (const ds of json.dataSources) {
-            if (!ds.id || !ds.type || !ds.url) continue
-            if (!dsStore.getDataSource(ds.id)) {
-              dsStore.dataSources.push(ds)
-              added++
-            }
-          }
-          console.log(`✅ 导入数据源：新增 ${added} 个，跳过 ${json.dataSources.length - added} 个已存在`)
-        }
-
-        // 模板文件可携带 routes，导入时自动合并（按 id 去重）
-        if (Array.isArray(json.routes) && json.routes.length > 0) {
-          const res = routeStore.importRoutes(JSON.stringify(json.routes))
-          console.log(`✅ 导入路线：新增 ${res.added} 条，跳过 ${res.skipped} 条已存在`)
-        }
-
-        console.log(`✅ 导入成功：${json.nodes.length} 个节点，${json.edges.length} 条边`)
-      } catch (err) {
-        console.error('导入失败:', err)
-        alert('JSON 解析失败，请检查文件格式')
-      }
-    }
-    reader.readAsText(file)
-  }
-  input.click()
 }
 
 /**
@@ -292,6 +304,68 @@ function handleClear() {
   color: var(--text-primary);
   transition: all 0.15s ease;
   white-space: nowrap;
+}
+
+/* ---------- 工程选择器下拉菜单 ---------- */
+.project-selector {
+  position: relative;
+}
+.project-btn {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.project-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  max-width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  padding: 4px;
+}
+.project-menu-title {
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.project-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.project-menu-item:hover {
+  background: var(--color-primary-light);
+}
+.project-menu-item.active {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+.project-menu-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.project-menu-check {
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+.project-menu-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 6px;
 }
 .toolbar-btn:hover {
   border-color: var(--color-primary);

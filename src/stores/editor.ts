@@ -10,6 +10,7 @@
 import { defineStore } from 'pinia'
 import {shallowRef, ref, computed, toRaw} from 'vue' // shallowRef 浅响应（只替换整体、不深监听）；toRaw 取出原始对象
 import { readJsonFile, writeJsonFile } from '@/platform/fileStorage' // 文件持久化工具（Tauri FS 落盘）
+import { useProjectStore } from './project' // 多工程：画布按工程隔离，路径由 project store 提供
 
 
 /**
@@ -51,6 +52,8 @@ export const useEditorStore = defineStore(
         const propertyCollapsed = ref(false)
         // 数据源管理对话框是否打开（放入 store 以便属性面板等兄弟组件跳转打开）
         const dataSourceDialogOpen = ref(false)
+        // 工程管理对话框是否打开（工具栏「管理工程…」与选择器共用）
+        const projectDialogOpen = ref(false)
         // 历史记录（存储过去的状态快照）
         const history = ref<GraphData[]>([])
         // 当前历史索引（-1 表示无历史）
@@ -188,6 +191,13 @@ export const useEditorStore = defineStore(
         }
 
         /**
+         * 设置工程管理对话框开关（工具栏工程选择器使用）
+         */
+        function setProjectDialogOpen(open: boolean) {
+            projectDialogOpen.value = open
+        }
+
+        /**
          * 设置当前选中元素
          * 选中具体元素（id 非空）时清除「画布选中」状态
          */
@@ -261,9 +271,9 @@ export const useEditorStore = defineStore(
         }
 
         // ---------- 持久化（文件落盘） ----------
-        // 数据保存在「应用配置目录」的 editor.json 中（由 fileStorage 写入）：
-        // 容量不受限、不随 WebView2 缓存清理丢失。
-        // 仍由工具栏「保存」按钮显式触发；启动时异步从文件恢复。
+        // 画布数据保存在当前工程的 projects/<工程id>/editor.json 中（由 fileStorage 写入），
+        // 容量不受限、不随 WebView2 缓存清理丢失；路径由 project store 统一提供。
+        // 仍由工具栏「保存」按钮显式触发；启动时等 project store 就绪后异步恢复。
         const STORAGE_FILE = 'editor.json'
 
         /**
@@ -271,27 +281,54 @@ export const useEditorStore = defineStore(
          * @returns 是否保存成功
          */
         async function saveToStorage(): Promise<boolean> {
+            const projectStore = useProjectStore()
             const payload = {
                 graphData: toRaw(graphData.value),
                 selectedId: selectedId.value,
                 displayMode: displayMode.value,
             }
-            const ok = await writeJsonFile(STORAGE_FILE, payload)
+            const ok = await writeJsonFile(projectStore.projectPath(STORAGE_FILE), payload)
             if (!ok) console.error('保存画布到文件失败')
+            else projectStore.touchCurrent() // 刷新索引中的「最近保存时间」
             return ok
         }
 
         /**
-         * 从文件恢复状态（store 初始化时异步调用）
+         * 从文件恢复状态（store 初始化与切换工程时调用）
+         * 需先等 project store 就绪（currentId 确定后才能拼出工程路径）；
          * 文件 IO 是异步的：加载完成前画布可能已挂载，
-         * 届时 setGraphData 会触发 X6Canvas 的全量 watcher 自动重载画布。
+         * 届时 graphData 变化会触发 X6Canvas 的全量 watcher 自动重载画布。
+         * @param resetWhenMissing 文件不存在时是否重置为空画布。
+         *   切换工程时传 true，避免残留上一个工程的数据；
+         *   首次初始化不传——store 默认状态本就是空画布，
+         *   且异步加载晚于外部同步写入时不应覆盖（如测试环境）。
          */
-        async function loadFromStorage() {
-            const parsed = await readJsonFile<any>(STORAGE_FILE)
-            if (!parsed) return
+        async function loadFromStorage(resetWhenMissing = false) {
+            const projectStore = useProjectStore()
+            await projectStore.ready
+            const parsed = await readJsonFile<any>(projectStore.projectPath(STORAGE_FILE))
+            if (!parsed) {
+                if (resetWhenMissing) {
+                    // 文件不存在（新工程）：重置为空画布，避免残留上一个工程的数据
+                    graphData.value = { nodes: [], edges: [] }
+                    selectedId.value = null
+                    displayMode.value = 'full'
+                }
+                return
+            }
             if (parsed.graphData) graphData.value = parsed.graphData
             if ('selectedId' in parsed) selectedId.value = parsed.selectedId
             if (parsed.displayMode) displayMode.value = parsed.displayMode
+        }
+
+        /**
+         * 切换工程时重载画布：先清空历史与选中，再从新工程文件加载
+         */
+        async function reloadForProject() {
+            clearHistory()
+            selectedId.value = null
+            canvasSelected.value = false
+            await loadFromStorage(true)
         }
 
         /**
@@ -316,6 +353,7 @@ export const useEditorStore = defineStore(
             sidebarCollapsed,
             propertyCollapsed,
             dataSourceDialogOpen,
+            projectDialogOpen,
             selectedElement,
             canUndo,
             canRedo,
@@ -332,6 +370,7 @@ export const useEditorStore = defineStore(
             setPropertyCollapsed,
             togglePropertyCollapsed,
             setDataSourceDialogOpen,
+            setProjectDialogOpen,
             setSelected,
             selectCanvas,
             pushHistory,
@@ -340,6 +379,7 @@ export const useEditorStore = defineStore(
             clearHistory,
             resetGraph,
             saveToStorage,
+            reloadForProject,
         }
     }
 )

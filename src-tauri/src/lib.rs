@@ -9,6 +9,7 @@ mod state;
 use state::{AppState, TauriEventSink};
 use std::sync::Arc;
 use tauri::Manager;
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tracing_subscriber::EnvFilter;
 
 pub fn run() {
@@ -20,8 +21,25 @@ pub fn run() {
         .init();
 
     tauri::Builder::default()
+        // 单实例插件（必须最先注册）：已有实例运行时再次启动不会闪崩，
+        // 新实例立即退出，并触发已有实例的回调——显示/聚焦主窗口 + 友好提示
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // 把已有的主窗口带到前台（隐藏启动模式下可能尚未显示，先 show 再 focus）
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.show();
+                let _ = win.unminimize();
+                let _ = win.set_focus();
+            }
+            // 原生信息对话框：告知用户程序已在运行，避免以为启动失败
+            app.dialog()
+                .message("RocWes 已在运行，已为您切换到现有窗口。")
+                .title("RocWes")
+                .kind(MessageDialogKind::Info)
+                .show(|_| {});
+        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init()) // 文件系统插件：前端工程数据落盘到应用配置目录
+        .plugin(tauri_plugin_dialog::init()) // 原生对话框插件：导出工程时的「另存为」目录选择
         .setup(|app| {
             // 确保应用配置目录存在：plugin-fs 写文件不会自动创建父目录，
             // 首次启动时 $APPCONFIG（Windows 为 %APPDATA%\<identifier>）不存在，
@@ -45,6 +63,7 @@ pub fn run() {
             commands::gateway_subscribe,
             commands::gateway_unsubscribe,
             commands::gateway_disconnect,
+            commands::export_project_file,
         ])
         .build(tauri::generate_context!())
         .expect("构建 RocWes 桌面应用失败")

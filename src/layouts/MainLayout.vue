@@ -2,14 +2,15 @@
      MainLayout.vue - 主布局组件（整个编辑器的“骨架”）
 
      页面从上到下/从左到右的布局结构：
-       ┌──────────┬──────────────────────────────┐
-       │          │  工具栏 EditorToolbar          │
-       │  侧边栏  ├──────────────┬───────────────┤
-       │ Sidebar  │  画布 X6Canvas │  属性面板     │
-       │ (组件库) │              │ PropertyPanel │
-       │          ├──────────────┴───────────────┤
-       │          │  路线面板 BottomPanel / 状态栏 │
-       └──────────┴──────────────────────────────┘
+       ┌──────────────────────────────────────┐
+       │  工具栏 EditorToolbar（占整个窗口宽度） │
+       ├──────────┬──────────────┬────────────┤
+       │  侧边栏   │ 画布 X6Canvas │  属性面板   │
+       │ Sidebar  │              │PropertyPanel│
+       │ (组件库) │              │            │
+       │          ├──────────────┴────────────┤
+       │          │ 路线面板 BottomPanel / 状态栏│
+       └──────────┴───────────────────────────┘
 
      职责：
        1. 组装所有大组件（侧边栏、画布、属性面板、工具栏、状态栏等）
@@ -20,37 +21,40 @@
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <div class="app-container">
-    <!-- 左侧：组件库侧边栏 -->
-    <Sidebar v-if="graphInstance && dndInstance" :graph="graphInstance" :dnd="dndInstance" />
-    <!-- 右侧区域 -->
-    <div class="right-area">
-      <!-- 顶部：工具栏 -->
-      <EditorToolbar :graph="graphInstance" :canvas-ref="canvasRef" />
-      <!-- 中间：画布 + 属性面板 -->
-      <div class="bottom-area">
-        <div class="canvas-wrapper">
-          <X6Canvas ref="canvasRef" @ready="onCanvasReady" @node-dblclick="onNodeDblClick" />
+    <!-- 顶部：工具栏（占整个窗口宽度） -->
+    <EditorToolbar :graph="graphInstance" :canvas-ref="canvasRef" />
+    <!-- 下方主区域：侧边栏 + 右侧工作区 -->
+    <div class="main-row">
+      <!-- 左侧：组件库侧边栏 -->
+      <Sidebar v-if="graphInstance && dndInstance" :graph="graphInstance" :dnd="dndInstance" />
+      <!-- 右侧区域 -->
+      <div class="right-area">
+        <!-- 中间：画布 + 属性面板 -->
+        <div class="bottom-area">
+          <div class="canvas-wrapper">
+            <X6Canvas ref="canvasRef" @ready="onCanvasReady" @node-dblclick="onNodeDblClick" />
+          </div>
+          <PropertyPanel :canvas-ref="canvasRef" />
         </div>
-        <PropertyPanel :canvas-ref="canvasRef" />
+        <!-- 底部：路线面板（可折叠；浮动模式下隐藏） -->
+        <BottomPanel v-show="!editorStore.routeFloating" :canvas-ref="canvasRef" />
+        <!-- 底部：状态栏 -->
+        <StatusBar :graph="graphInstance" />
+
+        <!-- 路线浮动窗口（悬浮于画布之上，可拖拽/缩放） -->
+        <RouteFloatWindow
+          v-show="editorStore.routeFloating"
+          @dock="onFloatDock"
+          @close="onFloatClose"
+        />
+
+        <!-- 路线编辑器单实例：通过 Teleport 在 停靠容器 / 浮动窗口 之间切换，
+             切换时组件实例与编辑状态（选中路线、绘制模式等）保持不变。
+             defer：目标容器由同级组件渲染，需等应用挂载完成后再解析目标 -->
+        <Teleport defer :to="editorStore.routeFloating ? '#route-float-body' : '#bottom-panel-content'">
+          <RouteEditorDialog :canvas-ref="canvasRef" :active="routeActive" />
+        </Teleport>
       </div>
-      <!-- 底部：路线面板（可折叠；浮动模式下隐藏） -->
-      <BottomPanel v-show="!editorStore.routeFloating" :canvas-ref="canvasRef" />
-      <!-- 底部：状态栏 -->
-      <StatusBar :graph="graphInstance" />
-
-      <!-- 路线浮动窗口（悬浮于画布之上，可拖拽/缩放） -->
-      <RouteFloatWindow
-        v-show="editorStore.routeFloating"
-        @dock="onFloatDock"
-        @close="onFloatClose"
-      />
-
-      <!-- 路线编辑器单实例：通过 Teleport 在 停靠容器 / 浮动窗口 之间切换，
-           切换时组件实例与编辑状态（选中路线、绘制模式等）保持不变。
-           defer：目标容器由同级组件渲染，需等应用挂载完成后再解析目标 -->
-      <Teleport defer :to="editorStore.routeFloating ? '#route-float-body' : '#bottom-panel-content'">
-        <RouteEditorDialog :canvas-ref="canvasRef" :active="routeActive" />
-      </Teleport>
     </div>
 
     <!-- 节点详情弹窗（双击节点触发） -->
@@ -76,9 +80,15 @@ import StatusBar from '@/components/StatusBar.vue'
 import NodeDetailDialog from '@/components/NodeDetailDialog.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useEditorStore } from '@/stores/editor'
+import { useProjectStore } from '@/stores/project'
+import { showMainWindow } from '@/platform/showMainWindow' // 启动完成后显示主窗口（隐藏启动，避免空白期）
 
 // 初始化主题（从 theme.json 文件恢复用户选择并设置 data-theme 属性）
 useThemeStore()
+
+// 率先初始化工程 store（读索引/迁移旧数据），
+// 其余 store（画布/数据源/路线）均 await 其 ready 后再加载各自的工程数据
+useProjectStore()
 
 const editorStore = useEditorStore()
 
@@ -113,6 +123,11 @@ const onCanvasReady = (payload: { graph: any; dnd: any }) => {
   // 供 Sidebar（拖拽建节点）和 EditorToolbar（操作画布）等兄弟组件使用
   graphInstance.value = payload.graph
   dndInstance.value = payload.dnd
+  // 界面已完全就绪（工具栏/侧边栏/画布均已渲染）：显示隐藏启动的主窗口，
+  // 消除启动空白期；rAF 确保本帧 DOM 绘制完成后再显示
+  requestAnimationFrame(() => {
+    void showMainWindow()
+  })
 }
 
 /**
@@ -314,9 +329,18 @@ body,
 
 .app-container {
   display: flex;
+  flex-direction: column;
   width: 100vw;
   height: 100vh;
   background: var(--canvas-bg);
+}
+
+/* 主区域：侧边栏 + 右侧工作区（工具栏之下，横向排列） */
+.main-row {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  width: 100%;
 }
 
 .right-area {

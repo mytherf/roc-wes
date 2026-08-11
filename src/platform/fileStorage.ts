@@ -28,9 +28,10 @@ export function getLastFileError(): string {
   return lastFileError
 }
 
-/** 提取错误信息（Error 取 message，其余转字符串） */
+/** 提取错误信息（Error 取 message，其余转字符串；保证不返回空串） */
 function errMsg(e: unknown): string {
-  return e instanceof Error ? e.message : String(e)
+  const msg = e instanceof Error ? e.message : String(e)
+  return msg || '(错误对象为空，无法提取具体信息)'
 }
 
 /** 当前是否运行在 Tauri 桌面壳内（非 Tauri 环境无 IPC，持久化不可用） */
@@ -40,7 +41,7 @@ function inTauri(): boolean {
 
 /**
  * 读取 JSON 文件
- * @param fileName 文件名（如 editor.json）
+ * @param fileName 相对路径（如 editor.json 或 projects/<id>/editor.json，自动按 / 分隔拼接）
  * @returns 解析后的数据；文件不存在或解析失败返回 null（首次运行属正常情况）
  */
 export async function readJsonFile<T = any>(fileName: string): Promise<T | null> {
@@ -61,7 +62,7 @@ export async function readJsonFile<T = any>(fileName: string): Promise<T | null>
 
 /**
  * 将数据写为 JSON 文件（临时文件 + rename 原子替换）
- * @param fileName 文件名（如 editor.json）
+ * @param fileName 相对路径（如 editor.json 或 projects/<id>/editor.json），父目录不存在会自动创建
  * @param data 任意可 JSON 序列化的数据
  * @returns 是否写入成功（失败原因可通过 getLastFileError() 获取）
  */
@@ -84,9 +85,13 @@ export async function writeJsonFile(fileName: string, data: any): Promise<boolea
   }
 
   try {
-    const { writeTextFile, rename } = await import('@tauri-apps/plugin-fs')
-    const { appConfigDir, join } = await import('@tauri-apps/api/path')
+    const { writeTextFile, rename, mkdir } = await import('@tauri-apps/plugin-fs')
+    const { appConfigDir, join, dirname } = await import('@tauri-apps/api/path')
     const dir = await appConfigDir()
+    // 兜底：确保目标文件的父目录存在（plugin-fs 写文件不自动建父目录）。
+    // fileName 可能带子目录（如 projects/<id>/editor.json），取 dirname 后一次性递归创建。
+    // recursive: true 时目录已存在也不报错，无需先 exists 判断
+    await mkdir(await join(dir, await dirname(fileName)), { recursive: true })
     // 用 join 拼接：appConfigDir() 不保证末尾分隔符，直拼会得到越界路径被 ACL 拒绝
     const tmpPath = await join(dir, `${fileName}.tmp`)
     const finalPath = await join(dir, fileName)
@@ -105,6 +110,45 @@ export async function writeJsonFile(fileName: string, data: any): Promise<boolea
   } catch (e) {
     lastFileError = errMsg(e)
     console.error(`[fileStorage] 写入 ${fileName} 失败:`, e)
+    return false
+  }
+}
+
+/**
+ * 判断文件/目录是否存在（非 Tauri 环境或异常时返回 false）
+ * @param relPath 相对 $APPCONFIG 的路径（如 editor.json 或 projects/<id>）
+ */
+export async function existsFile(relPath: string): Promise<boolean> {
+  if (!inTauri()) return false
+  try {
+    const { exists } = await import('@tauri-apps/plugin-fs')
+    const { appConfigDir, join } = await import('@tauri-apps/api/path')
+    return await exists(await join(await appConfigDir(), relPath))
+  } catch (e) {
+    console.warn(`[fileStorage] 检查 ${relPath} 是否存在失败:`, e)
+    return false
+  }
+}
+
+/**
+ * 删除文件或目录（供删除工程时使用）
+ * @param relPath 相对 $APPCONFIG 的路径
+ * @param recursive 为 true 时递归删除目录及其内容
+ * @returns 是否删除成功
+ */
+export async function removePath(relPath: string, recursive = false): Promise<boolean> {
+  if (!inTauri()) {
+    lastFileError = '当前不在 Tauri 桌面环境中运行，无法删除文件'
+    return false
+  }
+  try {
+    const { remove } = await import('@tauri-apps/plugin-fs')
+    const { appConfigDir, join } = await import('@tauri-apps/api/path')
+    await remove(await join(await appConfigDir(), relPath), { recursive })
+    return true
+  } catch (e) {
+    lastFileError = errMsg(e)
+    console.error(`[fileStorage] 删除 ${relPath} 失败:`, e)
     return false
   }
 }

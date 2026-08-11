@@ -19,6 +19,9 @@ import { setActivePinia, createPinia } from 'pinia'
 vi.mock('@/platform/fileStorage', () => ({
     readJsonFile: vi.fn(async () => null),
     writeJsonFile: vi.fn(async () => undefined),
+    getLastFileError: vi.fn(() => ''),
+    existsFile: vi.fn(async () => false),
+    removePath: vi.fn(async () => true),
 }))
 
 import PropertyPanel from '@/components/PropertyPanel.vue'
