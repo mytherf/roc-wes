@@ -43,7 +43,12 @@ let chart: ECharts | null = null
 
 const data = ref(props.node?.getData() || {})
 const title = ref(data.value.title || '实时曲线')
-const historyData = ref<number[]>(data.value.history || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+// 初始窗口：优先取模板/旧工程持久化的 history；未绑定数据源的节点保持静态 0 线
+const historyData = ref<number[]>(
+  Array.isArray(data.value.history) && data.value.history.length > 0
+    ? [...data.value.history]
+    : Array(20).fill(0)
+)
 
 function initChart() {
   if (!chartRef.value) return
@@ -96,10 +101,13 @@ function initChart() {
 }
 
 /**
- * 追加新数据点（滑动窗口）
+ * 追加新数据点（滑动窗口，最多 20 点）
+ * 仅接受可转为有限数字的值（转换函数若返回对象/字符串则不画点，避免图表异常）
  */
 function pushData(value: number) {
-  historyData.value.push(value)
+  const num = Number(value)
+  if (!Number.isFinite(num)) return
+  historyData.value.push(num)
   if (historyData.value.length > 20) {
     historyData.value.shift()
   }
@@ -114,7 +122,12 @@ function pushData(value: number) {
 // 监听节点数据变化
 props.node?.on('change:data', ({ current }: { current: any }) => {
   const newData = current || props.node.getData()
-  if (newData?.history) {
+  if (!newData) return
+  // 数据绑定推送：主点实时值（useDataService 写入 data.value）→ 追加到滑动窗口
+  if (newData.value !== undefined) {
+    pushData(newData.value)
+  } else if (Array.isArray(newData.history)) {
+    // 兼容旧逻辑：外部显式整体替换 history（未走数据绑定的场景）
     historyData.value = newData.history
     if (chart) {
       chart.setOption({
@@ -123,6 +136,7 @@ props.node?.on('change:data', ({ current }: { current: any }) => {
       })
     }
   }
+  title.value = newData.title || '实时曲线'
 })
 
 // 监听节点尺寸变化（缩放拖拽），同步 ECharts 画布大小

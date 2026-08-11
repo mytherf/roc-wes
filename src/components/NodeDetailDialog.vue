@@ -96,8 +96,20 @@ defineEmits<{
   (e: 'close'): void
 }>()
 
+// ===== 运行数据实时刷新信号 =====
+// X6 的 setData() 不会触发 Vue 响应式，因此监听该节点 change:data 事件：
+// 数据源推送（useDataService 写入 data.values/value）时递增信号，
+// 依赖该信号的 computed（nodeInfo/groupedData）重新求值，弹窗即实时刷新。
+// 数据本身仍实时读取 cell.getData()（保证首次打开即有数据，不依赖事件时序）。
+const refreshTick = ref(0)
+
 // ===== 从 Graph 中读取节点信息（ID/形状/标签，实时查询） =====
+// 关键：X6 的 setData() 默认深合并并生成全新 data 对象（store 内引用被替换），
+// 若不依赖 refreshTick，本 computed 会缓存弹窗打开那一刻的旧 data 引用，
+// 后续数据源推送时 groupedData 重新求值读到的仍是旧对象 → 运行数据不更新。
+// 依赖刷新信号后，每次数据变化都会重新 getCellById().getData() 拿到最新引用。
 const nodeInfo = computed(() => {
+  void refreshTick.value
   if (!props.graph || !props.nodeId) return null
   const cell = props.graph.getCellById(props.nodeId)
   if (!cell || !cell.isNode()) return null
@@ -109,13 +121,6 @@ const nodeInfo = computed(() => {
     data: cell.getData() || {},
   }
 })
-
-// ===== 运行数据实时刷新信号 =====
-// X6 的 setData() 不会触发 Vue 响应式，因此监听该节点 change:data 事件：
-// 数据源推送（useDataService 写入 data.values/value）时递增信号，
-// 依赖该信号的 computed（nodeInfo/groupedData）重新求值，弹窗即实时刷新。
-// 数据本身仍实时读取 cell.getData()（保证首次打开即有数据，不依赖事件时序）。
-const refreshTick = ref(0)
 
 // 目标 X6 节点实例（随 nodeId 切换而更新）
 let detailCell: any = null
