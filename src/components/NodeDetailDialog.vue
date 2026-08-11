@@ -7,7 +7,7 @@
           （过滤 binding/pointId/floorGrids/history/animation 等内部字段，
           函数/数组/对象等复杂值以 JSON 形式展示）
 
-     数据为打开时的实时快照（直接从 X6 节点实例读取，不订阅实时刷新）。
+     运行数据实时跟随数据源刷新（监听 X6 change:data 事件，数据源推送即更新）。
      货架节点（rack-node）有专属正视图弹窗，不会走此通用弹窗。
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
@@ -76,14 +76,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { nodeTemplates } from '@/components/nodes/nodeTemplates'
 
 /**
  * NodeDetailDialog - 节点详情弹窗
  *
  * 双击画布节点时弹出，展示节点的基本信息、运行数据和数据绑定配置。
- * 数据为打开时的实时快照（从 X6 节点实例读取）。
+ * 运行数据实时跟随数据源刷新（监听 X6 change:data 事件）。
  */
 const props = defineProps<{
   /** 目标节点 ID */
@@ -96,7 +96,7 @@ defineEmits<{
   (e: 'close'): void
 }>()
 
-// ===== 从 Graph 中读取节点实时数据 =====
+// ===== 从 Graph 中读取节点信息（ID/形状/标签，实时查询） =====
 const nodeInfo = computed(() => {
   if (!props.graph || !props.nodeId) return null
   const cell = props.graph.getCellById(props.nodeId)
@@ -110,6 +110,43 @@ const nodeInfo = computed(() => {
   }
 })
 
+// ===== 运行数据实时刷新信号 =====
+// X6 的 setData() 不会触发 Vue 响应式，因此监听该节点 change:data 事件：
+// 数据源推送（useDataService 写入 data.values/value）时递增信号，
+// 依赖该信号的 computed（nodeInfo/groupedData）重新求值，弹窗即实时刷新。
+// 数据本身仍实时读取 cell.getData()（保证首次打开即有数据，不依赖事件时序）。
+const refreshTick = ref(0)
+
+// 目标 X6 节点实例（随 nodeId 切换而更新）
+let detailCell: any = null
+
+function onCellDataChange() {
+  refreshTick.value++
+}
+
+function attachListener() {
+  detailCell = props.graph?.getCellById(props.nodeId) ?? null
+  detailCell?.on('change:data', onCellDataChange)
+  // 打开时先同步一次：即使事件未触发，首屏也有最新数据
+  refreshTick.value++
+}
+
+function detachListener() {
+  detailCell?.off('change:data', onCellDataChange)
+  detailCell = null
+}
+
+attachListener()
+// nodeId 变化（极少数场景）时重新挂载监听，保证刷新信号始终属于当前节点
+watch(
+  () => props.nodeId,
+  () => {
+    detachListener()
+    attachListener()
+  }
+)
+onBeforeUnmount(detachListener)
+
 // ===== 节点类型标签与图标（从 nodeTemplates 注册表查找） =====
 const template = computed(() =>
   nodeTemplates.find(t => t.type === nodeInfo.value?.shape)
@@ -118,13 +155,30 @@ const template = computed(() =>
 const nodeTypeLabel = computed(() => template.value?.label || nodeInfo.value?.shape || '未知')
 const nodeIcon = computed(() => template.value?.icon || '📦')
 const nodeName = computed(() => {
+  // 依赖刷新信号：数据变化时重新读取
+  void refreshTick.value
   const data = nodeInfo.value?.data
   return data?.name || data?.title || data?.label || nodeTypeLabel.value
 })
 
 // ===== 运行数据展示（按点 ID 分组：多点绑定时每个点一组，组头点 ID + 数据源信息） =====
-/** 内部字段：不在运行数据中展示（名称/标签已在基本信息显示，values 已按点分组展示，其余为结构/历史/动画内部字段） */
-const HIDDEN_KEYS = new Set(['name', 'title', 'label', 'binding', 'pointId', 'values', 'floorGrids', 'history', 'animation'])
+/** 内部字段：不在运行数据中展示（名称/标签已在基本信息显示，values 已按点分组展示，unit 为节点配置属性，其余为结构/历史/动画内部字段） */
+const HIDDEN_KEYS = new Set(['name', 'title', 'label', 'binding', 'pointId', 'values', 'floorGrids', 'history', 'animation', 'unit'])
+
+/** 主点追加顶层字段时过滤的键：与点位遥测（value/timestamp/quality）重复，避免同一数据展示两遍 */
+const DUP_TELEMETRY_KEYS = new Set(['value', '_timestamp', '_quality'])
+
+/** 时间戳格式化：毫秒时间戳 → YYYY-MM-DD HH:mm:ss（非法的数字/字符串原样返回） */
+function formatTimestamp(ts: unknown): string {
+  const raw = String(ts ?? '').trim()
+  if (raw === '') return '-'
+  const num = Number(raw)
+  if (!Number.isFinite(num)) return raw
+  const d = new Date(num)
+  if (Number.isNaN(d.getTime())) return raw
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
 
 /** 将单个值格式化为可展示条目（函数/数组/对象等复杂值以 JSON 展示） */
 function toEntry(key: string, value: any) {
@@ -137,10 +191,16 @@ function toEntry(key: string, value: any) {
   if (Array.isArray(value) || typeof value === 'object') {
     return { key, display: JSON.stringify(value), complex: true }
   }
+  // 时间戳键：毫秒值格式化为可读时间
+  if (key === 'timestamp' || key === '_timestamp') {
+    return { key, display: formatTimestamp(value), complex: false }
+  }
   return { key, display: String(value), complex: false }
 }
 
 const groupedData = computed(() => {
+  // 依赖刷新信号：数据变化时重新求值，实时读取 cell.getData()
+  void refreshTick.value
   const data = nodeInfo.value?.data
   if (!data) return []
 
@@ -170,7 +230,10 @@ const groupedData = computed(() => {
             toEntry('quality', pv.quality ?? 'good'),
           ]
         : []
-      if (idx === 0) groupEntries.push(...entries)
+      if (idx === 0) {
+        // 主点额外追加节点顶层运行字段（过滤与点位遥测重复的 value/_timestamp/_quality）
+        groupEntries.push(...entries.filter((e) => !DUP_TELEMETRY_KEYS.has(e.key)))
+      }
       return {
         pointId: pid,
         sourceType: binding.sourceType,

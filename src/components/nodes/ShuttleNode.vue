@@ -64,7 +64,7 @@ const positionPercent = computed(() => Math.min(100, Math.max(0, position.value)
   padding: 10px 14px;
   background: var(--panel-bg);
   border-radius: 8px;
-  border: 2px solid #13c2c2;
+  border: 2px solid var(--accent-shuttle);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   user-select: none;
 }
@@ -88,12 +88,12 @@ const positionPercent = computed(() => Math.min(100, Math.max(0, position.value)
   top: -8px;
   right: -6px;
   font-size: 9px;
-  color: #13c2c2;
+  color: var(--accent-shuttle);
   transition: transform 0.1s linear;
 }
 .shuttle-moving .shuttle-track {
-  border-color: #13c2c2;
-  box-shadow: 0 0 6px rgba(19, 194, 194, 0.3);
+  border-color: var(--accent-shuttle);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent-shuttle) 30%, transparent);
 }
 .shuttle-info {
   display: flex;
@@ -104,6 +104,6 @@ const positionPercent = computed(() => Math.min(100, Math.max(0, position.value)
 .shuttle-name { font-weight: 500; color: var(--text-primary); }
 .shuttle-status { padding: 0 8px; border-radius: 10px; font-size: 11px; }
 .status-idle { color: var(--text-muted); }
-.status-running { color: #13c2c2; }
-.status-error { color: #ff4d4f; }
+.status-running { color: var(--status-ok); }
+.status-error { color: var(--status-err); }
 </style>

@@ -28,6 +28,8 @@ import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import { useDisplayMode } from '@/composables/useDisplayMode'
 import { useNodeIcon } from '@/composables/useNodeIcon'
+import { useThemeStore } from '@/stores/theme'
+import { readCssVar, hexToRgba } from '@/utils/themeCss'
 import NodeMinimalView from './NodeMinimalView.vue'
 import NodeIcon from './NodeIcon.vue'
 
@@ -47,6 +49,11 @@ function initChart() {
   if (!chartRef.value) return
   chart = echarts.init(chartRef.value)
 
+  // 颜色跟随当前主题（CSS 变量），主题切换时重新初始化
+  const lineColor = readCssVar('--color-primary', '#1890ff')
+  const mutedColor = readCssVar('--text-muted', '#999')
+  const gridColor = readCssVar('--canvas-grid', '#f0f0f0')
+
   const option = {
     title: { show: false },
     grid: {
@@ -59,25 +66,25 @@ function initChart() {
     xAxis: {
       type: 'category',
       data: historyData.value.map((_, i) => `${i}s`),
-      axisLabel: { fontSize: 9, color: '#999' },
+      axisLabel: { fontSize: 9, color: mutedColor },
       axisLine: { show: false },
       axisTick: { show: false },
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: '#f0f0f0', type: 'dashed' } },
-      axisLabel: { fontSize: 9, color: '#999' },
+      splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
+      axisLabel: { fontSize: 9, color: mutedColor },
     },
     series: [
       {
         type: 'line',
         smooth: true,
         symbol: 'none',
-        lineStyle: { color: '#1890ff', width: 2 },
+        lineStyle: { color: lineColor, width: 2 },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(24,144,255,0.3)' },
-            { offset: 1, color: 'rgba(24,144,255,0.05)' },
+            { offset: 0, color: hexToRgba(lineColor, 0.3) },
+            { offset: 1, color: hexToRgba(lineColor, 0.05) },
           ]),
         },
         data: historyData.value,
@@ -136,6 +143,18 @@ watch(isMinimal, (minimal) => {
     nextTick(initChart)
   }
 })
+
+// 主题切换：重新读取 CSS 变量重建图表配色
+const themeStore = useThemeStore()
+watch(
+  () => themeStore.current,
+  () => {
+    if (isMinimal.value || !chartRef.value) return
+    chart?.dispose()
+    chart = null
+    nextTick(initChart)
+  }
+)
 
 onBeforeUnmount(() => {
   chart?.dispose()

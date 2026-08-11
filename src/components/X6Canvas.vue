@@ -76,6 +76,7 @@ import {PointIdGenerator} from '@/services/PointIdGenerator'
 import {useDataService} from '@/composables/useDataService'
 import {useGraphSync} from '@/composables/useGraphSync'
 import {iconOnlyNodeSize, isMinimalIconShape} from './nodes/nodeIcons'
+import {useDataSourceStore} from '@/stores/dataSource'
 
 // ===================== 1. 获取 Teleport 容器组件 =====================
 const TeleportContainer = getTeleport()
@@ -178,6 +179,21 @@ const routeStore = useRouteStore()
 
 // 数据服务管理（数据源创建、缓存、节点订阅绑定与清理）
 const dataService = useDataService()
+
+// 数据源列表就绪后重绑全部节点：
+// 画布加载（bindAllNodes）与 datasources.json 异步读取存在时序竞态——
+// editor.json 的 IPC 先于 datasources.json 返回时，getDataSource(sourceId)
+// 解析不到数据源实例导致订阅失败，此后画布无任何 change:data 也不会重试。
+// 数据源加载完成（loaded 置 true）后统一补绑一次（bindNodeData 幂等：先退订再订阅）。
+const dataSourceStore = useDataSourceStore()
+watch(
+    () => dataSourceStore.loaded,
+    (loaded) => {
+        if (loaded && graph) {
+            dataService.bindAllNodes(graph)
+        }
+    }
+)
 
 /** 读取当前主题的 CSS 变量值 */
 function getCssVar(name: string, fallback: string): string {

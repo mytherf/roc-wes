@@ -259,7 +259,7 @@ onBeforeUnmount(() => {
   padding: 8px 10px;
   background: var(--panel-bg);
   border-radius: 8px;
-  border: 2px solid #8c8c8c;
+  border: 2px solid var(--accent-rack);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   user-select: none;
   display: flex;
@@ -320,8 +320,8 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 .cell-empty { background: var(--statusbar-bg); border: 1px solid var(--border-color); color: var(--text-muted); }
-.cell-occupied { background: #52c41a; border: 1px solid #389e0d; color: #fff; }
-.cell-reserved { background: #faad14; border: 1px solid #d48806; color: #fff; }
+.cell-occupied { background: var(--status-ok); border: 1px solid var(--status-ok); color: #fff; }
+.cell-reserved { background: var(--status-warn); border: 1px solid var(--status-warn); color: #fff; }
 
 /* ===== 正视图弹窗 ===== */
 .rack-modal-mask {

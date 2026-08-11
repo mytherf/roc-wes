@@ -66,7 +66,7 @@ const { statusClass, statusText } = useNodeStatus(status)
   padding: 8px 12px;
   background: var(--panel-bg);
   border-radius: 12px;
-  border: 2px solid #722ed1;
+  border: 2px solid var(--accent-agv);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   user-select: none;
 }
@@ -104,7 +104,7 @@ const { statusClass, statusText } = useNodeStatus(status)
   bottom: 2px;
   left: 4px;
   height: 3px;
-  background: #52c41a;
+  background: var(--status-ok);
   border-radius: 2px;
   transition: width 0.5s;
 }
@@ -113,7 +113,7 @@ const { statusClass, statusText } = useNodeStatus(status)
   top: 1px;
   right: 2px;
   font-size: 10px;
-  color: #722ed1;
+  color: var(--accent-agv);
   transition: transform 0.1s linear;
 }
 .agv-moving .agv-center { animation: agvShake 0.3s infinite alternate; }
@@ -130,7 +130,7 @@ const { statusClass, statusText } = useNodeStatus(status)
 .agv-name { font-weight: 500; color: var(--text-primary); }
 .agv-status { padding: 0 8px; border-radius: 10px; font-size: 11px; }
 .status-idle { color: var(--text-muted); }
-.status-running { color: #52c41a; }
-.status-charging { color: #faad14; }
-.status-error { color: #ff4d4f; }
+.status-running { color: var(--status-ok); }
+.status-charging { color: var(--status-charging); }
+.status-error { color: var(--status-err); }
 </style>

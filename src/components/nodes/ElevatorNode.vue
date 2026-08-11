@@ -116,6 +116,6 @@ const { statusClass, statusText } = useNodeStatus(status)
 .elevator-name { font-weight: 500; color: var(--text-primary); }
 .elevator-status { padding: 0 8px; border-radius: 10px; font-size: 11px; }
 .status-idle { color: var(--text-muted); }
-.status-running { color: #52c41a; }
-.status-error { color: #ff4d4f; }
+.status-running { color: var(--status-ok); }
+.status-error { color: var(--status-err); }
 </style>

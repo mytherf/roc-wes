@@ -34,6 +34,8 @@ import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import { useDisplayMode } from '@/composables/useDisplayMode'
 import { useNodeIcon } from '@/composables/useNodeIcon'
+import { useThemeStore } from '@/stores/theme'
+import { readCssVar } from '@/utils/themeCss'
 import NodeMinimalView from './NodeMinimalView.vue'
 import NodeIcon from './NodeIcon.vue'
 
@@ -66,6 +68,13 @@ function initChart() {
   if (!chartRef.value) return
   chart = echarts.init(chartRef.value)
 
+  // 颜色跟随当前主题：分段色=状态语义色（低危红/中危琥珀/正常绿），刻度与文字=主题灰阶
+  const errColor = readCssVar('--status-err', '#ff4d4f')
+  const warnColor = readCssVar('--status-warn', '#faad14')
+  const okColor = readCssVar('--status-ok', '#52c41a')
+  const mutedColor = readCssVar('--text-muted', '#999')
+  const textColor = readCssVar('--text-primary', '#333')
+
   const option = {
     series: [
       {
@@ -85,9 +94,9 @@ function initChart() {
           lineStyle: {
             width: 12,
             color: [
-              [0.3, '#ff4d4f'],
-              [0.7, '#faad14'],
-              [1, '#52c41a'],
+              [0.3, errColor],
+              [0.7, warnColor],
+              [1, okColor],
             ],
           },
         },
@@ -98,12 +107,12 @@ function initChart() {
           length: 10,
           lineStyle: {
             width: 2,
-            color: '#999',
+            color: mutedColor,
           },
         },
         axisLabel: {
           distance: 20,
-          color: '#999',
+          color: mutedColor,
           fontSize: 10,
         },
         pointer: {
@@ -113,7 +122,7 @@ function initChart() {
         detail: {
           valueAnimation: true,
           formatter: `{value} ${unit.value}`,
-          color: '#333',
+          color: textColor,
           fontSize: 14,
           offsetCenter: [0, '40%'],
         },
@@ -183,6 +192,18 @@ watch(isMinimal, (minimal) => {
     nextTick(initChart)
   }
 })
+
+// 主题切换：重新读取 CSS 变量重建仪表盘配色
+const themeStore = useThemeStore()
+watch(
+  () => themeStore.current,
+  () => {
+    if (isMinimal.value || !chartRef.value) return
+    chart?.dispose()
+    chart = null
+    nextTick(initChart)
+  }
+)
 
 onBeforeUnmount(() => {
   if (chart) {

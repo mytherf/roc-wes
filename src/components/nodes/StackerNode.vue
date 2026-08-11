@@ -110,10 +110,10 @@ defineExpose({
   border-radius: 50%;
   display: inline-block;
 }
-.status-idle { background: #d9d9d9; }
-.status-running { background: #52c41a; animation: pulse 1s infinite; }
-.status-warning { background: #faad14; animation: pulse 0.8s infinite; }
-.status-error { background: #ff4d4f; animation: pulse 0.5s infinite; }
+.status-idle { background: var(--status-idle); }
+.status-running { background: var(--status-ok); animation: pulse 1s infinite; }
+.status-warning { background: var(--status-warn); animation: pulse 0.8s infinite; }
+.status-error { background: var(--status-err); animation: pulse 0.5s infinite; }
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }

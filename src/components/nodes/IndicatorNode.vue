@@ -86,20 +86,20 @@ defineExpose({ setStatus: (s: string) => { status.value = s } })
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
 }
 .light-on {
-  background: #52c41a;
-  box-shadow: 0 0 12px rgba(82, 196, 26, 0.5);
+  background: var(--status-ok);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--status-ok) 50%, transparent);
 }
 .light-off {
-  background: #d9d9d9;
+  background: var(--status-idle);
 }
 .light-warning {
-  background: #faad14;
-  box-shadow: 0 0 12px rgba(250, 173, 20, 0.5);
+  background: var(--status-warn);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--status-warn) 50%, transparent);
   animation: blink 0.8s infinite;
 }
 .light-error {
-  background: #ff4d4f;
-  box-shadow: 0 0 12px rgba(255, 77, 79, 0.5);
+  background: var(--status-err);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--status-err) 50%, transparent);
   animation: blink 0.5s infinite;
 }
 .indicator-status {

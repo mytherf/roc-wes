@@ -60,7 +60,7 @@ const { statusClass, statusText } = useNodeStatus(status)
   padding: 12px 16px;
   background: var(--panel-bg);
   border-radius: 8px;
-  border: 2px solid #eb2f96;
+  border: 2px solid var(--accent-robot);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   user-select: none;
 }
@@ -111,6 +111,6 @@ const { statusClass, statusText } = useNodeStatus(status)
 .robot-name { font-weight: 500; color: var(--text-primary); }
 .robot-status { padding: 0 8px; border-radius: 10px; font-size: 11px; }
 .status-idle { color: var(--text-muted); }
-.status-running { color: #eb2f96; }
-.status-error { color: #ff4d4f; }
+.status-running { color: var(--status-ok); }
+.status-error { color: var(--status-err); }
 </style>

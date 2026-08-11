@@ -71,7 +71,7 @@ const { statusClass, statusText } = useNodeStatus(status)
   padding: 12px 16px;
   background: var(--panel-bg);
   border-radius: 8px;
-  border: 2px solid #faad14;
+  border: 2px solid var(--accent-sorter);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   user-select: none;
 }
@@ -97,7 +97,7 @@ const { statusClass, statusText } = useNodeStatus(status)
   border: 1px solid var(--border-light);
   transition: all 0.3s;
 }
-.chute-active { border-color: var(--color-primary); background: #e6f7ff; }
+.chute-active { border-color: var(--color-primary); background: var(--color-primary-light); }
 .chute-label { font-size: 11px; color: var(--text-secondary); display: block; }
 .chute-count { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .sorter-status {
@@ -112,8 +112,8 @@ const { statusClass, statusText } = useNodeStatus(status)
   border-radius: 50%;
   display: inline-block;
 }
-.status-idle { background: #d9d9d9; }
-.status-running { background: #52c41a; animation: pulse 1s infinite; }
-.status-error { background: #ff4d4f; animation: pulse 0.5s infinite; }
+.status-idle { background: var(--status-idle); }
+.status-running { background: var(--status-ok); animation: pulse 1s infinite; }
+.status-error { background: var(--status-err); animation: pulse 0.5s infinite; }
 .sorter-speed { margin-left: auto; color: var(--text-muted); }
 </style>

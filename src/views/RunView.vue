@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { Graph } from '@antv/x6'
 import { getTeleport } from '@antv/x6-vue-shape'
 
@@ -52,6 +52,7 @@ import '@/components/nodes/registry'
 // 服务
 import { AnimationService } from '@/services/AnimationService'
 import { useDataService } from '@/composables/useDataService'
+import { useDataSourceStore } from '@/stores/dataSource'
 import { readJsonFile } from '@/platform/fileStorage' // 文件读取工具（Tauri FS 落盘）
 
 const TeleportContainer = getTeleport()
@@ -75,6 +76,20 @@ const currentTime = ref('') // 当前时间（底部信息栏每秒刷新）
 // 数据服务管理（与编辑态 X6Canvas 共用同一套绑定逻辑）
 const dataService = useDataService()
 
+// 数据源列表就绪后重绑全部节点：
+// run-preview.json 读取（先于 bindAllNodes）与 datasources.json 异步读取存在时序竞态，
+// 数据源后加载完成时 getDataSource(sourceId) 解析不到实例导致订阅失败。
+// 加载完成（loaded 置 true）后补绑一次（bindNodeData 幂等：先退订再订阅）。
+const dataSourceStore = useDataSourceStore()
+watch(
+    () => dataSourceStore.loaded,
+    (loaded) => {
+        if (loaded && graph) {
+            dataService.bindAllNodes(graph)
+        }
+    }
+)
+
 onMounted(async() => {
   if (!containerRef.value) return
 
@@ -93,8 +108,10 @@ onMounted(async() => {
 
     graph = new Graph({
       container: containerRef.value,
-      // 浅灰背景 + 网格线，保持与编辑态一致的视觉参考
-      background: { color: '#f5f5f5' },
+      // 灰底 + 网格线，跟随当前主题（ISA-101 高绩效 HMI 的中性灰底）
+      background: {
+        color: getComputedStyle(document.documentElement).getPropertyValue('--canvas-bg').trim() || '#f5f5f5',
+      },
       grid: true,
       // 运行态不允许编辑（禁止拖动/缩放节点），只允许平移查看
       interacting: false,
@@ -196,7 +213,7 @@ onBeforeUnmount(() => {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: #f0f2f5;
+  background: var(--canvas-bg);
   position: relative;
 }
 
@@ -215,25 +232,25 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #f0f2f5;
-  color: #666;
+  background: var(--canvas-bg);
+  color: var(--text-secondary);
   z-index: 10;
 }
 .overlay h2 {
   font-size: 24px;
   margin: 12px 0 8px;
-  color: #333;
+  color: var(--text-primary);
 }
 .overlay p {
   font-size: 14px;
-  color: #999;
+  color: var(--text-muted);
   margin: 0;
 }
 .spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid #e8e8e8;
-  border-top: 4px solid #1890ff;
+  border: 4px solid var(--border-color);
+  border-top: 4px solid var(--color-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -255,15 +272,16 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 20px;
   padding: 0 20px;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
-  color: #fff;
+  /* ISA-101：底部状态条用中性灰 + 深色文字，仅状态文字用语义色 */
+  background: var(--statusbar-bg);
+  border-top: 1px solid var(--border-color);
+  color: var(--text-primary);
   font-size: 13px;
   z-index: 100;
   user-select: none;
 }
 .run-status {
-  color: #52c41a;
+  color: var(--color-success);
   font-weight: 500;
 }
 .run-stat {

@@ -77,7 +77,7 @@ const directionClass = computed(() => ({
   display: flex;
   gap: 4px;
   height: 12px;
-  background: #e8e8e8;
+  background: var(--border-light);
   border-radius: 6px;
   padding: 0 4px;
   align-items: center;
@@ -85,7 +85,7 @@ const directionClass = computed(() => ({
 .belt-segment {
   flex: 1;
   height: 6px;
-  background: #d9d9d9;
+  background: var(--status-idle);
   border-radius: 3px;
 }
 .belt-running .belt-segment {
@@ -107,6 +107,6 @@ const directionClass = computed(() => ({
 .conveyor-name { font-weight: 500; color: var(--text-primary); }
 .conveyor-status { padding: 0 8px; border-radius: 10px; }
 .status-idle { color: var(--text-muted); }
-.status-running { color: #52c41a; }
-.status-error { color: #ff4d4f; }
+.status-running { color: var(--status-ok); }
+.status-error { color: var(--status-err); }
 </style>

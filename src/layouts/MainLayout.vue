@@ -149,6 +149,20 @@ const onNodeDblClick = (payload: { nodeId: string; shape: string }) => {
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
 
+  /* 状态语义色（节点红绿灯）：正常/运行=绿、警告=黄、故障=红、待机=灰、充电=黄 */
+  --status-ok: #52c41a;
+  --status-warn: #faad14;
+  --status-err: #ff4d4f;
+  --status-idle: #d9d9d9;
+  --status-charging: #faad14;
+
+  /* 节点类型强调色（边框/方向箭头，区分设备种类） */
+  --accent-agv: #722ed1;
+  --accent-robot: #eb2f96;
+  --accent-shuttle: #13c2c2;
+  --accent-sorter: #faad14;
+  --accent-rack: #8c8c8c;
+
   --sidebar-bg: #1e293b;
   --sidebar-bg-hover: #334155;
   --sidebar-text: #e2e8f0;
@@ -203,6 +217,20 @@ const onNodeDblClick = (payload: { nodeId: string; shape: string }) => {
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
 
+  /* 状态语义色：正常/运行=绿、警告=黄、故障=红、待机=灰、充电=黄 */
+  --status-ok: #52c41a;
+  --status-warn: #faad14;
+  --status-err: #ff4d4f;
+  --status-idle: #d9d9d9;
+  --status-charging: #faad14;
+
+  /* 节点类型强调色 */
+  --accent-agv: #722ed1;
+  --accent-robot: #eb2f96;
+  --accent-shuttle: #13c2c2;
+  --accent-sorter: #faad14;
+  --accent-rack: #8c8c8c;
+
   --sidebar-bg: #f8fafc;
   --sidebar-bg-hover: #f1f5f9;
   --sidebar-text: #334155;
@@ -254,6 +282,20 @@ const onNodeDblClick = (payload: { nodeId: string; shape: string }) => {
   --color-warning: #fbbf24;
   --color-danger: #f87171;
 
+  /* 状态语义色：正常/运行=绿、警告=黄、故障=红、待机=灰、充电=黄 */
+  --status-ok: #52c41a;
+  --status-warn: #faad14;
+  --status-err: #ff4d4f;
+  --status-idle: #d9d9d9;
+  --status-charging: #faad14;
+
+  /* 节点类型强调色 */
+  --accent-agv: #722ed1;
+  --accent-robot: #eb2f96;
+  --accent-shuttle: #13c2c2;
+  --accent-sorter: #faad14;
+  --accent-rack: #8c8c8c;
+
   --sidebar-bg: #0c1929;
   --sidebar-bg-hover: #162a42;
   --sidebar-text: #cbd5e1;
@@ -290,6 +332,76 @@ const onNodeDblClick = (payload: { nodeId: string; shape: string }) => {
 
   --scrollbar-thumb: #1e3a5f;
   --scrollbar-thumb-hover: #2d5a8a;
+}
+
+/* ═══════════════════════════════════════════════
+   主题 4：ISA-101 高绩效 HMI（默认）
+   符合 ANSI/ISA-101.01-2015：
+   - 中性灰底（静态元素一律灰/白/黑，不使用装饰色）
+   - 颜色仅用于状态语义：红=报警/紧急、琥珀=警告、
+     绿=正常/运行、蓝=状态/交互，低饱和、少阴影
+   ═══════════════════════════════════════════════ */
+[data-theme='isa101'] {
+  /* 语义色（ISA-101 推荐色卡）：蓝=状态/交互 */
+  --color-primary: #1565c0;
+  --color-primary-hover: #1e6fc4;
+  --color-primary-light: rgba(21, 101, 192, 0.08);
+  --color-primary-ring: rgba(21, 101, 192, 0.2);
+  --color-success: #1e8e3e; /* 绿=正常/运行 */
+  --color-warning: #e8a000; /* 琥珀=警告 */
+  --color-danger: #cc0000; /* 红=报警/紧急 */
+
+  /* 状态语义色：正常=绿、警告=琥珀、故障=红、待机=浅灰、充电=蓝（状态类） */
+  --status-ok: #1e8e3e;
+  --status-warn: #e8a000;
+  --status-err: #cc0000;
+  --status-idle: #b8b8b8;
+  --status-charging: #1565c0;
+
+  /* 节点类型强调色：静态元素去色，统一中性灰 */
+  --accent-agv: #909090;
+  --accent-robot: #909090;
+  --accent-shuttle: #909090;
+  --accent-sorter: #909090;
+  --accent-rack: #8c8c8c;
+
+  --sidebar-bg: #d4d4d4;
+  --sidebar-bg-hover: #c8c8c8;
+  --sidebar-text: #1f1f1f;
+  --sidebar-text-muted: #5f5f5f;
+  --sidebar-border: #b0b0b0;
+  --sidebar-card-bg: #dcdcdc;
+  --sidebar-card-border: #b0b0b0;
+
+  --canvas-bg: #e8e8e8;
+  --canvas-grid: #d6d6d6;
+  --panel-bg: #dcdcdc;
+  --toolbar-bg: #e0e0e0;
+  --statusbar-bg: #d0d0d0;
+
+  --text-primary: #1f1f1f;
+  --text-secondary: #4a4a4a;
+  --text-muted: #737373;
+
+  --border-color: #a8a8a8;
+  --border-light: #c0c0c0;
+  /* 输入框专用：比面板略浅的中性灰，边框逐级加深 */
+  --input-bg: #f0f0f0;
+  --input-border: #9e9e9e;
+  --input-border-hover: #808080;
+  /* 分割线专用 */
+  --divider-color: #b8b8b8;
+  /* 少阴影：高绩效 HMI 避免 3D 装饰效果 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --scrollbar-thumb: #b0b0b0;
+  --scrollbar-thumb-hover: #909090;
 }
 
 /* ═══════════════════════════════════════════════

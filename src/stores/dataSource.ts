@@ -86,6 +86,10 @@ export const useDataSourceStore = defineStore(
     () => {
         // ---------- 状态 ----------
         const dataSources = ref<DataSource[]>([])
+        // 数据源列表是否已从文件加载完成（首次加载 / 切换工程完成后置 true）
+        // 画布数据绑定（bindAllNodes）在画布加载时同步执行，而数据源列表加载是异步的；
+        // 绑定先于加载完成时解析不到 sourceId，需等待 loaded 后再重绑（见 X6Canvas / RunView）
+        const loaded = ref(false)
 
         // ---------- 持久化（文件落盘，替代 pinia-plugin-persistedstate） ----------
         // 数据源按工程隔离：保存在当前工程的 projects/<工程id>/datasources.json
@@ -122,11 +126,15 @@ export const useDataSourceStore = defineStore(
                 await nextTick()
             } finally {
                 suppressWatch = false
+                // 加载完成（成功 / 失败 / 无文件均置位），供画布数据绑定等待后重试
+                loaded.value = true
             }
         }
 
         /** 切换工程时重载数据源 */
         async function reloadForProject() {
+            // 置回未加载：加载完成后再次触发画布补绑（新工程的数据源已变化）
+            loaded.value = false
             await loadFromStorage(true)
         }
 
@@ -181,6 +189,7 @@ export const useDataSourceStore = defineStore(
 
         return {
             dataSources, // 所有数据源列表（响应式）
+            loaded, // 数据源列表加载完成标志（供画布绑定等待后重试）
             addDataSource,
             updateDataSource,
             deleteDataSource,
