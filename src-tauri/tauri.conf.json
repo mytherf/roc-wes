@@ -12,6 +12,19 @@
   "app": {
     "windows": [
       {
+        "label": "splashscreen",
+        "url": "splash.html",
+        "title": "RocWes",
+        "width": 420,
+        "height": 300,
+        "center": true,
+        "decorations": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "backgroundColor": "#1e293b"
+      },
+      {
         "label": "main",
         "title": "RocWes · 仓储控制组态平台",
         "width": 1440,
@@ -20,7 +33,8 @@
         "minHeight": 700,
         "center": true,
         "maximized": true,
-        "visible": false
+        "visible": false,
+        "backgroundColor": "#1e293b"
       }
     ],
     "security": {

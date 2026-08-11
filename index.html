@@ -13,55 +13,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- 浏览器标签页标题 -->
     <title>roc-wes</title>
-    <!-- 启动加载画面专用样式：窗口隐藏期间 WebView 已在加载，
-         Vue 挂载后 #app 内容被整体替换，加载画面自动消失 -->
-    <style>
-      html,
-      body {
-        margin: 0;
-        height: 100%;
-      }
-      #app .app-loading {
-        position: fixed;
-        inset: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 18px;
-        background: #1e293b;
-        color: #e2e8f0;
-        font-family: 'Segoe UI', -apple-system, sans-serif;
-      }
-      #app .app-loading .spinner {
-        width: 42px;
-        height: 42px;
-        border: 4px solid rgba(148, 163, 184, 0.25);
-        border-top-color: #3b82f6;
-        border-radius: 50%;
-        animation: app-loading-spin 0.9s linear infinite;
-      }
-      #app .app-loading .text {
-        font-size: 14px;
-        letter-spacing: 2px;
-        color: #94a4b8;
-      }
-      @keyframes app-loading-spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-    </style>
   </head>
   <body>
     <!-- Vue 应用挂载点：main.ts 里的 createApp 会把整个应用渲染进这个 div。
-         挂载前的占位内容（启动加载画面）会被 Vue 挂载时整体替换 -->
-    <div id="app">
-      <div class="app-loading">
-        <div class="spinner"></div>
-        <div class="text">RocWes 正在启动…</div>
-      </div>
-    </div>
+         启动期间的加载画面由 Rust 侧 splash 窗口（public/splash.html）承担，
+         主界面就绪后由 Rust 关闭 splash 并显示本窗口 -->
+    <div id="app"></div>
     <!-- 入口脚本：type="module" 表示支持 ES 模块 import/export 语法 -->
     <script type="module" src="/src/main.ts"></script>
   </body>
