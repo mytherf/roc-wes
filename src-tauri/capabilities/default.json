@@ -5,6 +5,10 @@
   "windows": ["main", "route-editor"],
   "permissions": [
     "core:default",
+    "core:window:allow-is-visible",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
     "shell:allow-open",
     "fs:default",
     "fs:allow-appconfig-read-recursive",

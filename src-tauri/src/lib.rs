@@ -56,6 +56,18 @@ pub fn run() {
             let sink = Arc::new(TauriEventSink::new(app.handle().clone()));
             let engine = Arc::new(gateway_engine::GatewayEngine::new(sink));
             app.manage(AppState { engine });
+
+            // 尽早显示主窗口：窗口配置 visible: false 隐藏创建，这里延迟 300ms
+            // 后在 Rust 侧直接显示（不等前端 JS，不受 ACL 限制）——此时 WebView
+            // 已渲染 index.html 中的启动加载动画，用户立刻看到「正在启动…」反馈，
+            // 而不是长时间对着空白桌面等待；Vue 挂载后加载画面被自动替换
+            if let Some(win) = app.get_webview_window("main") {
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
