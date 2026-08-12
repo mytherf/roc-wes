@@ -1,10 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "应用窗口权限（核心 IPC；自定义命令不受 capability 限制；fs 允许读写应用配置目录以持久化工程数据）。windows 含主窗口与路线编辑器独立窗口（多屏支持）",
-  "windows": ["main", "route-editor"],
+  "description": "应用窗口权限（核心 IPC；自定义命令不受 capability 限制；fs 允许读写应用配置目录以持久化工程数据）。windows 含主窗口、路线编辑器独立窗口与运行预览窗口（均多屏支持）",
+  "windows": ["main", "route-editor", "run-preview"],
   "permissions": [
     "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:webview:allow-get-all-webviews",
     "core:window:allow-is-visible",
     "core:window:allow-show",
     "core:window:allow-set-focus",

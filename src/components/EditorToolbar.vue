@@ -118,6 +118,7 @@ import { writeJsonFile, getLastFileError } from '@/platform/fileStorage' // 文�
 import DataSourceDialog from '@/components/DataSourceDialog.vue'
 import ProjectManagerDialog from '@/components/ProjectManagerDialog.vue'
 import { useThemeStore, THEMES } from '@/stores/theme'
+import { openRunWindow } from '@/platform/routeWindow' // 运行预览独立窗口（Tauri WebviewWindow，window.open 会被拦截）
 
 const props = defineProps<{
   graph: any
@@ -223,6 +224,7 @@ const displayMode = computed(() => editorStore.displayMode)
 async function handleRun() {
   if (!props.graph) {
     console.warn('画布未初始化，无法运行')
+    alert('画布未初始化，无法运行')
     return
   }
 
@@ -232,19 +234,25 @@ async function handleRun() {
     return
   }
 
-  // 1. 获取当前画布数据
-  const data = serializeGraph(props.graph)
+  // 整链异常兜底：任何一步失败都弹窗告知具体原因，避免“点了没反应”
+  try {
+    // 1. 获取当前画布数据
+    const data = serializeGraph(props.graph)
 
-  // 2. 写入预览快照文件（运行态窗口启动后由 RunView 读取）
-  const ok = await writeJsonFile('run-preview.json', data)
-  if (!ok) {
-    alert(`运行数据写入失败：${getLastFileError() || '未知错误，请查看控制台'}`)
-    return
+    // 2. 写入预览快照文件（运行态窗口启动后由 RunView 读取）
+    const ok = await writeJsonFile('run-preview.json', data)
+    if (!ok) {
+      alert(`运行数据写入失败：${getLastFileError() || '未知错误，请查看控制台'}`)
+      return
+    }
+
+    // 3. 在新窗口打开运行态页面（Tauri WebviewWindow 创建独立 OS 窗口；
+    //    不能 window.open——WebView 会静默拦截应用内 URL）
+    await openRunWindow()
+  } catch (err) {
+    console.error('预览启动失败:', err)
+    alert(`预览启动失败：${err instanceof Error ? err.message : String(err)}`)
   }
-
-  // 3. 在新窗口打开运行态页面
-  const runUrl = `${window.location.origin}/run`
-  window.open(runUrl, '_blank')
 }
 
 /**
