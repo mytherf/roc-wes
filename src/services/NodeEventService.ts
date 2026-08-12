@@ -11,6 +11,8 @@
  *   避免数据持续越限时重复告警（类似 PLC 报警的边沿触发）。
  */
 
+import { showEventAlert } from '@/services/EventAlertDialog'
+
 /** 事件触发条件类型 */
 export type EventCondition = 'changed' | 'gt' | 'lt' | 'gte' | 'lte' | 'eq' | 'neq'
 
@@ -107,7 +109,8 @@ function executeAction(rule: NodeEventRule, data: any, nodeId: string) {
       })
       break
     case 'alert':
-      window.alert(rule.message || `节点事件触发：${label}`)
+      // 单例弹窗：同一规则重复触发时聚焦已有弹窗，不重复生成
+      showEventAlert(`${nodeId}:${rule.id}`, label, rule.message || `节点事件触发：${label}`)
       break
     case 'http':
       if (rule.url) {

@@ -1,7 +1,31 @@
 
 下面结合实例代码，从"内置模拟引擎 → 数据源注册 → 节点绑定 → 数据流动"完整讲一遍内置 WebSocket 数据源（演示模式）的流程。
 
-> 注：Node 版内置模拟服务器（原 mock/server.ts）已移除，演示模式改由桌面端 Rust 网关内置 `DemoAdapter` 生成数据，经 Tauri IPC 推送，不占用任何端口。
+## 一个完整例子
+
+仪表盘节点绑定数据源WebSocket：
+1. 数据源管理新建 WebSocket 演示数据源 → 预填 `ws://localhost:8080/ws`（仅标识）
+
+![img.png](img.png)
+
+![img_1.png](img_1.png)
+
+2. 属性面板选该数据源、点ID 填 `sensor.temp`
+
+![img_2.png](img_2.png)
+
+3. 前端 `invoke('gateway_subscribe', { pointId: 'sensor.temp.001' })`
+
+4. Rust 会话每秒调 `DemoAdapter.read()`，经 `gateway://telemetry` 推回 `{pointId:'sensor.temp.001', value:63.4, ...}`
+
+5. 回调写入 `node.data.value = 63.4` → 仪表盘指针每秒跳动一次
+
+6. 若配置了转换函数 `(raw) => Math.round(raw)`，显示前会先取整；
+
+7. 若事件规则设了 `value > 75 告警`，正弦波升过 75 时触发上升沿告警
+
+8. ![img_3.png](img_3.png)
+
 
 ## 整体链路
 
@@ -129,14 +153,7 @@ const { value } = useNodeData(props.node, { value: 0 })  // 模板里 {{ value }
 - 画布重载：`unbindAllNodes()` 只退订**不断会话**（会话可复用）
 - 组件卸载：`dispose()` 退订 + `disconnect()` 销毁全部 IPC 会话（应用退出时 Rust 侧也会统一 shutdown）
 
-## 一个完整例子
 
-给仪表节点绑定 `sensor.temp.001`：
-1. 数据源管理新建 WebSocket 演示数据源 → 预填 `ws://localhost:8080/ws`（仅标识）
-2. 属性面板选该数据源、点ID 填 `sensor.temp.001`
-3. 前端 `invoke('gateway_subscribe', { pointId: 'sensor.temp.001' })`
-4. Rust 会话每秒调 `DemoAdapter.read()`，经 `gateway://telemetry` 推回 `{pointId:'sensor.temp.001', value:63.4, ...}`
-5. 回调写入 `node.data.value = 63.4` → 仪表盘指针每秒跳动一次
-6. 若配置了转换函数 `(raw) => Math.round(raw)`，显示前会先取整；若事件规则设了 `value > 75 告警`，正弦波升过 75 时触发上升沿告警
+
 
 切换到真实设备时，把数据源改为真实模式并填入真实 WS 服务地址（消息格式兼容 `topic/id/pointId` 任一字段标识点位即可），前端代码零改动。

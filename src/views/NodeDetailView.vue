@@ -43,7 +43,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Graph } from '@antv/x6'
 
@@ -70,7 +70,9 @@ const ready = ref(false)    // 快照中是否找到目标节点
 const graphContainerRef = ref<HTMLDivElement | null>(null)
 
 // Graph 容器用 ref 保持模板可响应
-const graph = ref<Graph | null>(null)
+// 注：必须用 shallowRef——普通 ref 会对 Graph 实例做深度类型解包（UnwrapRef），
+// 导致 graph.value 类型被拆散，传入 bindAllNodes 时与 Graph 不兼容
+const graph = shallowRef<Graph | null>(null)
 // 快照节点列表（构建 Graph 时使用）
 let snapshotNodes: any[] = []
 
