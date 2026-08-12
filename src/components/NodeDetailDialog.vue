@@ -11,9 +11,15 @@
      货架节点（rack-node）有专属正视图弹窗，不会走此通用弹窗。
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
+  <!-- 弹窗模式（默认）：Teleport 到 body + 半透明遮罩，点击遮罩关闭；
+       内嵌模式（embedded，独立详情窗口）：无遮罩铺满整个窗口。
+       两种形态共用同一套结构，仅外层容器与对话框的样式类不同 -->
   <Teleport to="body">
-    <div class="detail-mask" @click.self="$emit('close')">
-      <div class="detail-dialog">
+    <div
+      :class="embedded ? 'detail-mask detail-mask-embedded' : 'detail-mask'"
+      @click.self="!embedded && $emit('close')"
+    >
+      <div class="detail-dialog" :class="{ 'detail-embedded': embedded }">
         <!-- 头部 -->
         <div class="detail-header">
           <span class="detail-title">{{ nodeIcon }} {{ nodeName }} · 节点详情</span>
@@ -90,6 +96,8 @@ const props = defineProps<{
   nodeId: string
   /** X6 Graph 实例 */
   graph: any
+  /** 内嵌模式：true 时无遮罩直接填充容器（用于独立详情窗口），false 时弹窗形态 */
+  embedded?: boolean
 }>()
 
 defineEmits<{
@@ -263,6 +271,19 @@ const groupedData = computed(() => {
   align-items: center;
   justify-content: center;
   z-index: 9998;
+}
+/* 内嵌模式：遮罩层透明背景（独立详情窗口内无半透明蒙层） */
+.detail-mask.detail-mask-embedded {
+  background: transparent;
+}
+/* 内嵌模式：填满父容器（独立详情窗口），取消圆角/阴影/最大宽高限制 */
+.detail-dialog.detail-embedded {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
 }
 .detail-dialog {
   background: var(--panel-bg);

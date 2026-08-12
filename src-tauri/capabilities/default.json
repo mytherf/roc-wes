@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "应用窗口权限（核心 IPC；自定义命令不受 capability 限制；fs 允许读写应用配置目录以持久化工程数据）。windows 含主窗口、路线编辑器独立窗口与运行预览窗口（均多屏支持）",
-  "windows": ["main", "route-editor", "run-preview"],
+  "description": "应用窗口权限（核心 IPC；自定义命令不受 capability 限制；fs 允许读写应用配置目录以持久化工程数据）。windows 含主窗口、路线编辑器/运行预览独立窗口与节点详情窗口（每节点一个，node-detail-* 通配）",
+  "windows": ["main", "route-editor", "run-preview", "node-detail-*"],
   "permissions": [
     "core:default",
     "core:webview:allow-create-webview-window",
@@ -11,6 +11,7 @@
     "core:window:allow-show",
     "core:window:allow-set-focus",
     "core:window:allow-unminimize",
+    "core:window:allow-close",
     "shell:allow-open",
     "fs:default",
     "fs:allow-appconfig-read-recursive",

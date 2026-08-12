@@ -15,6 +15,10 @@ export const ROUTE_WINDOW_LABEL = 'route-editor'
 /** 运行预览窗口的 label（全应用唯一；重复点击预览时复用已有窗口并置前） */
 export const RUN_WINDOW_LABEL = 'run-preview'
 
+/** 节点详情窗口的 label 前缀：每个节点独立一个详情窗口（label = 前缀 + nodeId），
+ *  双击其他节点不会覆盖已打开的详情窗口；capabilities 中用通配 node-detail-* 声明 */
+export const NODE_DETAIL_WINDOW_LABEL_PREFIX = 'node-detail-'
+
 /**
  * 打开路线编辑器独立窗口（可拖到任意屏幕）
  *
@@ -87,5 +91,46 @@ export async function openRunWindow(): Promise<void> {
   win.once('tauri://error', (e) => {
     console.error('[RunWindow] 创建运行预览窗口失败:', e)
     alert(`运行预览窗口创建失败：${JSON.stringify(e)}`)
+  })
+}
+
+/**
+ * 打开节点详情独立窗口（展示指定节点的实时运行数据）
+ *
+ * 每个节点独立一个窗口（label = 前缀 + nodeId）：
+ * - 该节点的详情窗口已打开：不重复创建，仅置前聚焦
+ * - 未打开：创建新窗口，加载 /node-detail?nodeId=xxx
+ * 双击其他节点不影响已打开的详情窗口
+ */
+export async function openNodeDetailWindow(nodeId: string): Promise<void> {
+  // 动态导入 Tauri API
+  const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+
+  const label = NODE_DETAIL_WINDOW_LABEL_PREFIX + nodeId
+
+  // 该节点的详情窗口已存在：仅置前聚焦，不重复创建
+  const existing = await WebviewWindow.getByLabel(label)
+  if (existing) {
+    await existing.unminimize().catch(() => {})
+    await existing.setFocus().catch(() => {})
+    return
+  }
+
+  // 创建新窗口：独立 OS 窗口，可拖到任意屏幕
+  const win = new WebviewWindow(label, {
+    url: `/node-detail?nodeId=${encodeURIComponent(nodeId)}`,
+    title: 'RocWes · 节点详情',
+    width: 520,
+    height: 640,
+    minWidth: 420,
+    minHeight: 420,
+    center: true,
+    resizable: true,
+  })
+
+  // 创建失败（如权限问题）时弹窗告知具体原因，避免“点了没反应”
+  win.once('tauri://error', (e) => {
+    console.error('[NodeDetailWindow] 创建节点详情窗口失败:', e)
+    alert(`节点详情窗口创建失败：${JSON.stringify(e)}`)
   })
 }

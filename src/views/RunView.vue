@@ -54,6 +54,7 @@ import { AnimationService } from '@/services/AnimationService'
 import { useDataService } from '@/composables/useDataService'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { readJsonFile } from '@/platform/fileStorage' // 文件读取工具（Tauri FS 落盘）
+import { openNodeDetailWindow } from '@/platform/routeWindow' // 双击节点 → 节点详情独立窗口
 
 const TeleportContainer = getTeleport()
 
@@ -133,6 +134,18 @@ onMounted(async() => {
     graph.fromJSON({ cells: [...data.nodes, ...data.edges] })
     graph.zoomTo(1)
     graph.centerContent()
+
+    // 双击节点 → 打开节点详情独立窗口（Tauri WebviewWindow，实时展示运行数据）；
+    // 货架节点（rack-node）自身已监听 cell:dblclick 打开专属正视图，这里跳过避免重复弹窗
+    graph.on('node:dblclick', async ({ node }) => {
+      if (node.shape === 'rack-node') return
+      try {
+        await openNodeDetailWindow(node.id)
+      } catch (err) {
+        console.error('打开节点详情窗口失败:', err)
+        alert(`打开节点详情失败：${err instanceof Error ? err.message : String(err)}`)
+      }
+    })
 
     // 绑定数据源（setData 会自动触发 change:data，驱动节点组件刷新）
     dataService.bindAllNodes(graph)

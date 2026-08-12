@@ -28,6 +28,12 @@ const router = createRouter({
             // 由 platform/routeWindow.ts 打开的独立 OS 窗口加载本路由（多屏支持）
             component: () => import('@/views/RouteWindowView.vue'),
         },
+        {
+            path: '/node-detail', // 节点详情独立窗口（运行预览中双击节点打开，?nodeId=xxx）
+            name: 'node-detail',
+            // 由 platform/routeWindow.ts 的 openNodeDetailWindow 创建的独立 OS 窗口加载本路由
+            component: () => import('@/views/NodeDetailView.vue'),
+        },
     ],
 })
 
