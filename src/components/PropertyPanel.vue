@@ -14,7 +14,20 @@
      保证画布实时刷新且工程保存不丢失。
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
-  <div class="property-panel" :class="{ collapsed: editorStore.propertyCollapsed }">
+  <div
+    class="property-panel"
+    :class="{ collapsed: editorStore.propertyCollapsed, resizing: panelResizing }"
+    :style="panelStyle"
+  >
+    <!-- 宽度拖动手柄（仅展开态）：按住左右拖动调整面板宽度 -->
+    <div
+      v-if="!editorStore.propertyCollapsed"
+      class="panel-resize-handle"
+      title="拖动调整面板宽度"
+      @mousedown.prevent="startPanelResize"
+    ></div>
+    <!-- 滚动内层：面板内容在此滚动，拖动手柄用 absolute 定位不受滚动影响 -->
+    <div class="panel-scroll">
     <!-- 折叠态：窄条 + 展开标签 -->
     <template v-if="editorStore.propertyCollapsed">
       <button class="panel-expand-tab" @click="editorStore.togglePropertyCollapsed()" title="展开属性面板">
@@ -341,16 +354,30 @@
                 <span class="binding-group-tag" :class="{ primary: idx === 0 }">{{ idx === 0 ? '主点' : `附加点 ${idx}` }}</span>
                 <button v-if="idx > 0" type="button" class="extra-point-remove" title="删除该点组" @click="removePointGroup(idx)">×</button>
               </div>
-              <input
-                v-model="g.pointId"
-                @input="updateBinding"
-                :placeholder="idx === 0 ? '主点，例如: sensor.temp.001' : '附加点 ID，例如: sensor.humi.001'"
-              />
-              <input
-                v-model="g.transformSource"
-                @input="updateBinding"
-                placeholder="转换函数(可选): (raw) => Math.round(raw)"
-              />
+              <!-- 点ID 行：标签 + 输入框 -->
+              <div class="binding-group-row">
+                <label class="binding-row-label">点ID</label>
+                <input
+                  v-model="g.pointId"
+                  @input="updateBinding"
+                  :placeholder="idx === 0 ? '例如: sensor.temp.001' : '例如: sensor.humi.001'"
+                />
+              </div>
+              <!-- 转换函数行：标签 + 输入框（可选）+ 弹出编辑按钮（打开大编辑对话框） -->
+              <div class="binding-group-row">
+                <label class="binding-row-label">转换函数</label>
+                <input
+                  v-model="g.transformSource"
+                  @input="updateBinding"
+                  placeholder="(可选) (raw) => Math.round(raw)"
+                />
+                <button
+                  type="button"
+                  class="transform-expand-btn"
+                  title="弹出大编辑框（查看/编辑长函数）"
+                  @click="openTransformDialog(idx)"
+                >⤢</button>
+              </div>
             </div>
             <button type="button" class="add-extra-point-btn" @click="addPointGroup">＋ 添加点组（点ID + 转换函数）</button>
             <div class="binding-status">
@@ -382,11 +409,18 @@
                   <span class="field-help-wrap">
                     <button type="button" class="field-help-btn" :aria-expanded="fieldHelpOpen === 'watch'" title="监听字段说明" @click="toggleFieldHelp('watch')">?</button>
                     <div v-if="fieldHelpOpen === 'watch'" class="field-help-pop" role="note">
-                      留空监听 value。
+                      选择要监听的绑定点ID；节点可能绑定多个点，运行值从 data.values[点ID].value 读取。
                     </div>
                   </span>
                 </label>
-                <input v-model="rule.field" placeholder="value" />
+                <!-- 点ID 下拉选择：field 统一为绑定点ID，选项来自当前节点的绑定点组（可能多个） -->
+                <select v-model="rule.field">
+                  <option
+                    v-for="g in watchFieldOptions"
+                    :key="g"
+                    :value="g"
+                  >{{ g }}</option>
+                </select>
               </div>
               <div class="field">
                 <label>触发条件</label>
@@ -432,7 +466,7 @@
               </template>
             </div>
 
-            <button class="add-event-btn" @click="addEventRule">＋ 添加事件规则</button>
+            <button class="add-event-btn" @click="handleAddEventRule">＋ 添加事件规则</button>
           </div>
         </template>
 
@@ -453,6 +487,34 @@
         </template>
       </div>
     </template>
+    </div>
+
+    <!-- 转换函数编辑对话框：点组卡片内 ⤢ 按钮打开，大号多行编辑区便于查看/编辑长函数；
+         草稿模式——确定才写回点组，取消/遮罩点击/Esc 丢弃 -->
+    <Teleport to="body">
+      <div v-if="transformDialog" class="transform-dialog-mask" @click.self="cancelTransformDialog">
+        <div class="transform-dialog" role="dialog" aria-modal="true" aria-label="编辑转换函数">
+          <div class="transform-dialog-head">
+            <h4>
+              编辑转换函数
+              <span class="binding-group-tag" :class="{ primary: transformDialog.groupIdx === 0 }">
+                {{ transformDialog.groupIdx === 0 ? '主点' : `附加点 ${transformDialog.groupIdx}` }}
+              </span>
+            </h4>
+            <button type="button" class="transform-dialog-close" title="关闭（不保存）" @click="cancelTransformDialog">×</button>
+          </div>
+          <textarea
+            v-model="transformDialog.draft"
+            class="transform-editor transform-dialog-editor"
+            placeholder="(可选) 例如: (raw) => Math.round(raw)"
+          ></textarea>
+          <div class="transform-dialog-foot">
+            <button type="button" class="transform-dialog-btn" @click="cancelTransformDialog">取消</button>
+            <button type="button" class="transform-dialog-btn primary" @click="confirmTransformDialog">确定</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -500,6 +562,61 @@ function getGraph(): any {
 
 // ===================== 当前选中元素 =====================
 const element = computed(() => editorStore.selectedElement)
+
+// ===================== 面板宽度拖动调整 =====================
+// 展开态下拖动面板左缘手柄即可调整宽度；折叠态不适用（固定 32px 窄条）
+const PANEL_WIDTH_MIN = 200
+const PANEL_WIDTH_MAX = 600
+const PANEL_WIDTH_DEFAULT = 240
+
+/** 当前面板宽度（像素） */
+const panelWidth = ref(PANEL_WIDTH_DEFAULT)
+/** 是否正在拖动调整宽度（拖动中禁用宽度过渡动画，避免卡顿） */
+const panelResizing = ref(false)
+// 拖动起点记录：按下时的鼠标 X 坐标与面板宽度
+let resizeStartX = 0
+let resizeStartWidth = PANEL_WIDTH_DEFAULT
+
+/** 展开态内联宽度样式（折叠态不设置，由 CSS 的 32px 接管） */
+const panelStyle = computed(() => {
+  if (editorStore.propertyCollapsed) return {}
+  return { width: `${panelWidth.value}px` }
+})
+
+/** 开始拖动：记录起点并在 document 上监听移动/松开 */
+function startPanelResize(e: MouseEvent) {
+  resizeStartX = e.clientX
+  resizeStartWidth = panelWidth.value
+  panelResizing.value = true
+  document.addEventListener('mousemove', onPanelResizeMove)
+  document.addEventListener('mouseup', stopPanelResize)
+  // 拖动期间全局锁定光标样式与文本选中，避免拖出面板后体验断裂
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+/** 拖动中：面板在右侧，向左拖（delta 为正）变宽，向右拖变窄 */
+function onPanelResizeMove(e: MouseEvent) {
+  const delta = resizeStartX - e.clientX
+  panelWidth.value = Math.min(
+    PANEL_WIDTH_MAX,
+    Math.max(PANEL_WIDTH_MIN, resizeStartWidth + delta)
+  )
+}
+
+/** 结束拖动：移除监听并恢复全局光标/选中 */
+function stopPanelResize() {
+  panelResizing.value = false
+  document.removeEventListener('mousemove', onPanelResizeMove)
+  document.removeEventListener('mouseup', stopPanelResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+onBeforeUnmount(() => {
+  // 组件卸载时兜底清理，避免残留 document 监听器
+  stopPanelResize()
+})
 
 // ===================== 画布属性（点击空白处时展示） =====================
 // 是否选中画布本身
@@ -568,6 +685,40 @@ interface BindingGroupDraft {
 // 点组列表（按组添加/删除；数据写入 data.values[pointId]，主点额外驱动 data.value）
 const bindingGroups = ref<BindingGroupDraft[]>([{ pointId: '', transformSource: '' }])
 
+/** 转换函数编辑对话框状态（null = 未打开；draft 为编辑草稿，确定才写回点组） */
+const transformDialog = ref<{ groupIdx: number; draft: string } | null>(null)
+/** 打开转换函数编辑对话框（复制当前内容为草稿，避免边改边生效） */
+function openTransformDialog(idx: number) {
+  transformDialog.value = { groupIdx: idx, draft: bindingGroups.value[idx]?.transformSource ?? '' }
+}
+/** 取消/关闭对话框：丢弃草稿，不写回 */
+function cancelTransformDialog() {
+  transformDialog.value = null
+}
+/** 确定：草稿写回对应点组并立即提交绑定 */
+function confirmTransformDialog() {
+  const dlg = transformDialog.value
+  if (!dlg) return
+  const g = bindingGroups.value[dlg.groupIdx]
+  if (g) {
+    g.transformSource = dlg.draft
+    updateBinding()
+  }
+  transformDialog.value = null
+}
+/** 对话框打开期间 Esc 关闭（不保存） */
+function onTransformDialogKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') cancelTransformDialog()
+}
+watch(transformDialog, (dlg) => {
+  if (dlg) document.addEventListener('keydown', onTransformDialogKeydown)
+  else document.removeEventListener('keydown', onTransformDialogKeydown)
+})
+onBeforeUnmount(() => {
+  // 兜底清理对话框 Esc 监听，避免残留 document 监听器
+  document.removeEventListener('keydown', onTransformDialogKeydown)
+})
+
 /** 主点 ID 是否已填写（驱动绑定状态提示） */
 const hasPrimaryPoint = computed(() => !!bindingGroups.value[0]?.pointId.trim())
 
@@ -602,6 +753,28 @@ const selectedDataSource = computed(() =>
 // ===================== 事件规则（逻辑抽取至 useNodeEvents composable） =====================
 const { eventsDraft, addEventRule, removeEventRule } = useNodeEvents(getGraph, activeTab)
 
+/**
+ * 监听字段下拉选项：field 统一为绑定点ID，
+ * 选项 = 当前节点绑定点组中非空且去重的点ID（保留录入顺序）。
+ */
+const watchFieldOptions = computed(() => {
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const g of bindingGroups.value) {
+    const pid = g.pointId.trim()
+    if (pid && !seen.has(pid)) {
+      seen.add(pid)
+      ids.push(pid)
+    }
+  }
+  return ids
+})
+
+/** 添加事件规则：默认监听第一个绑定点（field 统一为点ID，不再有空值语义） */
+function handleAddEventRule() {
+  addEventRule(watchFieldOptions.value[0] ?? '')
+}
+
 // ===================== 位置与尺寸独立管理（绕过 store 响应式链） =====================
 const posX = ref(0)
 const posY = ref(0)
@@ -619,6 +792,8 @@ watch(
     () => element.value?.data?.id,
     (newId) => {
       const newElement = element.value
+      // 切换选中节点时关闭转换函数编辑对话框，避免草稿写回错误的节点
+      transformDialog.value = null
       if (!newId || !newElement || newElement.type !== 'node') {
         bindingSourceId.value = ''
         bindingGroups.value = [{ pointId: '', transformSource: '' }]
@@ -1264,6 +1439,7 @@ function toggleRouteMove() {
 <style scoped>
 /* ===================== 面板整体样式 ===================== */
 .property-panel {
+  position: relative;
   width: 240px;
   min-width: 200px;
   flex-shrink: 0;
@@ -1272,8 +1448,39 @@ function toggleRouteMove() {
   padding: 18px;
   border-left: 1px solid var(--border-color);
   box-sizing: border-box;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease;
+}
+
+/* 拖动调整宽度期间禁用过渡动画，保证实时跟手 */
+.property-panel.resizing {
+  transition: none;
+}
+
+/* 宽度拖动手柄：贴在面板左缘，hover 时显示高亮提示可拖动 */
+.panel-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+.panel-resize-handle:hover,
+.property-panel.resizing .panel-resize-handle {
+  background: var(--color-primary);
+  opacity: 0.35;
+}
+
+/* 滚动内层：面板内容在此纵向滚动（手柄 absolute 定位不受滚动影响） */
+.panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* ===== 折叠态 ===== */
@@ -1393,6 +1600,10 @@ function toggleRouteMove() {
   letter-spacing: 0.3px;
   line-height: 1.2;
 }
+/* 含帮助按钮（?）的标签：加宽标签列，保证文字与 ? 同行不换行（如「监听字段 ?」） */
+.field label:has(.field-help-wrap) {
+  width: 76px;
+}
 .field .hint {
   font-weight: normal;
   color: var(--text-muted);
@@ -1487,6 +1698,152 @@ function toggleRouteMove() {
 }
 .binding-group-card input {
   width: 100%;
+}
+/* 点组内字段行：小标签 + 输入框同行（标签列固定宽度保证两行对齐） */
+.binding-group-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.binding-row-label {
+  flex-shrink: 0;
+  width: 48px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+/* 转换函数放大/收起按钮（单行 ⇄ 多行切换） */
+.transform-expand-btn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--input-border, var(--border-color));
+  border-radius: var(--radius-sm);
+  background: var(--input-bg, var(--panel-bg));
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.transform-expand-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* ===================== 转换函数编辑对话框 ===================== */
+/* 半透明遮罩：点击遮罩本身（非对话框）即取消关闭 */
+.transform-dialog-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.transform-dialog {
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.transform-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.transform-dialog-head h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.transform-dialog-close {
+  border: none;
+  background: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.transform-dialog-close:hover {
+  background: var(--statusbar-bg);
+  color: var(--text-primary);
+}
+/* 对话框内大编辑区：默认更高，可继续纵向拖拽（双类选择器保证覆盖 .transform-editor 的 min-height） */
+.transform-editor.transform-dialog-editor {
+  flex: 1;
+  min-height: 220px;
+}
+.transform-dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.transform-dialog-btn {
+  padding: 5px 16px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--statusbar-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.transform-dialog-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.transform-dialog-btn.primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+.transform-dialog-btn.primary:hover {
+  opacity: 0.9;
+  color: #fff;
+}
+/* 转换函数多行编辑区：等宽字体便于阅读代码，可纵向拖拽调整高度，
+   悬停/聚焦状态与普通输入框一致 */
+.transform-editor {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 80px;
+  padding: 6px 8px;
+  border: 1px solid var(--input-border, var(--border-color));
+  border-radius: var(--radius-md);
+  background: var(--input-bg, var(--panel-bg));
+  color: var(--text-primary);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  resize: vertical;
+  box-shadow: var(--shadow-sm, none);
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+.transform-editor:hover:not(:focus) {
+  border-color: var(--input-border-hover, var(--color-primary));
+}
+.transform-editor:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  background: var(--panel-bg);
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
 }
 .extra-point-remove {
   flex-shrink: 0;

@@ -72,9 +72,9 @@ export function useNodeEvents(getGraph: () => Graph | null, activeTab: Ref<strin
     }
   }
 
-  /** 添加事件规则 */
-  function addEventRule() {
-    eventsDraft.value.push(createEventRule())
+  /** 添加事件规则（field 统一为绑定点ID，默认监听传入的点） */
+  function addEventRule(defaultField = '') {
+    eventsDraft.value.push(createEventRule(defaultField))
   }
 
   /** 删除事件规则 */

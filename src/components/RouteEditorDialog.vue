@@ -1203,6 +1203,8 @@ onBeforeUnmount(() => {
   margin: 16px 0 8px;
   padding-top: 12px;
   border-top: 1px solid var(--divider-color, var(--border-light));
+  /* 标题后的帮助按钮（?）必须与文字同行，不允许换行 */
+  white-space: nowrap;
 }
 .edit-actions {
   display: flex;

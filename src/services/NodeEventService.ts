@@ -27,7 +27,7 @@ export interface NodeEventRule {
   enabled: boolean
   /** 规则名称（可选，用于日志与告警展示） */
   name: string
-  /** 监听的数据字段（空字符串表示监听顶层 value 字段） */
+  /** 监听的绑定点ID，运行值从 data.values[pointId].value 读取 */
   field: string
   /** 触发条件 */
   condition: EventCondition
@@ -49,13 +49,13 @@ export interface NodeEventRule {
  */
 const prevMatchState = new Map<string, boolean>()
 
-/** 创建一条默认事件规则 */
-export function createEventRule(): NodeEventRule {
+/** 创建一条默认事件规则（field 统一为绑定点ID，由调用方传入默认监听点） */
+export function createEventRule(field = ''): NodeEventRule {
   return {
     id: `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     enabled: true,
     name: '',
-    field: '',
+    field,
     condition: 'changed',
     threshold: '',
     actionType: 'console',
@@ -65,11 +65,10 @@ export function createEventRule(): NodeEventRule {
   }
 }
 
-/** 读取节点数据中指定字段的值（field 为空时取顶层 value） */
+/** 读取规则监听点的运行值：field 统一为绑定点ID，取 data.values[pointId].value
+ *  （多点绑定时每个点的遥测都存在 values 里，且已应用该点组内的转换函数） */
 function getFieldValue(data: any, field: string): any {
-  if (!data) return undefined
-  if (!field) return data.value
-  return data[field]
+  return data?.values?.[field]?.value
 }
 
 /** 判断单条规则的条件是否满足 */
@@ -102,7 +101,7 @@ function executeAction(rule: NodeEventRule, data: any, nodeId: string) {
   switch (rule.actionType) {
     case 'console':
       console.log(`[节点事件] ${label} 触发（节点 ${nodeId}）`, {
-        field: rule.field || 'value',
+        field: rule.field,
         value,
         condition: rule.condition,
         threshold: rule.threshold,
@@ -120,7 +119,7 @@ function executeAction(rule: NodeEventRule, data: any, nodeId: string) {
           body: JSON.stringify({
             nodeId,
             rule: label,
-            field: rule.field || 'value',
+            field: rule.field,
             value,
             timestamp: Date.now(),
           }),
