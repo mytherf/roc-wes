@@ -290,7 +290,11 @@ const ANIMATION_ATTR_KEYS = new Set(['transform', 'opacity'])
  * 排除三类非用户编辑的变化，避免污染撤销栈：
  * 1. 辅助图形：路线覆盖层/持久路径/坐标标签的增删与属性变化
  * 2. 运行态数据写入：data 变化中仅运行态字段有差异时跳过
- * 3. 动画帧写入：attrs/body/transform 与 attrs/body/opacity
+ * 3. 动画帧写入：attrs 变化中仅 transform/opacity 有差异时跳过
+ *
+ * 注意：插件以通配事件 'cell:change:*' 注册监听，beforeAddCommand 收到的
+ * event 恒为注册名 'cell:change:*'（源码在钩子返回后才特化为
+ * cell:change:data 等具体事件），因此必须通过 args.key 判断变化类型。
  */
 function historyBeforeAdd(event: string, args: any): boolean {
   const cell = args?.cell
@@ -304,19 +308,39 @@ function historyBeforeAdd(event: string, args: any): boolean {
       return false
     }
   }
-  if (event === 'cell:change:data') {
-    const prev = (args?.previous ?? {}) as Record<string, any>
-    const curr = (args?.current ?? {}) as Record<string, any>
-    const keys = new Set<string>([...Object.keys(prev), ...Object.keys(curr)])
-    for (const k of keys) {
-      if (RUNTIME_HISTORY_KEYS.has(k)) continue
-      if (JSON.stringify(prev[k]) !== JSON.stringify(curr[k])) return true
+  if (event === 'cell:change:*' || event.startsWith('cell:change:')) {
+    const key = String(args?.key || '')
+    // data 变化：逐键对比，仅运行态遥测字段有差异则跳过（不入栈）
+    if (key === 'data') {
+      const prev = (args?.previous ?? {}) as Record<string, any>
+      const curr = (args?.current ?? {}) as Record<string, any>
+      const keys = new Set<string>([...Object.keys(prev), ...Object.keys(curr)])
+      for (const k of keys) {
+        if (RUNTIME_HISTORY_KEYS.has(k)) continue
+        if (JSON.stringify(prev[k]) !== JSON.stringify(curr[k])) return true
+      }
+      return false
     }
-    return false
+    // attrs 变化：仅动画帧字段（transform/opacity）有差异则跳过
+    if (key === 'attrs' || key.startsWith('attrs/')) {
+      if (isOnlyAnimationAttrDiff(args?.previous, args?.current)) return false
+    }
   }
-  if (event === 'cell:change:attrs') {
-    const last = String(args?.key || '').split('/').pop()
-    if (last && ANIMATION_ATTR_KEYS.has(last)) return false
+  return true
+}
+
+/**
+ * 深度对比两个 attrs 值，忽略 transform/opacity 键：
+ * 返回 true 表示除动画字段外完全一致（即纯动画帧写入，不入撤销栈）。
+ * 兼容 key='attrs'（完整 attrs 对象）与 key='attrs/body'（body 子树）两种粒度。
+ */
+function isOnlyAnimationAttrDiff(prev: any, curr: any): boolean {
+  if (prev === curr) return true
+  if (prev == null || curr == null || typeof prev !== 'object' || typeof curr !== 'object') return false
+  const keys = new Set<string>([...Object.keys(prev), ...Object.keys(curr)])
+  for (const k of keys) {
+    if (ANIMATION_ATTR_KEYS.has(k)) continue
+    if (!isOnlyAnimationAttrDiff(prev[k], curr[k])) return false
   }
   return true
 }
@@ -858,6 +882,24 @@ onMounted(() => {
   graph.bindKey('ctrl+s', (e: KeyboardEvent) => {
     e.preventDefault()
     editorStore.saveToStorage()
+  })
+
+  // ---------- 拖拽移动批量合并：整次拖动 = 一个撤销步骤 ----------
+  // 默认每次 mousemove 的 position 变化都单独入栈（栈深仅 50，Ctrl+Z 只能
+  // 撤销拖动碎片）。用 startBatch/stopBatch 包裹整次拖动，History 插件会把
+  // 批内同一 cell+event 的变化合并为一条命令（prev 取拖动前位置）。
+  let moveBatchOpen = false
+  graph.on('node:moving', () => {
+    if (!moveBatchOpen) {
+      moveBatchOpen = true
+      graph!.startBatch('custom-move')
+    }
+  })
+  graph.on('node:moved', () => {
+    if (moveBatchOpen) {
+      moveBatchOpen = false
+      graph!.stopBatch('custom-move')
+    }
   })
 
   dnd = new Dnd({
