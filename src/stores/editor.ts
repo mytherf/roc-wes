@@ -276,8 +276,12 @@ export const useEditorStore = defineStore(
         // 仍由工具栏「保存」按钮显式触发；启动时等 project store 就绪后异步恢复。
         const STORAGE_FILE = 'editor.json'
 
+        // 保存成功信号：每次落盘成功自增一次，
+        // 工具栏监听它播放「已保存」反馈动画（无论保存由按钮还是 Ctrl+S 触发）
+        const saveFlashSeq = ref(0)
+
         /**
-         * 手动保存当前画布与编辑器状态到文件（由「保存」按钮调用）
+         * 手动保存当前画布与编辑器状态到文件（由「保存」按钮与 Ctrl+S 调用）
          * @returns 是否保存成功
          */
         async function saveToStorage(): Promise<boolean> {
@@ -289,7 +293,10 @@ export const useEditorStore = defineStore(
             }
             const ok = await writeJsonFile(projectStore.projectPath(STORAGE_FILE), payload)
             if (!ok) console.error('保存画布到文件失败')
-            else projectStore.touchCurrent() // 刷新索引中的「最近保存时间」
+            else {
+                projectStore.touchCurrent() // 刷新索引中的「最近保存时间」
+                saveFlashSeq.value++ // 通知 UI 播放保存成功反馈动画
+            }
             return ok
         }
 
@@ -348,6 +355,7 @@ export const useEditorStore = defineStore(
             selectedId,
             canvasSelected,
             displayMode,
+            saveFlashSeq,
             bottomCollapsed,
             routeFloating,
             sidebarCollapsed,

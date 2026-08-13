@@ -32,7 +32,7 @@
         </div>
         <div class="project-menu-divider" />
         <div class="project-menu-item" @click="openProjectDialog">➕ 新建工程…</div>
-        <div class="project-menu-item" @click="handleImportProject">📤 导入工程…</div>
+        <div class="project-menu-item" @click="handleImportProject" title="Ctrl+O">📤 导入工程…</div>
         <div class="project-menu-item" @click="openProjectDialog">🗂 管理工程…</div>
       </div>
     </div>
@@ -41,7 +41,7 @@
 
     <!-- 分组：文件操作 -->
     <div class="toolbar-group">
-      <button class="toolbar-btn primary" @click="handleSave" title="保存画布到本地（Ctrl+S）">
+      <button class="toolbar-btn primary save-btn" :class="{ saved: savedTip }" @click="handleSave" title="保存画布到本地（Ctrl+S）">
         {{ savedTip ? '✅ 已保存' : '💾 保存' }}
       </button>
     </div>
@@ -62,7 +62,7 @@
 
     <!-- 分组：数据 -->
     <div class="toolbar-group">
-      <button class="toolbar-btn" @click="showDataSourceDialog = true" title="管理数据源实例">
+      <button class="toolbar-btn" @click="showDataSourceDialog = true" title="管理数据源实例（Ctrl+Shift+D）">
         🔌 数据源
       </button>
     </div>
@@ -100,12 +100,45 @@
         </div>
 
         <div class="ops-menu-divider" />
+        <!-- 切换显示模式：图标 ↔ 极简（也可用快捷键 Ctrl+Shift+M） -->
+        <div class="ops-menu-item" @click="toggleDisplayMode">
+          <span class="ops-menu-name">🔁 切换显示模式</span>
+          <span class="ops-menu-kbd">Ctrl+Shift+M</span>
+        </div>
         <!-- 清空画布：打开应用内确认弹窗（Tauri WebView 会静默拦截 window.confirm，不能用原生弹框） -->
         <div class="ops-menu-item ops-danger" @click="handleClear">
           <span class="ops-menu-name">🗑 清空画布</span>
+          <span class="ops-menu-kbd">Ctrl+Shift+Del</span>
+        </div>
+        <div class="ops-menu-divider" />
+        <!-- 快捷键帮助：列出全部可用快捷键 -->
+        <div class="ops-menu-item" @click="openShortcutHelp">
+          <span class="ops-menu-name">⌨ 快捷键…</span>
+          <span class="ops-menu-kbd">F1</span>
         </div>
       </div>
     </div>
+
+    <!-- 快捷键帮助弹窗（应用内自定义，列出全部可用快捷键） -->
+    <Teleport to="body">
+      <div v-if="shortcutHelpOpen" class="kbd-mask" @click.self="shortcutHelpOpen = false">
+        <div class="kbd-dialog" role="dialog" aria-modal="true" aria-label="快捷键列表">
+          <div class="kbd-title">⌨ 快捷键</div>
+          <div class="kbd-body">
+            <div v-for="g in SHORTCUT_GROUPS" :key="g.name" class="kbd-group">
+              <div class="kbd-group-name">{{ g.name }}</div>
+              <div v-for="s in g.items" :key="s.desc" class="kbd-row">
+                <span class="kbd-desc">{{ s.desc }}</span>
+                <span class="kbd-key">{{ s.key }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="kbd-actions">
+            <button class="clear-btn" @click="shortcutHelpOpen = false">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- 清空画布确认弹窗（应用内自定义，替代被 WebView 拦截的 window.confirm） -->
     <Teleport to="body">
@@ -125,7 +158,7 @@
 
     <!-- 分组：运行 -->
     <div class="toolbar-group">
-      <button class="toolbar-btn run" @click="handleRun" title="运行模式">
+      <button class="toolbar-btn run" @click="handleRun" title="运行模式（F5）">
         ▶ 预览
       </button>
     </div>
@@ -148,6 +181,13 @@
       v-if="showDataSourceDialog"
       @close="showDataSourceDialog = false"
     />
+
+    <!-- 保存成功 Toast（顶部居中滑入淡出，按钮与 Ctrl+S 保存共用） -->
+    <Teleport to="body">
+      <Transition name="save-toast">
+        <div v-if="saveToast" class="save-toast" role="status">✅ 画布已保存</div>
+      </Transition>
+    </Teleport>
 
     <!-- 工程管理对话框（新建/切换/重命名/复制/删除） -->
     <ProjectManagerDialog v-if="showProjectDialog" />
@@ -236,28 +276,50 @@ function onDocClickCloseProjectMenu() {
   projectMenuOpen.value = false
   opsMenuOpen.value = false
 }
-onMounted(() => document.addEventListener('click', onDocClickCloseProjectMenu))
-onBeforeUnmount(() => document.removeEventListener('click', onDocClickCloseProjectMenu))
-// 「已保存」提示（保存成功后短暂显示）
+onMounted(() => {
+  document.addEventListener('click', onDocClickCloseProjectMenu)
+  window.addEventListener('keydown', onGlobalKeydown)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClickCloseProjectMenu)
+  window.removeEventListener('keydown', onGlobalKeydown)
+})
+// 「已保存」反馈动画（按钮弹跳变绿 + 顶部 Toast）：
+// 无论保存由「保存」按钮还是 Ctrl+S 触发，都由 store 的 saveFlashSeq 信号统一驱动
 const savedTip = ref(false)
+const saveToast = ref(false)
 let savedTipTimer: number | null = null
+
+/** 播放保存成功反馈动画（连续保存时重置计时器重新播放） */
+function playSavedFeedback() {
+  savedTip.value = true
+  saveToast.value = true
+  if (savedTipTimer) clearTimeout(savedTipTimer)
+  savedTipTimer = window.setTimeout(() => {
+    savedTip.value = false
+    saveToast.value = false
+    savedTipTimer = null
+  }, 1500)
+}
+
+// 监听保存成功信号：按钮或 Ctrl+S 保存成功后都会自增，此处统一播动画
+watch(() => editorStore.saveFlashSeq, (seq) => {
+  if (seq > 0) playSavedFeedback()
+})
+onBeforeUnmount(() => {
+  if (savedTipTimer) clearTimeout(savedTipTimer)
+})
 
 /**
  * 保存画布到文件（手动触发；异步写入应用配置目录的 editor.json）
+ * 成功后的反馈动画由 saveFlashSeq 监听器播放，此处只处理失败提示
  */
 async function handleSave() {
   const ok = await editorStore.saveToStorage()
   if (!ok) {
     // 展示具体失败原因（fileStorage 记录的最近一次错误），便于定位环境问题
     alert(`保存失败：${getLastFileError() || '未知错误，请查看控制台'}`)
-    return
   }
-  savedTip.value = true
-  if (savedTipTimer) clearTimeout(savedTipTimer)
-  savedTipTimer = window.setTimeout(() => {
-    savedTip.value = false
-    savedTipTimer = null
-  }, 1500)
 }
 
 // 节点显示模式（图标模式 ↔ 极简模式）
@@ -291,6 +353,122 @@ function handleUndo() {
 
 function handleRedo() {
   if (props.graph && props.graph.canRedo()) props.graph.redo()
+}
+
+// ---------- 全局快捷键（工具栏级操作；画布编辑类快捷键由 X6Canvas 的 Keyboard 插件负责） ----------
+/** 快捷键帮助弹窗显隐 */
+const shortcutHelpOpen = ref(false)
+
+/** 快捷键分组数据（供帮助弹窗渲染） */
+const SHORTCUT_GROUPS = [
+  {
+    name: '文件与运行',
+    items: [
+      { key: 'Ctrl+S', desc: '保存画布' },
+      { key: 'F5', desc: '运行预览' },
+      { key: 'Ctrl+O', desc: '导入工程' },
+      { key: 'F1', desc: '打开本快捷键列表' },
+    ],
+  },
+  {
+    name: '视图与面板',
+    items: [
+      { key: 'Ctrl+Shift+D', desc: '打开数据源管理' },
+      { key: 'Ctrl+Shift+M', desc: '切换显示模式（图标 ↔ 极简）' },
+      { key: 'Ctrl+= / Ctrl+-', desc: '放大 / 缩小画布' },
+      { key: 'Ctrl+0', desc: '重置画布缩放为 100%' },
+      { key: '鼠标滚轮 / 右键拖拽', desc: '缩放 / 平移画布' },
+    ],
+  },
+  {
+    name: '画布编辑',
+    items: [
+      { key: 'Ctrl+C / Ctrl+X / Ctrl+V', desc: '复制 / 剪切 / 粘贴' },
+      { key: 'Ctrl+D', desc: '复制一份选中内容' },
+      { key: 'Delete / Backspace', desc: '删除选中' },
+      { key: 'Ctrl+A', desc: '全选' },
+      { key: '方向键（Shift 加速）', desc: '微调选中节点位置' },
+      { key: 'Esc', desc: '取消选区' },
+      { key: 'Ctrl+Z / Ctrl+Shift+Z（Ctrl+Y）', desc: '撤销 / 重做' },
+      { key: 'Ctrl+Shift+Delete', desc: '清空画布（需确认）' },
+    ],
+  },
+]
+
+function openShortcutHelp() {
+  opsMenuOpen.value = false
+  modeSubOpen.value = false
+  shortcutHelpOpen.value = true
+}
+
+/** 切换显示模式：图标 ↔ 极简（快捷键 Ctrl+Shift+M 与菜单项共用） */
+function toggleDisplayMode() {
+  opsMenuOpen.value = false
+  modeSubOpen.value = false
+  editorStore.setDisplayMode(displayMode.value === 'icon' ? 'full' : 'icon')
+}
+
+/**
+ * 全局键盘监听：处理工具栏级操作的快捷键。
+ * 画布编辑类快捷键（复制/粘贴/方向键等）由 X6 Canvas 的 Keyboard 插件绑定，
+ * 此处只负责弹窗/菜单类操作。输入控件聚焦时不触发，避免干扰打字。
+ */
+function onGlobalKeydown(e: KeyboardEvent) {
+  // 已被其他处理器（如 X6 Keyboard 插件）消费的事件不再处理
+  if (e.defaultPrevented) return
+  // 输入框/下拉框/可编辑区域聚焦时忽略快捷键（Ctrl+S 仍可用，其余一律放行）
+  const target = e.target as HTMLElement | null
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
+      || target.tagName === 'SELECT' || target.isContentEditable)) {
+    return
+  }
+
+  const ctrl = e.ctrlKey || e.metaKey
+  const key = e.key
+
+  // F5：运行预览（preventDefault 阻止 WebView 默认刷新）
+  if (key === 'F5') {
+    e.preventDefault()
+    handleRun()
+    return
+  }
+  // F1：打开快捷键帮助
+  if (key === 'F1') {
+    e.preventDefault()
+    shortcutHelpOpen.value = !shortcutHelpOpen.value
+    return
+  }
+  // Esc：关闭快捷键帮助弹窗
+  if (key === 'Escape' && shortcutHelpOpen.value) {
+    shortcutHelpOpen.value = false
+    return
+  }
+  if (!ctrl) return
+  const lower = key.length === 1 ? key.toLowerCase() : key
+
+  // Ctrl+O：导入工程文件
+  if (!e.shiftKey && lower === 'o') {
+    e.preventDefault()
+    handleImportProject()
+    return
+  }
+  // Ctrl+Shift+D：打开数据源管理弹窗
+  if (e.shiftKey && lower === 'd') {
+    e.preventDefault()
+    showDataSourceDialog.value = true
+    return
+  }
+  // Ctrl+Shift+M：切换显示模式（图标 ↔ 极简）
+  if (e.shiftKey && lower === 'm') {
+    e.preventDefault()
+    toggleDisplayMode()
+    return
+  }
+  // Ctrl+Shift+Delete：清空画布（打开二次确认弹窗）
+  if (e.shiftKey && key === 'Delete') {
+    e.preventDefault()
+    handleClear()
+  }
 }
 
 /** 显示模式选项（key 对应 editorStore.DisplayMode） */
@@ -513,6 +691,56 @@ function doClearCanvas() {
   border-color: var(--color-primary-hover);
   color: #fff;
 }
+
+/* 保存成功反馈：按钮变绿并弹跳一下（按钮点击与 Ctrl+S 共用） */
+.toolbar-btn.save-btn.saved {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #fff;
+  animation: save-pop 0.4s ease;
+}
+.toolbar-btn.save-btn.saved:hover {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #fff;
+}
+@keyframes save-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.12); }
+  70% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+/* 保存成功 Toast：顶部居中滑入淡出 */
+.save-toast {
+  position: fixed;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 16px;
+  background: var(--color-success);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 2000;
+  pointer-events: none;
+}
+.save-toast-enter-active {
+  transition: all 0.25s ease;
+}
+.save-toast-leave-active {
+  transition: all 0.6s ease;
+}
+.save-toast-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-12px);
+}
+.save-toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-6px);
+}
 .toolbar-btn.run {
   background: var(--color-success);
   color: #fff;
@@ -589,6 +817,80 @@ function doClearCanvas() {
   height: 1px;
   background: var(--border-color);
   margin: 4px 6px;
+}
+/* 菜单项右侧快捷键提示文字（弱化色调，等宽字体） */
+.ops-menu-kbd {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: Consolas, Menlo, monospace;
+}
+
+/* 快捷键帮助弹窗（样式对齐项目其他对话框：遮罩 + 居中卡片） */
+.kbd-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.kbd-dialog {
+  width: 460px;
+  max-width: 92vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: var(--panel-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.kbd-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+.kbd-body {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kbd-group-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: 4px;
+}
+.kbd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 12.5px;
+}
+.kbd-desc {
+  color: var(--text-secondary);
+}
+.kbd-key {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--border-color);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--canvas-bg);
+  color: var(--text-primary);
+  font-family: Consolas, Menlo, monospace;
+  font-size: 11.5px;
+}
+.kbd-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 
 /* 清空画布确认弹窗（样式对齐项目其他对话框：遮罩 + 居中卡片） */

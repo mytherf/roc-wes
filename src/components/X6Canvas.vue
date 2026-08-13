@@ -1,4 +1,4 @@
-<!-- ══════════════════════════════════════════════════════════════════════
+添加快捷键<!-- ══════════════════════════════════════════════════════════════════════
      X6Canvas.vue - 画布编辑器核心组件（整个编辑器的“主战场”）
 
      基于 AntV X6 图编辑引擎，职责包括：
@@ -10,7 +10,8 @@
        5. 动画：节点闪烁/位移动画（AnimationService）、路线运动（RouteService）
        6. 路线可视化：渲染路线虚线路径 + 航点标记 + 高亮效果
        7. 显示模式：右键节点切换“图标模式/极简模式”，并自适应压缩节点尺寸
-       8. 快捷键：Ctrl+C/V（复制粘贴）、Delete（删除）、Ctrl+Z（撤销）、Ctrl+S（保存）等
+       8. 快捷键：Ctrl+C/X/V（复制/剪切/粘贴）、Ctrl+D（复制副本）、Delete（删除）、
+          Ctrl+Z（撤销）、Ctrl+S（保存）、方向键（微调位置）、Ctrl+=/-/0（缩放）等
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
   <!-- X6 画布挂载的容器 -->
@@ -846,10 +847,28 @@ onMounted(() => {
     }
   })
 
+  // Ctrl+X：剪切选中的节点/连线（复制进剪贴板并从画布移除）
+  graph.bindKey('ctrl+x', () => {
+    const cells = graph!.getSelectedCells()
+    if (cells.length) {
+      graph!.cut(cells)
+    }
+  })
+
   graph.bindKey('ctrl+v', () => {
     if (!graph!.isClipboardEmpty()) {
       graph!.paste({offset: {dx: 20, dy: 20}})
     }
+  })
+
+  // Ctrl+D：原地复制一份选中内容（复制+粘贴+自动选中新节点）
+  graph.bindKey('ctrl+d', () => {
+    const cells = graph!.getSelectedCells()
+    if (!cells.length) return
+    graph!.copy(cells)
+    const pasted = graph!.paste({offset: {dx: 20, dy: 20}})
+    graph!.cleanSelection()
+    if (pasted.length) graph!.select(pasted)
   })
 
   graph.bindKey('delete', () => {
@@ -882,6 +901,50 @@ onMounted(() => {
   graph.bindKey('ctrl+s', (e: KeyboardEvent) => {
     e.preventDefault()
     editorStore.saveToStorage()
+  })
+
+  // Esc：取消当前选区
+  graph.bindKey('esc', () => {
+    graph!.cleanSelection()
+  })
+
+  // 方向键微调选中节点位置（每次 1px，按住 Shift 加速 10 倍）；
+  // 用 startBatch/stopBatch 包裹，使单次按键只产生一条撤销记录
+  const ARROW_STEPS: Record<string, [number, number]> = {
+    left: [-1, 0],
+    right: [1, 0],
+    up: [0, -1],
+    down: [0, 1],
+  }
+  ;(Object.keys(ARROW_STEPS) as Array<keyof typeof ARROW_STEPS>).forEach((dir) => {
+    const moveSelected = (e: KeyboardEvent, step: number) => {
+      const nodes = graph!.getSelectedCells().filter((c) => c.isNode())
+      if (!nodes.length) return
+      e.preventDefault() // 阻止页面滚动等默认行为
+      const [dx, dy] = ARROW_STEPS[dir]
+      graph!.startBatch('keyboard-move')
+      for (const cell of nodes) {
+        const { x, y } = cell.getPosition()
+        cell.setPosition(x + dx * step, y + dy * step)
+      }
+      graph!.stopBatch('keyboard-move')
+    }
+    graph!.bindKey(dir, (e: KeyboardEvent) => moveSelected(e, 1))
+    graph!.bindKey(`shift+${dir}`, (e: KeyboardEvent) => moveSelected(e, 10))
+  })
+
+  // Ctrl+=/Ctrl+- 缩放画布，Ctrl+0 重置为 100%（拦截浏览器默认缩放）
+  graph.bindKey(['ctrl+=', 'ctrl+plus'], (e: KeyboardEvent) => {
+    e.preventDefault()
+    graph!.zoom(0.1)
+  })
+  graph.bindKey(['ctrl+-', 'ctrl+minus'], (e: KeyboardEvent) => {
+    e.preventDefault()
+    graph!.zoom(-0.1)
+  })
+  graph.bindKey('ctrl+0', (e: KeyboardEvent) => {
+    e.preventDefault()
+    graph!.zoomTo(1)
   })
 
   // ---------- 拖拽移动批量合并：整次拖动 = 一个撤销步骤 ----------
