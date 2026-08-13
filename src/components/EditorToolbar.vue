@@ -2,9 +2,9 @@
      EditorToolbar.vue - 编辑器顶部工具栏（一排“主操作按钮”）
 
      按功能分组：
-       1. 文件操作：保存（Ctrl+S，落盘 editor.json）/ 清空画布（工程导入导出在工程管理弹窗中）
+       1. 文件操作：保存（Ctrl+S，落盘 editor.json）；撤销/重做（X6 History 插件）
        2. 数据：数据源管理对话框
-       3. 视图：节点显示模式切换（极简 / 图标）
+       3. 操作：下拉菜单（含显示模式切换：极简 / 图标；清空画布（二次确认））
        4. 运行：▶ 预览（序列化画布写入 run-preview.json 文件，新窗口打开运行态）
        5. 右侧：主题切换（暗色工业 / 亮色现代 / 深蓝科技）
 
@@ -44,8 +44,17 @@
       <button class="toolbar-btn primary" @click="handleSave" title="保存画布到本地（Ctrl+S）">
         {{ savedTip ? '✅ 已保存' : '💾 保存' }}
       </button>
-      <button class="toolbar-btn danger" @click="handleClear" title="清空画布">
-        🗑 清空
+    </div>
+
+    <div class="toolbar-separator" />
+
+    <!-- 分组：撤销/重做（X6 History 插件命令栈，禁用态由 history:change 事件刷新） -->
+    <div class="toolbar-group">
+      <button class="toolbar-btn" :disabled="!canUndo" @click="handleUndo" title="撤销（Ctrl+Z）">
+        ↩ 撤销
+      </button>
+      <button class="toolbar-btn" :disabled="!canRedo" @click="handleRedo" title="重做（Ctrl+Shift+Z / Ctrl+Y）">
+        ↪ 重做
       </button>
     </div>
 
@@ -60,21 +69,57 @@
 
     <div class="toolbar-separator" />
 
-    <!-- 分组：视图 -->
-    <div class="toolbar-group">
-      <div class="mode-switcher" title="节点显示模式">
-        <button
-          class="mode-option"
-          :class="{ active: displayMode === 'full' }"
-          @click="editorStore.setDisplayMode('full')"
-        >🔲 极简</button>
-        <button
-          class="mode-option"
-          :class="{ active: displayMode === 'icon' }"
-          @click="editorStore.setDisplayMode('icon')"
-        >🖼️ 图标</button>
+    <!-- 分组：操作（下拉菜单，交互同工程选择器；当前包含「显示模式」子项） -->
+    <div class="toolbar-group ops-selector">
+      <button class="toolbar-btn ops-btn" @click.stop="toggleOpsMenu" title="操作菜单">
+        🛠 操作 ▾
+      </button>
+      <div v-if="opsMenuOpen" class="ops-menu" @click.stop>
+        <!-- 显示模式：点击后在菜单右侧弹出模式选项 -->
+        <div class="ops-submenu-wrap">
+          <div
+            class="ops-menu-item"
+            :class="{ active: modeSubOpen }"
+            @click="modeSubOpen = !modeSubOpen"
+          >
+            <span class="ops-menu-name">🔲 显示模式</span>
+            <span class="ops-menu-caret">▸</span>
+          </div>
+          <div v-if="modeSubOpen" class="ops-submenu">
+            <div
+              v-for="m in DISPLAY_MODES"
+              :key="m.key"
+              class="ops-menu-item"
+              :class="{ active: displayMode === m.key }"
+              @click="chooseDisplayMode(m.key)"
+            >
+              <span class="ops-menu-name">{{ m.icon }} {{ m.label }}</span>
+              <span v-if="displayMode === m.key" class="ops-menu-check">✓</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="ops-menu-divider" />
+        <!-- 清空画布：打开应用内确认弹窗（Tauri WebView 会静默拦截 window.confirm，不能用原生弹框） -->
+        <div class="ops-menu-item ops-danger" @click="handleClear">
+          <span class="ops-menu-name">🗑 清空画布</span>
+        </div>
       </div>
     </div>
+
+    <!-- 清空画布确认弹窗（应用内自定义，替代被 WebView 拦截的 window.confirm） -->
+    <Teleport to="body">
+      <div v-if="clearConfirmOpen" class="clear-mask" @click.self="clearConfirmOpen = false">
+        <div class="clear-dialog" role="alertdialog" aria-modal="true" aria-label="清空画布确认">
+          <div class="clear-title">🗑 清空画布</div>
+          <div class="clear-msg">确定要清空画布吗？清空后可通过撤销（Ctrl+Z）恢复。</div>
+          <div class="clear-actions">
+            <button class="clear-btn" @click="clearConfirmOpen = false">取消</button>
+            <button class="clear-btn danger" @click="doClearCanvas">确定清空</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <div class="toolbar-separator" />
 
@@ -110,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { useProjectStore } from '@/stores/project' // 多工程管理
 import { serializeGraph } from '@/utils/graphSerializer'
@@ -186,9 +231,10 @@ function handleImportProject() {
   input.click()
 }
 
-// 点击工具栏以外区域关闭工程下拉菜单
+// 点击工具栏以外区域关闭工程下拉菜单与操作菜单
 function onDocClickCloseProjectMenu() {
   projectMenuOpen.value = false
+  opsMenuOpen.value = false
 }
 onMounted(() => document.addEventListener('click', onDocClickCloseProjectMenu))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClickCloseProjectMenu))
@@ -216,6 +262,58 @@ async function handleSave() {
 
 // 节点显示模式（图标模式 ↔ 极简模式）
 const displayMode = computed(() => editorStore.displayMode)
+
+// ---------- 撤销/重做（X6 History 插件） ----------
+const canUndo = ref(false)
+const canRedo = ref(false)
+
+/** 刷新撤销/重做按钮禁用态（读 graph 命令栈状态） */
+function refreshHistoryState() {
+  const g = props.graph
+  canUndo.value = !!g && typeof g.canUndo === 'function' && g.canUndo()
+  canRedo.value = !!g && typeof g.canRedo === 'function' && g.canRedo()
+}
+
+// graph 实例由画布就绪后传入：绑定 history:change 事件实时刷新禁用态
+watch(() => props.graph, (g, old) => {
+  if (old) old.off('history:change', refreshHistoryState)
+  if (g) g.on('history:change', refreshHistoryState)
+  refreshHistoryState()
+}, { immediate: true })
+
+onBeforeUnmount(() => {
+  props.graph?.off('history:change', refreshHistoryState)
+})
+
+function handleUndo() {
+  if (props.graph && props.graph.canUndo()) props.graph.undo()
+}
+
+function handleRedo() {
+  if (props.graph && props.graph.canRedo()) props.graph.redo()
+}
+
+/** 显示模式选项（key 对应 editorStore.DisplayMode） */
+const DISPLAY_MODES = [
+  { key: 'full' as const, label: '极简', icon: '🔲' },
+  { key: 'icon' as const, label: '图标', icon: '🖼️' },
+]
+
+// ---------- 操作下拉菜单（交互同工程选择器） ----------
+const opsMenuOpen = ref(false)
+// 显示模式右侧子菜单是否展开
+const modeSubOpen = ref(false)
+
+function toggleOpsMenu() {
+  opsMenuOpen.value = !opsMenuOpen.value
+}
+
+/** 选择显示模式：提交 store 并收起整个菜单 */
+function chooseDisplayMode(key: 'full' | 'icon') {
+  editorStore.setDisplayMode(key)
+  opsMenuOpen.value = false
+  modeSubOpen.value = false
+}
 
 /**
  * 运行模式：序列化画布写入 run-preview.json 文件，在新窗口打开运行态页面
@@ -255,15 +353,27 @@ async function handleRun() {
   }
 }
 
+// 清空画布确认弹窗开关
+const clearConfirmOpen = ref(false)
+
 /**
- * 清空画布（带确认）
+ * 清空画布（操作菜单入口）：打开应用内确认弹窗，
+ * 用户确认后才执行，避免误操作。
+ * 注：不能用 window.confirm——Tauri WebView 会静默拦截，弹窗不出现。
  */
 function handleClear() {
+  opsMenuOpen.value = false
+  modeSubOpen.value = false
   if (!props.graph) return
-  if (confirm('确定要清空画布吗？')) {
-    props.graph.clearCells()
-    editorStore.resetGraph()
-  }
+  clearConfirmOpen.value = true
+}
+
+/** 确认弹窗点「确定清空」：执行清空（删除命令进入 History 栈，可 Ctrl+Z 恢复） */
+function doClearCanvas() {
+  clearConfirmOpen.value = false
+  if (!props.graph) return
+  props.graph.clearCells()
+  editorStore.resetGraph()
 }
 </script>
 
@@ -383,6 +493,16 @@ function handleClear() {
 .toolbar-btn:active {
   transform: scale(0.97);
 }
+/* 禁用态（如无可撤销/重做的操作）：降低透明度且不响应悬停 */
+.toolbar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.toolbar-btn:disabled:hover {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+  background: var(--panel-bg);
+}
 .toolbar-btn.primary {
   background: var(--color-primary);
   color: #fff;
@@ -392,11 +512,6 @@ function handleClear() {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
   color: #fff;
-}
-.toolbar-btn.danger:hover {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-  background: rgba(239, 68, 68, 0.06);
 }
 .toolbar-btn.run {
   background: var(--color-success);
@@ -408,36 +523,130 @@ function handleClear() {
   color: #fff;
 }
 
-/* 显示模式分段选择器 */
-.mode-switcher {
-  display: inline-flex;
+/* 操作下拉菜单（交互与样式同工程选择器） */
+.ops-selector {
+  position: relative;
+}
+.ops-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 180px;
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--statusbar-bg);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  padding: 4px;
 }
-.mode-option {
-  padding: 5px 10px;
-  border: none;
-  background: transparent;
+.ops-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: all 0.15s ease;
   white-space: nowrap;
 }
-.mode-option + .mode-option {
-  border-left: 1px solid var(--border-color);
-}
-.mode-option:hover:not(.active) {
-  color: var(--color-primary);
+.ops-menu-item:hover {
   background: var(--color-primary-light);
 }
-.mode-option.active {
-  background: var(--color-primary);
+.ops-menu-item.active {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+/* 显示模式右侧子弹层（相对菜单项定位，向右侧展开） */
+.ops-submenu-wrap {
+  position: relative;
+}
+.ops-submenu {
+  position: absolute;
+  top: -5px;
+  left: calc(100% + 6px);
+  min-width: 120px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 101;
+  padding: 4px;
+}
+/* 危险操作项（清空画布）：悬停时红色警示 */
+.ops-danger:hover {
+  color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.06);
+}
+.ops-menu-caret,
+.ops-menu-check {
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+/* 操作菜单分隔线 */
+.ops-menu-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 6px;
+}
+
+/* 清空画布确认弹窗（样式对齐项目其他对话框：遮罩 + 居中卡片） */
+.clear-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.clear-dialog {
+  width: 320px;
+  max-width: 90vw;
+  padding: 16px;
+  background: var(--panel-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.clear-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.clear-msg {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+.clear-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.clear-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.clear-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.clear-btn.danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
   color: #fff;
-  cursor: default;
+}
+.clear-btn.danger:hover {
+  filter: brightness(1.1);
+  color: #fff;
 }
 
 /* 主题切换按钮组 */

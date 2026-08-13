@@ -73,6 +73,17 @@
           </div>
         </div>
       </div>
+
+      <!-- 删除工程确认浮层（应用内自定义；window.confirm 被 Tauri WebView 静默拦截，不能用） -->
+      <div v-if="deleteConfirm" class="pm-confirm-mask" @click.self="deleteConfirm = null">
+        <div class="pm-confirm" role="alertdialog" aria-modal="true" aria-label="删除工程确认">
+          <div class="pm-confirm-msg">{{ deleteConfirm.tip }}</div>
+          <div class="pm-confirm-actions">
+            <button class="pm-btn" @click="deleteConfirm = null">取消</button>
+            <button class="pm-btn danger solid" @click="doDelete">确定删除</button>
+          </div>
+        </div>
+      </div>
     </div>
   </Teleport>
 </template>
@@ -179,13 +190,23 @@ async function handleDuplicate(id: string) {
 }
 
 // ---------- 删除（带确认） ----------
-async function handleDelete(p: ProjectMeta) {
+// Tauri WebView 会静默拦截 window.confirm（弹窗不出现），改用应用内确认浮层
+const deleteConfirm = ref<{ id: string; tip: string } | null>(null)
+
+function handleDelete(p: ProjectMeta) {
   const isCurrent = p.id === projectStore.currentId
   const tip = isCurrent
     ? `确定删除当前工程「${p.name}」吗？将切换到其他工程，其画布/数据源/路线会被永久删除。`
     : `确定删除工程「${p.name}」吗？其画布/数据源/路线会被永久删除。`
-  if (!confirm(tip)) return
-  await projectStore.deleteProject(p.id)
+  deleteConfirm.value = { id: p.id, tip }
+}
+
+/** 确认浮层点「确定删除」：执行删除 */
+async function doDelete() {
+  const target = deleteConfirm.value
+  deleteConfirm.value = null
+  if (!target) return
+  await projectStore.deleteProject(target.id)
 }
 
 /** 时间格式化：YYYY-MM-DD HH:mm */
@@ -365,5 +386,44 @@ function handleClose() {
 .pm-btn.danger:hover {
   border-color: var(--color-danger);
   color: var(--color-danger);
+}
+/* 删除确认浮层：覆盖在工程管理弹窗之上 */
+.pm-confirm-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+}
+.pm-confirm {
+  width: 360px;
+  max-width: 90vw;
+  padding: 16px;
+  background: var(--panel-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.pm-confirm-msg {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.pm-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* 实心红色危险按钮（确认删除） */
+.pm-btn.danger.solid {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+.pm-btn.danger.solid:hover {
+  filter: brightness(1.1);
+  color: #fff;
 }
 </style>

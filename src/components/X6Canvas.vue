@@ -4,7 +4,7 @@
      基于 AntV X6 图编辑引擎，职责包括：
        1. 创建/销毁画布：初始化 Graph、网格、背景、缩放/平移、虚拟渲染
        2. 安装插件：选择框（Selection）、缩放（Transform）、剪贴板（Clipboard）、
-          快捷键（Keyboard）、拖拽建节点（Dnd）
+          快捷键（Keyboard）、撤销/重做（History）、拖拽建节点（Dnd）
        3. 画布 ↔ Store 同步：移动/缩放/增删节点时写回 Store（useGraphSync）
        4. 数据驱动：节点绑定数据源后实时刷新（useDataService）
        5. 动画：节点闪烁/位移动画（AnimationService）、路线运动（RouteService）
@@ -63,7 +63,7 @@
 
 <script setup lang="ts">
 import {onBeforeUnmount, onMounted, ref, reactive, watch, nextTick} from 'vue'
-import {Clipboard, Dnd, Graph, Keyboard, Selection, Transform} from '@antv/x6'
+import {Clipboard, Dnd, Graph, History, Keyboard, Selection, Transform} from '@antv/x6'
 import {getTeleport} from '@antv/x6-vue-shape';
 import type {GraphData} from '@/stores/editor'
 import {useEditorStore} from '@/stores/editor'
@@ -274,6 +274,52 @@ const ROUTE_OVERLAY_PREFIX = '__route_overlay_'
 
 /** 路线级持久路径覆盖层的 ID 前缀（独立于节点，随刷新/关闭编辑器保持） */
 const ROUTE_PATH_PREFIX = '__route_path_'
+
+// ---------- 撤销/重做（History 插件）过滤规则 ----------
+/**
+ * 运行态遥测字段：由数据订阅/路线运动直接写入画布（非用户编辑），
+ * 高频刷新，不应进入撤销栈（与 useGraphSync 的 RUNTIME_DATA_KEYS 同义并扩充）
+ */
+const RUNTIME_HISTORY_KEYS = new Set(['value', 'values', '_timestamp', '_quality', 'isMoving', 'routeAngle'])
+
+/** 节点动画每帧修改的 attrs 末级键（AnimationService 只动 transform/opacity） */
+const ANIMATION_ATTR_KEYS = new Set(['transform', 'opacity'])
+
+/**
+ * History 插件 beforeAddCommand 过滤器：返回 false 的命令不入撤销栈。
+ * 排除三类非用户编辑的变化，避免污染撤销栈：
+ * 1. 辅助图形：路线覆盖层/持久路径/坐标标签的增删与属性变化
+ * 2. 运行态数据写入：data 变化中仅运行态字段有差异时跳过
+ * 3. 动画帧写入：attrs/body/transform 与 attrs/body/opacity
+ */
+function historyBeforeAdd(event: string, args: any): boolean {
+  const cell = args?.cell
+  if (cell) {
+    const cellData = typeof cell.getData === 'function' ? cell.getData() : null
+    const id = cell.id || ''
+    if (
+      cellData?.isRouteOverlay || cellData?.isRoutePath || cellData?.isCoordLabel ||
+      id.startsWith(ROUTE_OVERLAY_PREFIX) || id.startsWith(ROUTE_PATH_PREFIX)
+    ) {
+      return false
+    }
+  }
+  if (event === 'cell:change:data') {
+    const prev = (args?.previous ?? {}) as Record<string, any>
+    const curr = (args?.current ?? {}) as Record<string, any>
+    const keys = new Set<string>([...Object.keys(prev), ...Object.keys(curr)])
+    for (const k of keys) {
+      if (RUNTIME_HISTORY_KEYS.has(k)) continue
+      if (JSON.stringify(prev[k]) !== JSON.stringify(curr[k])) return true
+    }
+    return false
+  }
+  if (event === 'cell:change:attrs') {
+    const last = String(args?.key || '').split('/').pop()
+    if (last && ANIMATION_ATTR_KEYS.has(last)) return false
+  }
+  return true
+}
 
 /** 清除指定节点的路线覆盖层（虚线路径 + 航点标记） */
 function clearRouteOverlay(nodeId: string) {
@@ -757,6 +803,16 @@ onMounted(() => {
       })
   )
 
+  // 撤销/重做（X6 v3 内置 History 插件）：
+  // beforeAddCommand 过滤运行态数据、动画帧写入与路线辅助图形（见 historyBeforeAdd）
+  graph.use(
+      new History({
+        enabled: true,
+        stackSize: 50,
+        beforeAddCommand: (event, args) => historyBeforeAdd(event as string, args),
+      })
+  )
+
   // ---------- 快捷键绑定（编辑器的“键盘操作”） ----------
   // Ctrl+C：复制选中的节点/连线到剪贴板
   graph.bindKey('ctrl+c', () => {
@@ -790,11 +846,13 @@ onMounted(() => {
     graph!.select(allCells)
   })
 
+  // Ctrl+Z 撤销 / Ctrl+Shift+Z、Ctrl+Y 重做（X6 History 插件命令栈，
+  // 撤销/重做触发的 cell 事件经 useGraphSync 自动回写 Store）
   graph.bindKey('ctrl+z', () => {
-    editorStore.undo()
+    graph!.undo()
   })
-  graph.bindKey('ctrl+shift+z', () => {
-    editorStore.redo()
+  graph.bindKey(['ctrl+shift+z', 'ctrl+y'], () => {
+    graph!.redo()
   })
   // Ctrl+S 手动保存画布（替代实时自动保存），并拦截浏览器默认保存弹窗
   graph.bindKey('ctrl+s', (e: KeyboardEvent) => {
@@ -986,6 +1044,8 @@ function loadGraphData(data: GraphData) {
       ...data.edges,
     ],
   }
+  // 全量重载期间关闭历史记录：clearCells + fromJSON 会产生大量增删命令噪音
+  g.disableHistory()
   g.batchUpdate(() => {
     g.clearCells()
     g.fromJSON(x6Data)
@@ -1030,6 +1090,11 @@ function loadGraphData(data: GraphData) {
   setSyncSuppressed(true)
   renderRoutePaths()
   nextTick(() => setSyncSuppressed(false))
+
+  // 重载意味着画布状态被整体替换（加载工程/模板导入/属性面板编辑等），
+  // 清空撤销栈并恢复历史记录（旧命令引用的单元状态已失效）
+  g.cleanHistory()
+  g.enableHistory()
 }
 
 // ===================== 7. 组件卸载前清理 =====================
