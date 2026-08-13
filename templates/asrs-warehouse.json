@@ -221,7 +221,7 @@
       "height": 70,
       "data": {
         "label": "A巷道状态",
-        "status": "off",
+        "value": "off",
         "pointId": "device.status.1",
         "binding": {
           "pointId": "device.status.1",
@@ -240,7 +240,7 @@
       "height": 70,
       "data": {
         "label": "输送系统",
-        "status": "off",
+        "value": "off",
         "pointId": "device.status.2",
         "binding": {
           "pointId": "device.status.2",

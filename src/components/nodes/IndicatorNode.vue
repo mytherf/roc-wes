@@ -6,13 +6,14 @@
      CSS 类名（light-on / light-off / light-warning / light-error）。
      数据字段（useNodeData 声明）：
        - label: 标签文字（默认 指示灯）
-       - status: 灯状态（on/off/warning/error，默认 off）
-     组件通过 defineExpose 暴露 setStatus()，供外部（如事件脚本）
+       - value: 灯状态（on/off/warning/error，默认 off；数据绑定主点
+         转换后的值直接写入该字段，无需额外 status 字段）
+     组件通过 defineExpose 暴露 setValue()，供外部（如事件脚本）
      动态切换灯的状态。
      图标模式（isMinimal）下由 NodeMinimalView 统一渲染。
      ═══════════════════════════════════════════════════════════════ -->
 <template>
-  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="label" :status="status" />
+  <NodeMinimalView v-if="isMinimal" :icon="displayIcon" :icon-size="iconSize" :name="label" :status="value" />
   <div v-else class="indicator-node">
     <div class="indicator-label">
       <NodeIcon class="indicator-icon" :icon="displayIcon" :size="Math.min(iconSize, 24)" alt="指示灯" />
@@ -38,18 +39,18 @@ const props = defineProps<{ node: any }>()
 const { isMinimal } = useDisplayMode(props.node)
 const { displayIcon, iconSize } = useNodeIcon(props.node, 'indicator-node')
 
-const { label, status } = useNodeData(props.node, {
+const { label, value } = useNodeData(props.node, {
   label: '指示灯',
-  status: 'off',
+  value: 'off',
 })
 
-const { statusClass, statusText } = useNodeStatus(status, {
+const { statusClass, statusText } = useNodeStatus(value, {
   prefix: 'light',
   labels: { on: '运行中', off: '已停止', warning: '告警', error: '故障' },
 })
 
-// 暴露更新方法
-defineExpose({ setStatus: (s: string) => { status.value = s } })
+// 暴露更新方法（写入 data.value，与数据绑定主点驱动字段一致）
+defineExpose({ setValue: (s: string) => { value.value = s } })
 </script>
 
 <style scoped>

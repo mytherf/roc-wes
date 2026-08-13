@@ -190,7 +190,7 @@
       "height": 70,
       "data": {
         "label": "调度系统",
-        "status": "off",
+        "value": "off",
         "pointId": "device.status.1",
         "binding": {
           "pointId": "device.status.1",
@@ -209,7 +209,7 @@
       "height": 70,
       "data": {
         "label": "充电桩",
-        "status": "off",
+        "value": "off",
         "pointId": "device.status.2",
         "binding": {
           "pointId": "device.status.2",

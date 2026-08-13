@@ -143,6 +143,7 @@ export function useDataService() {
    * 为节点绑定数据源（支持多点组：每组 = 点 ID + 转换函数；points[0] 为主点组）
    * - 主点更新写入 node.data.value（并附带 _timestamp / _quality），驱动节点渲染
    * - 所有点（含主点）同步写入 node.data.values[pointId]，供详情/扩展使用
+   *   （rawValue 为转换函数应用前的原始值，供详情弹窗对照展示）
    * - 每个点使用自己组内的转换函数
    */
   function bindNodeData(node: Node) {
@@ -200,12 +201,14 @@ export function useDataService() {
           ...currentData,
           values: {
             ...prevValues,
-            [p.pointId]: { value: converted, timestamp: point.timestamp, quality: point.quality },
+            // rawValue：转换函数应用前的原始值（无转换函数时与 value 相同）
+            [p.pointId]: { value: converted, rawValue: point.value, timestamp: point.timestamp, quality: point.quality },
           },
         }
         // 主点：转换后的值写入 data.value 驱动节点渲染（保持既有行为与事件评估）
         if (p.pointId === primaryPointId) {
           nextData.value = converted
+          nextData._rawValue = point.value
           nextData._timestamp = point.timestamp
           nextData._quality = point.quality
         }

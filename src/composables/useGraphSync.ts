@@ -257,14 +257,14 @@ export function useGraphSync(options: GraphSyncOptions) {
 
 /**
  * 运行期遥测字段：由 useDataService 订阅回调直接写入画布节点
- * （node.data.value / _timestamp / _quality，以及点组多点绑定写入的
+ * （node.data.value / _rawValue / _timestamp / _quality，以及点组多点绑定写入的
  * node.data.values[pointId]），并非用户编辑的设计数据。
  * 这些字段在画布侧持续刷新、Store 侧不同步，若参与全量对比，会把任意
  * 属性面板编辑误判为"实质变化"，从而触发整画布重建（见 bindStoreWatchers）：
  * 节点组件被全部销毁重建、画面值回落到 Store 旧快照，表现为"数据丢失"。
  * 对比前剥离这些字段，仅保留设计语义字段参与比较。
  */
-const RUNTIME_DATA_KEYS = ['value', '_timestamp', '_quality', 'values']
+const RUNTIME_DATA_KEYS = ['value', '_rawValue', '_timestamp', '_quality', 'values']
 
 function stripRuntimeFields(node: any): any {
   const data = node?.data

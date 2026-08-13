@@ -376,7 +376,7 @@
       "height": 70,
       "data": {
         "label": "入库线状态",
-        "status": "off",
+        "value": "off",
         "pointId": "device.status.in",
         "binding": {
           "pointId": "device.status.in",
@@ -395,7 +395,7 @@
       "height": 70,
       "data": {
         "label": "出库线状态",
-        "status": "off",
+        "value": "off",
         "pointId": "device.status.out",
         "binding": {
           "pointId": "device.status.out",

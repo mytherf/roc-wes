@@ -175,7 +175,7 @@
       "height": 70,
       "data": {
         "label": "主线运行",
-        "status": "off",
+        "value": "off",
         "pointId": "device.status.1",
         "binding": {
           "pointId": "device.status.1",
@@ -194,7 +194,7 @@
       "height": 70,
       "data": {
         "label": "分拣机状态",
-        "status": "off",
+        "value": "off",
         "pointId": "device.status.2",
         "binding": {
           "pointId": "device.status.2",

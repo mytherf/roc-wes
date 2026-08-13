@@ -178,8 +178,8 @@ const nodeName = computed(() => {
 /** 内部字段：不在运行数据中展示（名称/标签已在基本信息显示，values 已按点分组展示，unit 为节点配置属性，其余为结构/历史/动画内部字段） */
 const HIDDEN_KEYS = new Set(['name', 'title', 'label', 'binding', 'pointId', 'values', 'floorGrids', 'history', 'animation', 'unit'])
 
-/** 主点追加顶层字段时过滤的键：与点位遥测（value/timestamp/quality）重复，避免同一数据展示两遍 */
-const DUP_TELEMETRY_KEYS = new Set(['value', '_timestamp', '_quality'])
+/** 主点追加顶层字段时过滤的键：与点位遥测（value/rawValue/timestamp/quality）重复，避免同一数据展示两遍 */
+const DUP_TELEMETRY_KEYS = new Set(['value', '_rawValue', '_timestamp', '_quality'])
 
 /** 时间戳格式化：毫秒时间戳 → YYYY-MM-DD HH:mm:ss（非法的数字/字符串原样返回） */
 function formatTimestamp(ts: unknown): string {
@@ -230,8 +230,8 @@ const groupedData = computed(() => {
     const points = rawPoints
       .map((p: any) => (typeof p === 'string' ? p : p?.pointId))
       .filter((pid: any) => !!pid)
-    // 各点的实时值（由 useDataService 写入 data.values[pointId]）
-    const values = (data.values || {}) as Record<string, { value?: any; timestamp?: number; quality?: string }>
+    // 各点的实时值（由 useDataService 写入 data.values[pointId]；rawValue 为转换前原始值）
+    const values = (data.values || {}) as Record<string, { value?: any; rawValue?: any; timestamp?: number; quality?: string }>
     // 每个绑定点一组：组头点 ID + 数据源信息，组内优先展示该点实时值，
     // 主点额外追加节点顶层运行字段（value/_timestamp/_quality 等）
     return points.map((pid: string, idx: number) => {
@@ -239,6 +239,10 @@ const groupedData = computed(() => {
       const groupEntries = pv
         ? [
             toEntry('value', pv.value),
+            // 原始值：转换函数应用前的值；与转换后相同则不重复展示
+            ...(pv.rawValue !== undefined && pv.rawValue !== pv.value
+              ? [toEntry('rawValue', pv.rawValue)]
+              : []),
             toEntry('timestamp', pv.timestamp),
             toEntry('quality', pv.quality ?? 'good'),
           ]

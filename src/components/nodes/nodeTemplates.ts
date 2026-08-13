@@ -310,7 +310,8 @@ export const nodeTemplates: NodeTemplate[] = [
     group: 'IoT 监控',
     pointIdTemplate: 'device.status',
     width: 130, height: 70,
-    data: { label: '设备状态', status: 'off' },
+    // 设备状态直接用主点转换后的 value 驱动（on/off/warning/error），不再单独存 status
+    data: { label: '设备状态', value: 'off' },
     transform: (raw: any) => {
       // 将数值映射为状态字符串
       if (raw > 80) return 'on'

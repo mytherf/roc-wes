@@ -7,7 +7,7 @@
  * 都会被误判为"实质变化"→ 触发整画布重建 → 节点实时数据回落旧快照，
  * 用户侧表现为"点位添加后数据丢失"。
  *
- * 验证：value / _timestamp / _quality / values 差异不影响对比结论，
+ * 验证：value / _rawValue / _timestamp / _quality / values 差异不影响对比结论，
  * 设计字段（binding / label 等）差异仍能正确识别。
  */
 import { describe, it, expect } from 'vitest'
@@ -21,7 +21,7 @@ function node(id: string, data: Record<string, any>) {
 const BINDING = { pointId: 'p1', points: [{ pointId: 'p1' }], sourceId: 'ds-1' }
 
 describe('isSameGraphData 运行期字段剥离', () => {
-    it('仅 value/_timestamp/_quality/values 不同 → 视为相同（不触发重建）', () => {
+    it('仅 value/_rawValue/_timestamp/_quality/values 不同 → 视为相同（不触发重建）', () => {
         const a = {
             nodes: [node('n1', { binding: BINDING })],
             edges: [],
@@ -30,9 +30,10 @@ describe('isSameGraphData 运行期字段剥离', () => {
             nodes: [node('n1', {
                 binding: BINDING,
                 value: 42,
+                _rawValue: 42.5,
                 _timestamp: Date.now(),
                 _quality: 'good',
-                values: { p1: { value: 42, timestamp: Date.now(), quality: 'good' } },
+                values: { p1: { value: 42, rawValue: 42.5, timestamp: Date.now(), quality: 'good' } },
             })],
             edges: [],
         }
