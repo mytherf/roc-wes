@@ -374,7 +374,7 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
   gap: 4px;
 }
 
-/* ===== 单个节点卡片（紧凑：小内边距、小图标、单行名称） ===== */
+/* ===== 单个节点卡片（紧凑：小内边距、适度放大的图标与名称） ===== */
 .node-item {
   padding: 6px 2px;
   background: var(--sidebar-card-bg);
@@ -405,13 +405,13 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
 }
 
 .icon {
-  font-size: 16px;
+  font-size: 20px;
   line-height: 1;
   filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2));
 }
 
 .label {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--sidebar-text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -434,10 +434,10 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
     font-size: 14px;
   }
   .node-item {
-    padding: 5px 2px;
+    padding: 3px 1px;
   }
   .icon {
-    font-size: 15px;
+    font-size: 18px;
   }
   .label {
     font-size: 10px;
