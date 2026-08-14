@@ -28,17 +28,17 @@
     ></div>
     <!-- 滚动内层：面板内容在此滚动，拖动手柄用 absolute 定位不受滚动影响 -->
     <div class="panel-scroll">
-    <!-- 折叠态：窄条 + 展开标签 -->
+    <!-- 折叠态：窄条 + 展开图标按钮（仅图标，点击图标展开；与组件库折叠态交互统一） -->
     <template v-if="editorStore.propertyCollapsed">
       <button class="panel-expand-tab" @click="editorStore.togglePropertyCollapsed()" title="展开属性面板">
-        <span class="panel-expand-label">属性</span>
+        🛠️
       </button>
     </template>
 
     <!-- 展开态：完整属性面板 -->
     <template v-else>
       <div class="panel-header">
-        <h3>属性面板</h3>
+        <h3>🛠️ 属性面板</h3>
         <button class="panel-collapse-btn" @click="editorStore.togglePropertyCollapsed()" title="折叠属性面板">
           ▶
         </button>
@@ -1524,34 +1524,24 @@ function toggleRouteMove() {
   color: var(--text-primary);
 }
 
+/* 折叠态展开图标按钮：仅图标，点击图标展开（样式与组件库 .sidebar-expand-btn 统一） */
 .panel-expand-tab {
   border: none;
   background: none;
   width: 28px;
-  padding: 8px 0;
+  height: 28px;
   border-radius: 6px;
+  font-size: 18px;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   transition: all 0.15s ease;
   margin-top: 4px;
 }
 .panel-expand-tab:hover {
   background: var(--statusbar-bg);
-}
-
-.panel-expand-label {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: 2px;
-}
-.panel-expand-tab:hover .panel-expand-label {
-  color: var(--color-primary);
+  transform: scale(1.1);
 }
 
 .property-panel h3 {

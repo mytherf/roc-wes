@@ -3,10 +3,12 @@
 
      功能：
        1. 提供一个底部容器（默认内容高度 260px），顶部边缘可上下拖动调整高度
-       2. 头部两个按钮：🗗 弹出独立窗口 / ▼▲ 折叠或展开面板
-       3. 弹出独立窗口后面板收为窄条，仅保留入口标签（类似属性面板折叠态）；
+       2. 头部两个按钮：🗗 弹出独立窗口 / ▼ 折叠面板（仅展开态显示）
+       3. 折叠交互与属性面板/组件库统一：折叠后收为窄条，仅显示展开图标按钮，
+          点击图标展开
+       4. 弹出独立窗口后面板同样收为窄条，仅保留入口标签；
           再点标签聚焦独立窗口，独立窗口关闭后才恢复完整面板，两者互斥
-       4. 内容区（#bottom-panel-content）是 RouteEditorDialog 的 Teleport 目标，
+       5. 内容区（#bottom-panel-content）是 RouteEditorDialog 的 Teleport 目标，
           由 MainLayout 挂载——折叠时用 v-show 隐藏但不销毁，保留编辑状态
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
@@ -33,8 +35,24 @@
       <span class="bp-popout-label">🛤️ 路线（独立窗口）</span>
     </button>
 
-    <!-- 头部：标题 + 弹出独立窗口 + 折叠开关（弹出态不显示） -->
-    <div class="bottom-panel-header" v-if="!editorStore.routeWindowOpen">
+    <!-- 折叠态：窄条 + 展开图标按钮（仅图标，点击图标展开；
+         与组件库/属性面板折叠态交互统一） -->
+    <div
+      v-if="editorStore.bottomCollapsed && !editorStore.routeWindowOpen"
+      class="bp-expand-bar"
+    >
+      <button
+        class="bp-expand-btn"
+        title="展开路线面板"
+        @click="editorStore.setBottomCollapsed(false)"
+      >🛤️</button>
+    </div>
+
+    <!-- 头部（仅展开态）：标题 + 弹出独立窗口 + 折叠按钮 -->
+    <div
+      class="bottom-panel-header"
+      v-if="!editorStore.bottomCollapsed && !editorStore.routeWindowOpen"
+    >
       <span class="bp-title">🛤️ 路线</span>
       <div class="bp-spacer" />
       <button
@@ -44,9 +62,9 @@
       >🗗</button>
       <button
         class="bp-collapse-btn"
-        :title="editorStore.bottomCollapsed ? '展开面板' : '折叠面板'"
+        title="折叠面板"
         @click="editorStore.toggleBottomCollapsed()"
-      >{{ editorStore.bottomCollapsed ? '▲' : '▼' }}</button>
+      >▼</button>
     </div>
 
     <!-- 内容区：路线编辑器由 MainLayout 通过 Teleport 挂载到此容器（#bottom-panel-content），
@@ -148,6 +166,37 @@ onBeforeUnmount(() => {
   transition: none;
 }
 
+/* 折叠态：与属性面板/组件库折叠态统一——收为窄条，仅显示展开图标按钮 */
+.bottom-panel.collapsed {
+  overflow: hidden;
+}
+
+/* 折叠态窄条：左侧仅一个展开图标按钮（水平布局对应组件库/属性面板的纵向图标按钮） */
+.bp-expand-bar {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+.bp-expand-btn {
+  border: none;
+  background: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.bp-expand-btn:hover {
+  background: var(--statusbar-bg);
+  transform: scale(1.1);
+}
+
 /* 高度拖动手柄：贴在面板顶缘，hover 时显示高亮提示可拖动 */
 .bp-resize-handle {
   position: absolute;
@@ -176,10 +225,6 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-light);
 }
-.bottom-panel.collapsed .bottom-panel-header {
-  border-bottom: none;
-}
-
 .bp-title {
   font-size: 13px;
   font-weight: 600;
