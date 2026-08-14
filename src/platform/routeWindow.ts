@@ -19,19 +19,38 @@ export const RUN_WINDOW_LABEL = 'run-preview'
  *  双击其他节点不会覆盖已打开的详情窗口；capabilities 中用通配 node-detail-* 声明 */
 export const NODE_DETAIL_WINDOW_LABEL_PREFIX = 'node-detail-'
 
+// 关闭回调模块级缓存：每次打开时更新为最新回调；
+// hooked 标志保证 onCloseRequested 只注册一次，避免重复点击造成多份监听
+let routeWindowCloseHooked = false
+let routeWindowCloseCb: (() => void) | null = null
+
+/** 为窗口实例注册一次关闭监听（窗口销毁后重置标志，下次创建时重新注册） */
+function hookRouteWindowClose(win: { onCloseRequested: (cb: () => void) => Promise<unknown> }) {
+  if (routeWindowCloseHooked) return
+  routeWindowCloseHooked = true
+  win.onCloseRequested(() => {
+    routeWindowCloseHooked = false
+    routeWindowCloseCb?.()
+  }).catch((e: unknown) => console.warn('[RouteWindow] 注册关闭监听失败:', e))
+}
+
 /**
  * 打开路线编辑器独立窗口（可拖到任意屏幕）
  *
  * - 窗口已存在：直接置前并聚焦，不重复创建
  * - 不存在：创建 OS 级窗口，加载 /route-window 路由
+ * @param onClose 独立窗口关闭时的回调（主窗口用它恢复底部路线面板，
+ *   避免停靠面板与独立窗口两种形态同时存在）
  */
-export async function openRouteWindow(): Promise<void> {
+export async function openRouteWindow(onClose?: () => void): Promise<void> {
   // 动态导入 Tauri API
   const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+  routeWindowCloseCb = onClose ?? null
 
   // 已存在则复用并聚焦
   const existing = await WebviewWindow.getByLabel(ROUTE_WINDOW_LABEL)
   if (existing) {
+    hookRouteWindowClose(existing)
     await existing.unminimize().catch(() => {})
     await existing.setFocus().catch(() => {})
     return
@@ -48,6 +67,7 @@ export async function openRouteWindow(): Promise<void> {
     center: true,
     resizable: true,
   })
+  hookRouteWindowClose(win)
 
   // 创建失败（如权限问题）时弹窗告知具体原因，避免“点了没反应”
   win.once('tauri://error', (e) => {

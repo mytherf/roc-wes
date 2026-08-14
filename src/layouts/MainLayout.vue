@@ -16,7 +16,7 @@
        1. 组装所有大组件（侧边栏、画布、属性面板、工具栏、状态栏等）
        2. 协调跨组件通信：画布就绪后把 graph/dnd 实例分发给子组件
        3. 管理全局主题初始化（useThemeStore）
-       4. 管理路线编辑器的两种形态：停靠底部面板 / 浮动窗口（Teleport 切换）
+       4. 将路线编辑器挂载到底部面板（Teleport），可弹出为独立窗口
        5. 处理节点双击 → 弹出详情对话框
      ══════════════════════════════════════════════════════════════════════ -->
 <template>
@@ -36,22 +36,14 @@
           </div>
           <PropertyPanel :canvas-ref="canvasRef" />
         </div>
-        <!-- 底部：路线面板（可折叠；浮动模式下隐藏） -->
-        <BottomPanel v-show="!editorStore.routeFloating" :canvas-ref="canvasRef" />
+        <!-- 底部：路线面板（可折叠） -->
+        <BottomPanel :canvas-ref="canvasRef" />
         <!-- 底部：状态栏 -->
         <StatusBar :graph="graphInstance" />
 
-        <!-- 路线浮动窗口（悬浮于画布之上，可拖拽/缩放） -->
-        <RouteFloatWindow
-          v-show="editorStore.routeFloating"
-          @dock="onFloatDock"
-          @close="onFloatClose"
-        />
-
-        <!-- 路线编辑器单实例：通过 Teleport 在 停靠容器 / 浮动窗口 之间切换，
-             切换时组件实例与编辑状态（选中路线、绘制模式等）保持不变。
+        <!-- 路线编辑器：由 MainLayout 通过 Teleport 挂载到底部面板容器。
              defer：目标容器由同级组件渲染，需等应用挂载完成后再解析目标 -->
-        <Teleport defer :to="editorStore.routeFloating ? '#route-float-body' : '#bottom-panel-content'">
+        <Teleport defer to="#bottom-panel-content">
           <RouteEditorDialog :canvas-ref="canvasRef" :active="routeActive" />
         </Teleport>
       </div>
@@ -73,7 +65,6 @@ import Sidebar from '@/components/Sidebar.vue'
 import X6Canvas from '@/components/X6Canvas.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
 import BottomPanel from '@/components/BottomPanel.vue'
-import RouteFloatWindow from '@/components/RouteFloatWindow.vue'
 import RouteEditorDialog from '@/components/RouteEditorDialog.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import StatusBar from '@/components/StatusBar.vue'
@@ -100,22 +91,8 @@ const dndInstance = ref(null)
 // 节点详情弹窗状态
 const detailNodeId = ref<string | null>(null)
 
-// 路线编辑器激活状态：浮动模式下始终激活；停靠模式下仅在面板展开时激活
-const routeActive = computed(() =>
-  editorStore.routeFloating ? true : !editorStore.bottomCollapsed
-)
-
-/** 浮动窗口「回到底部面板」：恢复停靠并展开 */
-function onFloatDock() {
-  editorStore.setRouteFloating(false)
-  editorStore.setBottomCollapsed(false)
-}
-
-/** 浮动窗口「关闭」：恢复停靠并收起为标题条 */
-function onFloatClose() {
-  editorStore.setRouteFloating(false)
-  editorStore.setBottomCollapsed(true)
-}
+// 路线编辑器激活状态：底部面板展开时才激活（接管画布交互）
+const routeActive = computed(() => !editorStore.bottomCollapsed)
 
 const onCanvasReady = (payload: { graph: any; dnd: any }) => {
   // 子组件 X6Canvas 就绪后回调：拿到 Graph 与 DnD 实例，

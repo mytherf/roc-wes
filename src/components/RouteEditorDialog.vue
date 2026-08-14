@@ -80,7 +80,7 @@
                 <button type="button" class="wp-help-btn" :aria-expanded="wpHelpOpen" title="航点操作说明" @click="wpHelpOpen = !wpHelpOpen">?</button>
                 <div v-if="wpHelpOpen" class="wp-help-pop" role="note">
                   <template v-if="hasCanvas">点击「添加航点」后在画布上依次点击设置路径。右键航点可删除/插入/设为站点，右键线段可插入中间点。</template>
-                  <template v-else>独立窗口内没有画布：请在主窗口画布上添加/拖拽航点，或在坐标输入框中直接编辑，改动会实时同步。</template>
+                  <template v-else>独立窗口内没有画布：点击「添加航点」会让主窗口画布进入绘制模式，在主窗口画布上依次点击即可添加航点，改动会实时同步回来。</template>
                 </div>
               </span>
             </div>
@@ -88,9 +88,8 @@
               <button
                 class="btn-edit"
                 :class="{ active: drawing }"
-                :disabled="!hasCanvas"
-                :title="hasCanvas ? '' : '独立窗口内没有画布，请在主窗口添加航点'"
-                @click="toggleDrawing"
+                :title="hasCanvas ? '' : '独立窗口内没有画布，点击后在主窗口画布上进入绘制模式添加航点'"
+                @click="hasCanvas ? toggleDrawing() : requestCanvasDrawing()"
               >
                 {{ drawing ? '✏️ 点击画布添加…' : '✏️ 添加航点' }}
               </button>
@@ -199,6 +198,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouteStore, type RouteWaypoint, type RouteSegment } from '@/stores/route'
+import { useEditorStore } from '@/stores/editor'
+import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 const props = withDefaults(defineProps<{
   canvasRef: any
@@ -606,6 +607,21 @@ function ctxAddWaypoint() {
   hideCtxMenu()
 }
 
+/**
+ * 跨窗口绘制请求（独立窗口 → 主窗口画布）：
+ * 独立窗口没有画布，点击「添加航点」时广播本事件，
+ * 主窗口的 RouteEditorDialog（有画布）收到后选中对应路线并进入绘制模式，
+ * 用户在主窗口画布上依次点击即可添加航点（改动经路线同步实时回传）。
+ */
+const DRAWING_REQUEST_EVENT = 'route://start-drawing'
+let unlistenDrawingRequest: UnlistenFn | null = null
+
+/** 无画布形态（独立窗口）：远程请求主窗口画布进入绘制模式 */
+function requestCanvasDrawing() {
+  emit(DRAWING_REQUEST_EVENT, { routeId: selectedId.value })
+    .catch(e => console.warn('[RouteEditor] 跨窗口绘制请求失败:', e))
+}
+
 // ===================== 航点绘制模式 =====================
 let blankClickHandler: ((args: any) => void) | null = null
 
@@ -1001,6 +1017,23 @@ onMounted(() => {
   bindWaypointDrag()
   bindContextMenu()
   window.addEventListener('keydown', onKeydown)
+
+  // 有画布形态（主窗口）：接收独立窗口的绘制请求，
+  // 选中请求携带的路线（若存在）并进入绘制模式；
+  // 同时解除弹出态并展开底部面板，保证路线编辑器完整可见。
+  // 注意：先改 selectedId 再 startDrawing（selectedId watcher 会 stopDrawing）
+  if (hasCanvas.value) {
+    listen<{ routeId?: string | null }>(DRAWING_REQUEST_EVENT, (ev) => {
+      const routeId = ev.payload?.routeId
+      if (routeId && routeStore.getRoute(routeId)) selectedId.value = routeId
+      const editorStore = useEditorStore()
+      editorStore.setRouteWindowOpen(false)
+      editorStore.setBottomCollapsed(false)
+      startDrawing()
+    })
+      .then(fn => { unlistenDrawingRequest = fn })
+      .catch(e => console.warn('[RouteEditor] 注册跨窗口绘制监听失败:', e))
+  }
 })
 
 onBeforeUnmount(() => {
@@ -1013,6 +1046,11 @@ onBeforeUnmount(() => {
   document.body.classList.remove('route-drawing-cursor')
   // 卸载时恢复画布所有路线为正常样式
   props.canvasRef?.highlightRoute?.(null)
+  // 兜底清理跨窗口绘制监听，避免残留
+  if (unlistenDrawingRequest) {
+    unlistenDrawingRequest()
+    unlistenDrawingRequest = null
+  }
 })
 </script>
 
