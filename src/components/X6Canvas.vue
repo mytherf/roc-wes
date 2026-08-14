@@ -281,7 +281,7 @@ const ROUTE_PATH_PREFIX = '__route_path_'
  * 运行态遥测字段：由数据订阅/路线运动直接写入画布（非用户编辑），
  * 高频刷新，不应进入撤销栈（与 useGraphSync 的 RUNTIME_DATA_KEYS 同义并扩充）
  */
-const RUNTIME_HISTORY_KEYS = new Set(['value', 'values', '_timestamp', '_quality', 'isMoving', 'routeAngle'])
+const RUNTIME_HISTORY_KEYS = new Set(['value', 'values', '_timestamp', '_quality', 'isMoving', 'routeAngle', 'routePaused', 'routeFinished'])
 
 /** 节点动画每帧修改的 attrs 末级键（AnimationService 只动 transform/opacity） */
 const ANIMATION_ATTR_KEYS = new Set(['transform', 'opacity'])
@@ -625,9 +625,10 @@ function updateRouteConfig(nodeId: string, updates: Partial<RouteConfig>) {
 
   syncGraphToStore()
 
-  // 如果正在移动，实时更新速度
-  if (routeService?.isMoving(nodeId) && updates.speed != null) {
-    routeService.setSpeed(nodeId, updates.speed)
+  // 如果正在移动，实时更新速度/循环模式
+  if (routeService?.isMoving(nodeId)) {
+    if (updates.speed != null) routeService.setSpeed(nodeId, updates.speed)
+    if (updates.loop != null) routeService.setLoop(nodeId, updates.loop)
   }
 }
 
@@ -647,6 +648,38 @@ function toggleRouteMovement(nodeId: string) {
   }
 }
 
+/** 暂停路线运动：保留当前位置与进度，可从暂停处继续 */
+function pauseRouteMovement(nodeId: string) {
+  if (!graph || !routeService) return
+  if (routeService.isMoving(nodeId)) routeService.pauseRoute(nodeId)
+}
+
+/** 继续路线运动（仅暂停态有效） */
+function resumeRouteMovement(nodeId: string) {
+  if (!graph || !routeService) return
+  if (routeService.isPaused(nodeId)) routeService.resumeRoute(nodeId)
+}
+
+/** 重置路线运动：停止并回到首航点（不启动），状态回到空闲 */
+function resetRouteMovement(nodeId: string) {
+  if (!graph || !routeService) return
+  const node = graph.getCellById(nodeId)
+  if (!node?.isNode()) return
+
+  routeService.stopRoute(nodeId)
+  const route: RouteConfig | undefined = node.getData()?.route
+  const first = route?.points?.[0]
+  if (!first) return
+
+  setSyncSuppressed(true)
+  const size = node.getSize()
+  node.setPosition({ x: first.x - size.width / 2, y: first.y - size.height / 2 })
+  const data = node.getData() || {}
+  node.setData({ ...data, isMoving: false, routePaused: false, routeFinished: false, routeAngle: 0 }, { deep: false })
+  setSyncSuppressed(false)
+  syncGraphToStore()
+}
+
 // ===================== 4. 暴露实例给父组件 =====================
 defineExpose({
   graph: graphRef,
@@ -658,6 +691,9 @@ defineExpose({
   // 路线相关
   updateRouteConfig,
   toggleRouteMovement,
+  pauseRouteMovement,
+  resumeRouteMovement,
+  resetRouteMovement,
   clearRouteOverlay,
   renderRouteOverlay,
   highlightRoute,
@@ -773,11 +809,19 @@ onMounted(() => {
   animationService = new AnimationService(graph)
 
   routeService = new RouteService(graph)
-  routeService.onStateChange = (nodeId, moving, angle) => {
+  routeService.onStateChange = (nodeId, moving, angle, paused) => {
     const cell = graph?.getCellById(nodeId)
     if (cell?.isNode()) {
       const data = cell.getData() || {}
-      cell.setData({ ...data, isMoving: moving, routeAngle: angle }, { deep: false })
+      // 四态状态字段：isMoving（运行/暂停中）、routePaused（暂停标记）、
+      // routeFinished（运动停止即置位，含自然走完与手动结束；启动时清除）
+      cell.setData({
+        ...data,
+        isMoving: moving,
+        routeAngle: angle,
+        routePaused: paused ?? false,
+        routeFinished: !moving,
+      }, { deep: false })
     }
   }
 

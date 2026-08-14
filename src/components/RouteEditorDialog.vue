@@ -504,10 +504,12 @@ function bindContextMenu() {
     ctxMenu.visible = true
   }
 
-  // 右键空白
+  // 右键空白：仅选中路线时才提供「添加航点」菜单；
+  // 未选中时拦截右键但不弹菜单（避免添加航点不知写入哪条路线）
   blankCtxHandler = ({ e }: any) => {
     if (!props.active) return
     if (drawing.value) { e.preventDefault(); stopDrawing(); return }
+    if (!selectedId.value) { e.preventDefault(); return }
     e.preventDefault()
     const point = graph.clientToLocal(e.clientX, e.clientY)
     ctxMenu.type = 'blank'
@@ -832,6 +834,13 @@ function createNew() {
 function selectRoute(id: string) {
   stopDrawing()
   stopPreview()
+  // 再次点击已选中的路线 → 取消选中：清除覆盖层与画布高亮
+  if (selectedId.value === id) {
+    selectedId.value = null
+    clearOverlay()
+    props.canvasRef?.highlightRoute?.(null)
+    return
+  }
   selectedId.value = id
   const route = routeStore.getRoute(id)
   // 选中路线后，只要有航点就在画布上绘制编辑器覆盖层。

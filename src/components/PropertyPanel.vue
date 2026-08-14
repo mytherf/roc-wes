@@ -304,11 +304,37 @@
                 <input type="range" min="20" max="300" step="10" v-model.number="routeSpeed" @input="onRouteSpeedChange" />
               </div>
 
+              <!-- 循环执行：节点级覆盖（未改过时用路线自身的 loop 默认值），运行中勾选/取消实时生效 -->
+              <div class="field">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="routeLoop" @change="onRouteLoopChange" />
+                  <span>循环执行</span>
+                </label>
+              </div>
+
+              <!-- 路线运动控制：双按钮四态（空闲/运行中/已暂停/已结束）。
+                   主按钮：运行→暂停→继续；次按钮：运行中结束 / 结束后重置回首航点 -->
               <div class="route-actions">
-                <button class="route-btn" :class="{ running: routeMoving }" @click="toggleRouteMove" :disabled="!nodeRouteId">
-                  {{ routeMoving ? '⏹ 停止' : '▶ 运行' }}
+                <button
+                  class="route-btn"
+                  :class="{ active: routePaused, running: routeMoving && !routePaused }"
+                  @click="onPrimaryRouteAction"
+                  :disabled="!nodeRouteId"
+                  :title="routeMoving && !routePaused ? '暂停（保留位置，可继续）' : routePaused ? '从暂停处继续' : '从首航点开始运行'"
+                >
+                  {{ routeMoving && !routePaused ? '⏸ 暂停' : routePaused ? '▶ 继续' : '▶ 运行' }}
+                </button>
+                <button
+                  class="route-btn"
+                  @click="onSecondaryRouteAction"
+                  :disabled="secondaryRouteDisabled"
+                  :title="routeMoving ? '结束运行（节点停在当前位置）' : '回到首航点（不启动）'"
+                >
+                  {{ routeMoving ? '⏹ 结束' : '↺ 重置' }}
                 </button>
               </div>
+              <!-- 状态行：四态实时展示（修复自然结束后按钮状态不更新的问题） -->
+              <div class="route-state">状态：{{ routeStateLabel }}</div>
             </template>
           </div>
 
@@ -1313,7 +1339,25 @@ const routeStore = useRouteStore()
 const routeEnabled = ref(false)
 const nodeRouteId = ref('')
 const routeSpeed = ref(80)
+/** 循环执行（节点级覆盖：data.routeLoop ?? 路线默认 loop） */
+const routeLoop = ref(true)
+/** 路线运动四态本地镜像（源自节点 data，由 cell:change:data 事件实时同步）：
+ *  isMoving=true 且 !routePaused → 运行中；isMoving=true 且 routePaused → 已暂停；
+ *  isMoving=false 且 routeFinished → 已结束；其余 → 空闲 */
 const routeMoving = ref(false)
+const routePaused = ref(false)
+const routeFinished = ref(false)
+
+/** 次按钮禁用条件：空闲态（无运行也无结束记录）或未选路线时不可结束/重置 */
+const secondaryRouteDisabled = computed(() =>
+  !nodeRouteId.value || (!routeMoving.value && !routeFinished.value)
+)
+
+/** 状态行文案 */
+const routeStateLabel = computed(() => {
+  if (routeMoving.value) return routePaused.value ? '已暂停' : '运行中'
+  return routeFinished.value ? '已结束' : '空闲'
+})
 
 /** 启用/禁用路线功能 */
 function onRouteEnabledChange() {
@@ -1346,6 +1390,7 @@ function syncRouteFromNode() {
   if (!graph || !element.value || element.value.type !== 'node') {
     routeEnabled.value = false
     nodeRouteId.value = ''
+    routeLoop.value = true
     return
   }
   const node = graph.getCellById(element.value.data.id)
@@ -1353,10 +1398,11 @@ function syncRouteFromNode() {
   const data = node.getData() || {}
   routeEnabled.value = data.routeEnabled ?? false
   nodeRouteId.value = data.routeId || ''
-  // 速度：优先节点覆盖，否则取路线默认
+  // 速度/循环：优先节点覆盖，否则取路线默认
   const route = data.routeId ? routeStore.getRoute(data.routeId) : null
   routeSpeed.value = data.routeSpeed ?? route?.speed ?? 80
-  routeMoving.value = data.isMoving ?? false
+  routeLoop.value = data.routeLoop ?? route?.loop ?? true
+  applyRouteStateFromNode(data)
 }
 
 // 选中元素变化时同步路线状态
@@ -1373,18 +1419,20 @@ function onRouteSelect() {
 
   const data = { ...(node.getData() || {}) }
   data.routeId = nodeRouteId.value || null
-  // 设置路线时同步默认速度
+  // 设置路线时同步默认速度与循环模式
   const route = nodeRouteId.value ? routeStore.getRoute(nodeRouteId.value) : null
   if (route) {
     data.routeSpeed = route.speed
     routeSpeed.value = route.speed
+    data.routeLoop = route.loop
+    routeLoop.value = route.loop
   }
   node.setData(data, { deep: false })
 
   // 同步到 store
   const storeNode = editorStore.graphData.nodes.find(n => n.id === element.value!.data.id)
   if (storeNode) {
-    editorStore.updateNode(element.value.data.id, { data: { ...(storeNode.data || {}), routeId: data.routeId, routeSpeed: data.routeSpeed } })
+    editorStore.updateNode(element.value.data.id, { data: { ...(storeNode.data || {}), routeId: data.routeId, routeSpeed: data.routeSpeed, routeLoop: data.routeLoop } })
   }
 }
 
@@ -1403,36 +1451,112 @@ function onRouteSpeedChange() {
   props.canvasRef?.updateRouteConfig?.(element.value.data.id, { speed: routeSpeed.value })
 }
 
-function toggleRouteMove() {
+/** 循环执行开关：写入节点级覆盖，运行中经 updateRouteConfig 实时生效 */
+function onRouteLoopChange() {
+  if (!element.value || element.value.type !== 'node') return
+  const graph = getGraph()
+  if (!graph) return
+  const node = graph.getCellById(element.value.data.id)
+  if (!node?.isNode()) return
+
+  const data = { ...(node.getData() || {}) }
+  data.routeLoop = routeLoop.value
+  node.setData(data, { deep: false })
+
+  // 同步到 store（节点级覆盖持久化）
+  const storeNode = editorStore.graphData.nodes.find(n => n.id === element.value!.data.id)
+  if (storeNode) {
+    editorStore.updateNode(element.value.data.id, { data: { ...(storeNode.data || {}), routeLoop: routeLoop.value } })
+  }
+
+  // 如果正在移动，实时切换循环模式
+  props.canvasRef?.updateRouteConfig?.(element.value.data.id, { loop: routeLoop.value })
+}
+
+/** 启动运行：从 route store 获取路线，写入 node.data.route 供 X6Canvas 使用 */
+function startRouteMove() {
   if (!element.value || element.value.type !== 'node') return
   const nodeId = element.value.data.id
   const graph = getGraph()
   if (!graph) return
   const node = graph.getCellById(nodeId)
   if (!node?.isNode()) return
-
+  const route = nodeRouteId.value ? routeStore.getRoute(nodeRouteId.value) : null
+  if (!route || route.points.length < 2) return
+  // 将路线配置写入节点 data（供 RouteService 使用；循环模式取节点级覆盖）
   const data = node.getData() || {}
-  const isCurrentlyMoving = data.isMoving ?? false
+  node.setData({
+    ...data,
+    route: { points: route.points, segments: route.segments, speed: routeSpeed.value, loop: routeLoop.value, smooth: route.smooth },
+  }, { deep: false })
+  props.canvasRef?.toggleRouteMovement?.(nodeId)
+}
 
-  if (isCurrentlyMoving) {
-    // 停止
+/** 主按钮：运行（空闲/已结束）→ 暂停（运行中）→ 继续（已暂停） */
+function onPrimaryRouteAction() {
+  if (!element.value || element.value.type !== 'node') return
+  const nodeId = element.value.data.id
+  if (routeMoving.value && !routePaused.value) {
+    props.canvasRef?.pauseRouteMovement?.(nodeId)
+  } else if (routePaused.value) {
+    props.canvasRef?.resumeRouteMovement?.(nodeId)
+  } else {
+    startRouteMove()
+  }
+}
+
+/** 次按钮：结束（运行中/已暂停，节点停在当前位置）或 重置（已结束，回首航点） */
+function onSecondaryRouteAction() {
+  if (!element.value || element.value.type !== 'node') return
+  const nodeId = element.value.data.id
+  if (routeMoving.value) {
+    // toggleRouteMovement 检测到 isMoving 会执行停止
     props.canvasRef?.toggleRouteMovement?.(nodeId)
   } else {
-    // 启动：从 route store 获取路线，写入 node.data.route 供 X6Canvas 使用
-    const route = nodeRouteId.value ? routeStore.getRoute(nodeRouteId.value) : null
-    if (route && route.points.length >= 2) {
-      // 将路线配置写入节点 data（供 RouteService 使用）
-      const updatedData = { ...data, route: { points: route.points, segments: route.segments, speed: routeSpeed.value, loop: route.loop, smooth: route.smooth } }
-      node.setData(updatedData, { deep: false })
-      props.canvasRef?.toggleRouteMovement?.(nodeId)
-    }
+    props.canvasRef?.resetRouteMovement?.(nodeId)
   }
-
-  setTimeout(() => {
-    const n = graph.getCellById(nodeId)
-    routeMoving.value = n?.getData()?.isMoving ?? false
-  }, 50)
 }
+
+// ---------- 路线运动状态实时同步 ----------
+// 修复：非循环路线自然走完（或外部停止）后，节点 data.isMoving 已变 false，
+// 但面板本地状态无人更新导致按钮卡在“停止”态。现订阅画布 cell:change:data，
+// 当前选中节点的路线状态字段变化时实时回填本地镜像。
+const ROUTE_STATE_KEYS = ['isMoving', 'routePaused', 'routeFinished']
+let routeStateUnsub: (() => void) | null = null
+
+/** 把节点 data 中的路线状态字段同步到本地镜像 */
+function applyRouteStateFromNode(data: any) {
+  routeMoving.value = data?.isMoving ?? false
+  routePaused.value = data?.routePaused ?? false
+  routeFinished.value = data?.routeFinished ?? false
+}
+
+/** 订阅画布数据变化（graph 实例就绪后只注册一次） */
+function subscribeRouteStateChanges(g: any) {
+  if (!g || routeStateUnsub) return
+  const handler = ({ cell, current }: any) => {
+    if (!element.value || element.value.type !== 'node') return
+    if (cell.id !== element.value.data.id) return
+    // 仅响应路线状态字段变化，避免其他 data 写入的无效刷新
+    if (!ROUTE_STATE_KEYS.some(k => k in (current || {}))) return
+    applyRouteStateFromNode(cell.getData())
+  }
+  g.on('cell:change:data', handler)
+  routeStateUnsub = () => g.off('cell:change:data', handler)
+}
+
+// graph 实例由 X6Canvas 挂载后才有（canvasRef.graph 是 ref）：就绪时订阅
+watch(
+  () => props.canvasRef?.graph?.value ?? props.canvasRef?.graph,
+  (g) => { if (g) subscribeRouteStateChanges(g) },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  // 兜底反注册，避免残留画布监听器
+  routeStateUnsub?.()
+  routeStateUnsub = null
+})
 
 </script>
 
@@ -1922,6 +2046,22 @@ function toggleRouteMove() {
   cursor: pointer;
   accent-color: var(--color-primary);
 }
+/* 复选框标签基础样式：框与文字同行且文字不换行（与 .checkbox-field label 对齐） */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.checkbox-label input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
 
 /* ===================== 标签页栏 ===================== */
 .panel-tabs {
@@ -2393,6 +2533,12 @@ function toggleRouteMove() {
 .route-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+/* 路线运动状态行（四态实时展示） */
+.route-state {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
 }
 input[type='range'] {
   width: 100%;

@@ -58,6 +58,8 @@ interface RouteMotionState {
   lastTime: number
   /** 是否正在移动 */
   moving: boolean
+  /** 是否处于暂停态（保留运动状态与位置，仅不推进） */
+  paused: boolean
   /** 站点停顿状态 */
   dwelling: boolean // 是否正在站点停顿中
   dwellUntil: number // 停顿结束的时间戳
@@ -74,8 +76,9 @@ export class RouteService {
   private graph: Graph // X6 画布实例
   private motions: Map<string, RouteMotionState> = new Map() // nodeId → 运动状态
   private frameId: number | null = null // 动画帧循环 ID
-  /** 运动状态变化回调（用于更新节点 data.isMoving 等） */
-  onStateChange?: (nodeId: string, moving: boolean, angle: number) => void
+  /** 运动状态变化回调（用于更新节点 data.isMoving 等）。
+   *  paused 为暂停态标记（仅在 pause/resume 时有意义，其余场景不传） */
+  onStateChange?: (nodeId: string, moving: boolean, angle: number, paused?: boolean) => void
   /** 站点到达事件回调 */
   onStationArrive?: (nodeId: string, stationName: string, eventName?: string) => void
 
@@ -113,6 +116,7 @@ export class RouteService {
       segmentProgress: 0, // 段内进度从 0 开始
       lastTime: performance.now(),
       moving: true,
+      paused: false,
       dwelling: false,
       dwellUntil: 0,
     })
@@ -152,6 +156,37 @@ export class RouteService {
   }
 
   /**
+   * 暂停路线运动：保留当前位置与进度，恢复后从暂停处继续
+   */
+  pauseRoute(nodeId: string) {
+    const state = this.motions.get(nodeId)
+    if (!state || state.paused) return
+    state.paused = true
+    // 通知外部：仍在运动登记中（moving=true），但处于暂停态
+    const angle = this.currentAngle(state)
+    this.onStateChange?.(nodeId, true, angle, true)
+  }
+
+  /**
+   * 恢复路线运动：重置时间基准，避免暂停期间的时长被计入位移
+   */
+  resumeRoute(nodeId: string) {
+    const state = this.motions.get(nodeId)
+    if (!state || !state.paused) return
+    state.paused = false
+    state.lastTime = performance.now() // 防止恢复瞬间产生大跨度位移
+    const angle = this.currentAngle(state)
+    this.onStateChange?.(nodeId, true, angle, false)
+  }
+
+  /**
+   * 查询节点是否处于暂停态
+   */
+  isPaused(nodeId: string): boolean {
+    return this.motions.get(nodeId)?.paused ?? false
+  }
+
+  /**
    * 调整速度（像素/秒）
    * @param nodeId 节点 ID
    * @param speed 新速度（最小值限制 10，防止除零/倒退）
@@ -160,6 +195,16 @@ export class RouteService {
     const state = this.motions.get(nodeId)
     if (state) {
       state.config.speed = Math.max(10, speed)
+    }
+  }
+
+  /**
+   * 运行中切换循环模式：每帧推进与终点判断均实时读取，立即生效
+   */
+  setLoop(nodeId: string, loop: boolean) {
+    const state = this.motions.get(nodeId)
+    if (state) {
+      state.config.loop = loop
     }
   }
 
@@ -218,6 +263,12 @@ export class RouteService {
    * 每帧调用一次：计算时间增量 → 按速度推进进度 → 更新节点坐标
    */
   private updateMotion(nodeId: string, state: RouteMotionState, now: number) {
+    // 暂停态：只刷新时间基准不推进位置，恢复时无缝继续
+    if (state.paused) {
+      state.lastTime = now
+      return
+    }
+
     // 站点停顿中：没到停顿结束时间就原地等待
     if (state.dwelling) {
       if (now < state.dwellUntil) return
@@ -374,6 +425,17 @@ export class RouteService {
       x: mt3 * p1.x + 3 * mt2 * t * cp1x + 3 * mt * t2 * cp2x + t3 * p2.x,
       y: mt3 * p1.y + 3 * mt2 * t * cp1y + 3 * mt * t2 * cp2y + t3 * p2.y,
     }
+  }
+
+  /**
+   * 计算当前运动方向的朝向角（供暂停/恢复时回调使用）
+   */
+  private currentAngle(state: RouteMotionState): number {
+    const { points } = state.config
+    const from = points[state.segmentIndex]
+    const to = points[state.segmentIndex + 1] || (state.config.loop ? points[0] : undefined)
+    if (!from || !to) return 0
+    return this.calcAngle(from, to)
   }
 
   /**

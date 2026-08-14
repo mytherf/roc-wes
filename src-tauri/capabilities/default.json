@@ -12,6 +12,7 @@
     "core:window:allow-set-focus",
     "core:window:allow-unminimize",
     "core:window:allow-close",
+    "core:window:allow-destroy",
     "shell:allow-open",
     "fs:default",
     "fs:allow-appconfig-read-recursive",
