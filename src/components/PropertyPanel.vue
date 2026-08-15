@@ -1531,9 +1531,9 @@ function applyRouteStateFromNode(data: any) {
   routeFinished.value = data?.routeFinished ?? false
 }
 
-/** 订阅画布数据变化（graph 实例就绪后只注册一次） */
+/** 订阅画布数据变化（graph 实例就绪后只注册一次；graph 无事件 API 时跳过，兼容测试桩） */
 function subscribeRouteStateChanges(g: any) {
-  if (!g || routeStateUnsub) return
+  if (!g || typeof g.on !== 'function' || routeStateUnsub) return
   const handler = ({ cell, current }: any) => {
     if (!element.value || element.value.type !== 'node') return
     if (cell.id !== element.value.data.id) return

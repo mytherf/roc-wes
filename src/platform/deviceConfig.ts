@@ -67,6 +67,17 @@ export function buildDeviceConfig(
 
     // 按协议类型分别构造对应的连接参数
     switch (sourceType) {
+        // ---- Web 协议真实模式：Rust 原生客户端接管（前端不再直连）----
+        case 'websocket':
+            return { kind: 'websocket', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval, 1000) }
+        case 'http':
+            // 兼容存量数据源的 interval 字段（旧前端 HttpPollingService 轮询间隔）
+            return { kind: 'http', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval ?? cfg.interval, 2000) }
+        case 'sse':
+            return { kind: 'sse', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval, 1000) }
+        case 'mqtt':
+            return { kind: 'mqtt', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval, 1000) }
+        // ---- 工业协议：Rust 原生 TCP 直连 ----
         case 'modbus':
             return {
                 kind: 'modbus',

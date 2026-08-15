@@ -72,6 +72,9 @@ function makeFakeCanvas(cell: ReturnType<typeof makeFakeCell>) {
     const fakeGraph = {
         getCellById: (id: string) => (id === (cell as any).cellData.id ? cell : null),
         getGridSize: () => 10,
+        // 事件 API 桩：PropertyPanel 会订阅 cell:change:data 同步路线运动状态
+        on: vi.fn(),
+        off: vi.fn(),
     }
     return {
         graph: { value: fakeGraph },

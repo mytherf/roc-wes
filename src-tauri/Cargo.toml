@@ -49,6 +49,7 @@ thiserror = "2"                                # 简化错误类型定义（gate
 gateway-core = { path = "crates/gateway-core" }      # 领域模型：配置/遥测/错误/适配器端口
 gateway-engine = { path = "crates/gateway-engine" }    # 会话编排：连接/轮询/重连
 gateway-modbus = { path = "crates/gateway-modbus" }    # Modbus TCP 适配器实现
+gateway-web = { path = "crates/gateway-web" }          # Web 协议适配器（WebSocket/HTTP/SSE/MQTT 真实模式）
 gateway-demo = { path = "crates/gateway-demo" }        # 演示模式适配器（模拟数据）
 
 # ---- 特性开关（Cargo features） ----

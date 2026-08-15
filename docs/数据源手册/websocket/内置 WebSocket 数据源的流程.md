@@ -102,11 +102,9 @@ const ds = dataSourceStore.getDataSource(binding.sourceId)
 sourceType = ds.type   // 'websocket'
 sourceUrl = ds.url     // 'ws://localhost:8080/ws'
 
-// 2. 按类型路由：演示模式（含 ws/http/sse/mqtt）与工业协议统一走 IPC
-if (isDemoSource(sourceType, sourceUrl, sourceConfig) || INDUSTRIAL_TYPES.has(sourceType)) {
-  // 演示模式映射为 { kind:'demo', profile:'websocket', pollIntervalMs }
-  service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), 'WEBSOCKET')
-}
+// 2. 统一路由：所有数据源（演示/真实/工业协议）一律走 IPC
+// 演示模式映射为 { kind:'demo', profile:'websocket', pollIntervalMs }
+service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), 'WEBSOCKET')
 
 // 3. 订阅点ID，回调里把值写入节点
 service.subscribe(binding.pointId, (point) => {
@@ -122,7 +120,7 @@ service.subscribe(binding.pointId, (point) => {
 
 ## ⑤ 连接与订阅分发（IpcGatewayService → Rust）
 
-[IpcGatewayService.ts](file://C:/myf/project/allinone/roc-wes/src/services/IpcGatewayService.ts) 实现与 WebSocketService 相同的 `IDataService` 接口，底层换成 Tauri IPC：
+[IpcGatewayService.ts](file://C:/myf/project/allinone/roc-wes/src/services/IpcGatewayService.ts) 实现统一的 `IDataService` 接口，底层为 Tauri IPC（所有数据源的唯一通道）：
 
 ```ts
 // 建会话：请求 Rust 创建演示适配器并启动轮询任务
@@ -156,4 +154,4 @@ const { value } = useNodeData(props.node, { value: 0 })  // 模板里 {{ value }
 
 
 
-切换到真实设备时，把数据源改为真实模式并填入真实 WS 服务地址（消息格式兼容 `topic/id/pointId` 任一字段标识点位即可），前端代码零改动。
+切换到真实设备时，把数据源改为真实模式并填入真实 WS 服务地址（消息格式兼容 `topic/id/pointId` 任一字段标识点位即可），前端代码零改动：真实模式同样经 Rust 网关接管（`WebSocketAdapter` 作为 WS 客户端连接外部服务，订阅帧/数据帧协议不变），数据延迟 ≤ pollIntervalMs。

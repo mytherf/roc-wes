@@ -1,21 +1,20 @@
-// ========== IPC 网关数据服务（Tauri 桌面运行时专用）==========
-// 工业协议（Modbus/S7/OPC UA）为原生 TCP，WebView 无法直连，
-// 由 Rust 原生网关直接实现。前端通过 Tauri 的 IPC 机制调用 Rust 命令：
+// ========== IPC 网关数据服务（全部数据源协议的唯一数据通道）==========
+// 所有数据源协议（WebSocket / HTTP / SSE / MQTT 真实模式、演示模式、
+// Modbus/S7/OPC UA 工业协议）均由 Rust 原生网关实现，WebView 不再直连任何服务。
+// 前端通过 Tauri 的 IPC 机制调用 Rust 命令：
 //   - invoke('gateway_connect', ...)  → 请求建立设备会话
 //   - listen('gateway://telemetry')   → 接收 Rust 推来的实时数据
-// 本类实现了与 WebSocketService 相同的 IDataService 接口，
-// 因此上层代码用法与其他 Web 协议服务完全一样。
+// 本类实现了 IDataService 接口，上层代码用法与协议无关。
 
 /**
- * IPC 网关数据服务（Tauri 桌面运行时专用）
+ * IPC 网关数据服务（全部数据源协议的唯一数据通道）
  *
- * 工业协议（Modbus / S7 / OPC UA）为原生 TCP，WebView 无法直连，
- * 由 Rust 核心（gateway-engine + DeviceAdapter）原生实现，前端通过 Tauri IPC 访问：
+ * 所有协议均由 Rust 核心（gateway-engine + DeviceAdapter）原生实现，
+ * 前端通过 Tauri IPC 访问：
  *   - 命令：gateway_connect / gateway_subscribe / gateway_unsubscribe / gateway_disconnect
  *   - 事件：gateway://status、gateway://telemetry（camelCase 载荷，与 Rust serde 对齐）
  *
- * 本类实现与 WebSocketService 相同的 IDataService 接口，
- * 对上层（useDataService / 节点绑定）完全透明。
+ * 本类实现 IDataService 接口，对上层（useDataService / 节点绑定）完全透明。
  */
 
 import { invoke } from '@tauri-apps/api/core' // Tauri IPC：调用 Rust 侧命令
@@ -28,6 +27,10 @@ export type DeviceConfig =
     | { kind: 's7'; host: string; port: number; rack: number; slot: number; pollIntervalMs: number } // 西门子 S7 参数
     | { kind: 'opc'; endpoint: string; pollIntervalMs: number } // OPC UA 端点
     | { kind: 'demo'; pollIntervalMs: number; profile?: 'websocket' | 'http' | 'sse' | 'mqtt' } // 演示模式（不连真实设备，profile 决定波形特征）
+    | { kind: 'websocket'; url: string; pollIntervalMs: number } // 真实 WebSocket 推送服务（Rust 作为 WS 客户端）
+    | { kind: 'http'; url: string; pollIntervalMs: number } // 真实 HTTP 轮询服务（按点位 GET）
+    | { kind: 'sse'; url: string; pollIntervalMs: number } // 真实 SSE 推送流（按点位建流）
+    | { kind: 'mqtt'; url: string; pollIntervalMs: number } // 真实 MQTT broker（点ID 作为主题过滤器）
 
 /** gateway://status 事件载荷：设备连接状态变化 */
 interface StatusPayload {

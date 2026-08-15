@@ -1,24 +1,17 @@
 // ========== 数据服务管理 Composable（数据绑定的“总调度”）==========
 // 用途：把“节点绑定数据”这件事集中管理起来——
-//   1. 按配置选择正确的数据服务（演示模式 IPC/WebSocket/HTTP/MQTT/SSE/工业协议 IPC）
-//   2. 缓存服务实例（同一数据源只建一条连接，不重复浪费）
+//   1. 所有数据源（含演示模式与全部协议）统一路由到 Rust 原生网关（IPC）
+//   2. 缓存服务实例（同一数据源只建一条会话，不重复浪费）
 //   3. 订阅数据并把最新值写入节点 data.value（同时触发节点事件规则）
-//   4. 清理：解绑节点时取消订阅，组件卸载时断开全部连接
+//   4. 清理：解绑节点时取消订阅，组件卸载时断开全部会话
 // 什么是 Composable？Vue 3 中把可复用的逻辑抽成函数，名字以 use 开头。
 
 import type { Graph, Node } from '@antv/x6'
 import type { DataBindingConfig, IDataService } from '@/services/DataService'
-import { WebSocketService } from '@/services/WebSocketService'
-import { HttpPollingService } from '@/services/HttpPollingService'
-import { SseService } from '@/services/SseService'
-import { MqttService } from '@/services/MqttService'
 import { IpcGatewayService } from '@/services/IpcGatewayService'
-import { buildDeviceConfig, isDemoSource } from '@/platform/deviceConfig'
+import { buildDeviceConfig } from '@/platform/deviceConfig'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { evaluateNodeEvents } from '@/services/NodeEventService'
-
-/** 工业协议类型：WebView 无法直连（原生 TCP），统一走 Rust 原生网关（IPC） */
-const INDUSTRIAL_TYPES = new Set(['s7', 'opc', 'modbus'])
 
 /**
  * 数据服务管理 Composable
@@ -30,7 +23,9 @@ const INDUSTRIAL_TYPES = new Set(['s7', 'opc', 'modbus'])
  * 设计说明：
  * - 未绑定数据源（无 sourceId 且无旧字段 sourceUrl）的节点不订阅任何数据，保持静态值；
  *   演示/模拟数据须显式创建演示模式数据源并绑定。
- * - 具名数据服务：按 `${sourceType}:${sourceUrl}` 缓存，避免同一数据源重复创建连接。
+ * - 全部协议（演示模式 + WebSocket/HTTP/SSE/MQTT 真实模式 + 工业协议）统一由
+ *   Rust 原生网关接管，前端经 invoke + event IPC 通信，WebView 不再直连任何服务。
+ * - 具名数据服务：按 `${sourceType}:${sourceUrl}` 缓存，避免同一数据源重复创建会话。
  * - unbindAllNodes 仅取消订阅、不断开连接（支持重载后重新绑定）；
  *   dispose 才断开并清空全部服务（组件卸载时调用）。
  */
@@ -47,9 +42,9 @@ export function useDataService() {
   /**
    * 根据 sourceType 和 sourceUrl 获取或创建数据服务实例
    * - 无 sourceUrl：返回 null（未绑定数据源的节点不接收任何数据）
-   * - 演示模式数据源与工业协议：Rust 原生网关（IPC）
-   * - 其余真实地址：按类型路由到 WebSocket / HTTP 轮询 / SSE / MQTT 服务
-   * - sourceConfig：协议特定的设备连接参数（如 Modbus 的 host/port/unitId），传给对应服务
+   * - 全部协议统一路由到 Rust 原生网关（IPC）：演示模式由 DemoAdapter 生成模拟数据，
+   *   WebSocket/HTTP/SSE/MQTT 真实模式由 Rust 原生客户端接管，工业协议由 Rust 原生 TCP 直连
+   * - sourceConfig：协议特定参数（如 HTTP 的 pollInterval / 演示标志），经 buildDeviceConfig 翻译给 Rust
    */
   function getDataService(sourceType: string, sourceUrl?: string, sourceConfig?: Record<string, any>): IDataService | null {
     if (!sourceUrl) {
@@ -58,34 +53,7 @@ export function useDataService() {
     }
     const key = serviceKey(sourceType, sourceUrl, sourceConfig)
     if (!dataServiceMap.has(key)) {
-      // 工业协议（S7 / OPC UA / Modbus）与所有演示模式数据源
-      //（含 WebSocket / HTTP / SSE / MQTT）统一由 Rust 原生网关接管——
-      // 演示数据由桌面端内置 DemoAdapter 生成（不依赖本地端口），
-      // 工业设备由 Rust 原生 TCP 直连，前端经 invoke + event IPC 通信
-      if (isDemoSource(sourceType, sourceUrl, sourceConfig) || INDUSTRIAL_TYPES.has(sourceType)) {
-        const service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), sourceType.toUpperCase())
-        dataServiceMap.set(key, service)
-        return service
-      }
-      let service: IDataService | null = null
-      switch (sourceType) {
-        case 'websocket':
-          service = new WebSocketService(sourceUrl)
-          break
-        case 'http':
-          service = new HttpPollingService(sourceUrl, sourceConfig?.interval)
-          break
-        case 'sse':
-          service = new SseService(sourceUrl)
-          break
-        case 'mqtt':
-          service = new MqttService(sourceUrl)
-          break
-        // 工业协议（s7 / opc / modbus）已在上方统一路由到 IpcGatewayService，不会走到这里
-        default:
-          console.warn(`[useDataService] 不支持的数据源类型: ${sourceType}，不订阅数据`)
-          return null
-      }
+      const service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), sourceType.toUpperCase())
       dataServiceMap.set(key, service)
     }
     return dataServiceMap.get(key)!

@@ -67,9 +67,10 @@ export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
 
 /**
  * 独立真实设备网关地址（历史遗留的浏览器时代 WS 网关占位地址）。
- * Node 版网关（原 gateway/ 目录）已随 Tauri 迁移移除：桌面端工业协议
- * 经 Rust 原生网关 IPC 直连设备，连接参数取数据源 config（host/port 等），
- * 不使用此地址；此处保留仅为兼容数据源对话框在真实模式下的表单预填。
+ * Node 版网关（原 gateway/ 目录）已随 Tauri 迁移移除：桌面端所有协议
+ *（ws/http/sse/mqtt 及工业协议）一律经 Rust 原生网关 IPC 直连设备，
+ * 连接参数取数据源 url / config（host/port 等），不使用此地址；
+ * 此处保留仅为兼容数据源对话框在真实模式下的表单预填。
  */
 export const REAL_GATEWAY_URLS: Partial<Record<DataSourceType, string>> = {
     modbus: 'ws://localhost:19100/modbus',

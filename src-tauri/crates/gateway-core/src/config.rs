@@ -17,8 +17,12 @@ fn default_s7_slot() -> u8 {
 fn default_poll_interval_ms() -> u64 {
     1000
 }
+fn default_http_poll_interval_ms() -> u64 {
+    2000
+}
 
-/// 设备配置判别联合：`{ kind: 'modbus' | 's7' | 'opc' | 'demo', ... }`
+/// 设备配置判别联合：
+/// `{ kind: 'modbus' | 's7' | 'opc' | 'demo' | 'websocket' | 'http' | 'sse' | 'mqtt', ... }`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DeviceConfig {
@@ -26,6 +30,58 @@ pub enum DeviceConfig {
     S7(S7Config),
     Opc(OpcConfig),
     Demo(DemoConfig),
+    /// 真实 WebSocket 推送服务（Rust 作为 WS 客户端订阅）
+    Websocket(WebsocketConfig),
+    /// 真实 HTTP 轮询服务（按点位 GET 查询）
+    Http(HttpConfig),
+    /// 真实 SSE 推送流（按点位建立长连接）
+    Sse(SseConfig),
+    /// 真实 MQTT broker（点ID 作为主题过滤器订阅）
+    Mqtt(MqttConfig),
+}
+
+/// 真实 WebSocket 服务参数
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebsocketConfig {
+    /// 服务地址（ws:// 或 wss://）
+    pub url: String,
+    /// 上报间隔毫秒（缓冲的最新值按此周期批量上报，默认 1000）
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+}
+
+/// 真实 HTTP 轮询服务参数
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HttpConfig {
+    /// 服务地址（按点位拼接 `${url}?pointId=xxx` 发起 GET）
+    pub url: String,
+    /// 轮询间隔毫秒（默认 2000，与旧前端 HttpPollingService 一致）
+    #[serde(default = "default_http_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+}
+
+/// 真实 SSE 服务参数
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SseConfig {
+    /// 服务地址（按点位拼接 `${url}?pointId=xxx` 建立 SSE 长连接）
+    pub url: String,
+    /// 上报间隔毫秒（缓冲的最新值按此周期批量上报，默认 1000）
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+}
+
+/// 真实 MQTT broker 参数
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MqttConfig {
+    /// broker 地址（ws:// WebSocket 或 mqtt:// 原生 TCP）
+    pub url: String,
+    /// 上报间隔毫秒（缓冲的最新值按此周期批量上报，默认 1000）
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
 }
 
 /// Modbus TCP 设备参数
@@ -106,6 +162,10 @@ impl DeviceConfig {
             DeviceConfig::S7(c) => c.poll_interval_ms,
             DeviceConfig::Opc(c) => c.poll_interval_ms,
             DeviceConfig::Demo(c) => c.poll_interval_ms,
+            DeviceConfig::Websocket(c) => c.poll_interval_ms,
+            DeviceConfig::Http(c) => c.poll_interval_ms,
+            DeviceConfig::Sse(c) => c.poll_interval_ms,
+            DeviceConfig::Mqtt(c) => c.poll_interval_ms,
         }
     }
 }

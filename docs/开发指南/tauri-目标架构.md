@@ -49,6 +49,8 @@ src-tauri/
    ├─ gateway-engine/      # GatewayEngine：会话注册表、轮询任务、
    │                       # 指数退避重连、trait EventSink 端口
    ├─ gateway-modbus/      # ModbusAdapter（tokio-modbus）
+   ├─ gateway-web/         # WebSocket/HTTP/SSE/MQTT 适配器（真实模式，
+   │                       # tokio-tungstenite / reqwest / rumqttc）
    └─ gateway-demo/        # DemoAdapter（演示模式模拟数据）
    #（规划中）gateway-s7/  # snap7 绑定或自研 S7comm —— 风险最高，spike 前置
    #（规划中）gateway-opcua/ # opcua crate
@@ -82,6 +84,10 @@ src-tauri/
 { "kind": "modbus", "host": "192.168.1.10", "port": 502, "unitId": 1, "pollIntervalMs": 1000 }
 { "kind": "s7",     "host": "...", "port": 102, "rack": 0, "slot": 1, "pollIntervalMs": 1000 }
 { "kind": "opc",    "endpoint": "opc.tcp://...:4840", "pollIntervalMs": 1000 }
+{ "kind": "websocket", "url": "ws://127.0.0.1:12345", "pollIntervalMs": 1000 }
+{ "kind": "http",   "url": "http://192.168.0.10:9000/data", "pollIntervalMs": 2000 }
+{ "kind": "sse",    "url": "http://192.168.0.10:9000/sse", "pollIntervalMs": 1000 }
+{ "kind": "mqtt",   "url": "ws://192.168.0.10:8083", "pollIntervalMs": 1000 }
 { "kind": "demo",   "pollIntervalMs": 1000 }
 ```
 
@@ -99,6 +105,8 @@ src-tauri/
 - Modbus：`holding:N` / `input:N` / `coil:N` / `discrete:N`
 - S7：`db{n}.dbx{b}.{bit}` / `db{n}.dbw{w}` 等（沿用 nodes7 风格，待 spike 确认）
 - OPC UA：`ns=2;s=...`
+- WebSocket / HTTP / SSE：任意字符串（即订阅主题 / 轮询 pointId，需与服务端一致）
+- MQTT：主题过滤器（支持 `+` / `#` 通配符），遥测 point_id 即订阅过滤器
 
 ## 4. 订阅时序
 
@@ -135,7 +143,7 @@ sequenceDiagram
 |---|---|
 | `src/platform/runtime.ts`（已移除） | 早期曾用 `isTauri()` 运行时探测分支；纯桌面化后无需探测，文件删除 |
 | `../../src/services/IpcGatewayService.ts`（新增） | 实现既有 `IDataService` 接口：invoke 命令 + 单例事件总线按 `deviceId` 分发；`@tauri-apps/api` 动态 import |
-| `../../src/composables/useDataService.ts` | `getDataService` 路由：演示模式（`isDemoSource` 判定）与 modbus/s7/opc 工业协议**无条件**走 `IpcGatewayService`；ws/http/sse/mqtt 真实地址走 WebView 原生连接 |
+| `../../src/composables/useDataService.ts` | `getDataService` 路由：所有数据源（演示模式 / ws/http/sse/mqtt 真实模式 / modbus/s7/opc 工业协议）**无条件**走 `IpcGatewayService`，WebView 不再直连任何外部服务 |
 | 其余（UI、节点组件、属性面板、X6Canvas） | **零改动** |
 
 应用为纯桌面版，统一经 `npx tauri dev` 启动（vite dev server 固定端口 1420，仅作 WebView 资源来源，无任何本地数据端口）。
@@ -143,7 +151,7 @@ sequenceDiagram
 ## 6. 已知要点
 
 - **CSP**：`PropertyPanel.vue` 与 `useDataService.ts` 使用 `new Function` 编译 transform，`tauri.conf.json` 的 `script-src` 必须包含 `'unsafe-eval'`（已配置）
-- **数据源记录中的 url 字段**：桌面模式下 modbus/s7/opc 的 url 不再被消费（传输走 IPC），保留仅为浏览器模式兼容与可读性
+- **数据源记录中的 url 字段**：桌面模式下 modbus/s7/opc 的 url 不被消费（连接参数取 config；ws/http/sse/mqtt 则直接消费 url），保留为真实服务地址与可读性
 - **轮询下限**：引擎强制 ≥200ms，防止前端误配打满设备链路
 - **持久化**：全部工程数据经 `../../src/platform/fileStorage.ts` 由 tauri-plugin-fs 落盘为应用配置目录下的 JSON 文件（`editor.json` / `datasources.json` / `routes.json` / `theme.json` / `run-preview.json`，原子写入防损坏）；localStorage / sessionStorage 已全面移除
 - **退出清理**：`RunEvent::Exit` 时 `engine.shutdown()` 断开全部设备 TCP 连接
@@ -175,6 +183,7 @@ sequenceDiagram
 - 多点绑定（点组）：`binding.points[]`（点 ID + 转换函数成组），首组为主点驱动节点渲染，全部点写入 `data.values`，兼容旧单点工程；配套前端测试（vitest + jsdom，3 文件 14 项）
 - 点组数据丢失回归修复：`data.values` 属运行期遥测字段，纳入 `useGraphSync` 的 `RUNTIME_DATA_KEYS`（否则遥测刷新被误判为实质变化 → 整画布重建 → 数据回落旧快照）；`binding` / `events` 写回改用 `node.updateData`（顶层替换），规避 X6 深合并（lodash.merge）数组按下标合并导致的删除残留；「切换丢失」修复——`PropertyPanel.updateBinding` 只要有主点即提交绑定（`sourceId` 允许后补，无源绑定运行期不订阅、节点保持静态值），避免未选数据源时录入的点位在切换节点/清空数据源时丢失
 - 持久化升级：tauri-plugin-fs + `platform/fileStorage`（原子写入），全部工程数据落盘为应用配置目录 JSON 文件，全面替代 localStorage / sessionStorage
+- 全协议 Rust 网关统一：新增 `gateway-web` crate（WebSocket/HTTP/SSE/MQTT 适配器，推送型协议采用「后台读取任务 + 最新值缓冲」+ 订阅差量同步），ws/http/sse/mqtt 真实模式不再由 WebView 直连，与演示模式/工业协议统一走 IPC；前端删除 4 个直连服务类与 mqtt 依赖，`GatewayMonitorService` 收敛为纯 IPC 探测
 
 后续（按风险排序）：
 
