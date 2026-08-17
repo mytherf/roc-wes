@@ -11,13 +11,13 @@
 
 1. 数据源管理新建 WebSocket 演示数据源 → 预填 `ws://localhost:8080/ws`（仅标识）
 
-![img.png](img.png)
+![img.png](img/img.png)
 
-![img_1.png](img_1.png)
+![img_1.png](img/img_1.png)
 
 2. 属性面板选该数据源、点ID 填 `sensor.temp`
 
-![img_2.png](img_2.png)
+![img_2.png](img/img_2.png)
 
 3. 前端 `invoke('gateway_subscribe', { pointId: 'sensor.temp.001' })`
 
@@ -29,7 +29,7 @@
 
 7. 若事件规则设了 `value > 75 告警`，正弦波升过 75 时触发上升沿告警
 
-![img_4.png](img_4.png)
+![img_4.png](img/img_4.png)
 
 ### 真实模式：仪表盘绑定 HslCommunication 测试工具
 

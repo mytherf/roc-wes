@@ -30,7 +30,7 @@ WebSocket 数据源用于接入「服务端主动推送」的实时数据流。�
 - 类型：选择 `WebSocket`
 - 连接模式：选择 `演示模式`
 - 地址：`ws://localhost:8080/ws`（演示模式下自动预填，仅作演示标识）
-![img.png](img.png)
+![img.png](img/img.png)
 
 保存后，列表中即出现该数据源。
 
