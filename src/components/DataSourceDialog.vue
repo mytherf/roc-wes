@@ -179,11 +179,35 @@
 
             <!-- 演示波形：默认跟随协议特征波形，可指定内置演示引擎的任意一种 -->
             <div v-if="form.demo" class="ds-field">
-              <label class="ds-label">演示波形</label>
+              <label class="ds-label">
+                演示波形
+                <!-- 帮助按钮：点击弹出四档波形的图形样例与说明，点击外部关闭 -->
+                <span class="ds-help-wrap">
+                  <button type="button" class="ds-help-btn" :aria-expanded="waveHelpOpen" title="演示波形说明" @click="waveHelpOpen = !waveHelpOpen">?</button>
+                  <div v-if="waveHelpOpen" class="ds-help-pop ds-wave-help" role="note">
+                    <div v-for="opt in DEMO_WAVE_OPTIONS" :key="opt.value" class="ds-wave-row">
+                      <svg class="ds-wave-svg" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true">
+                        <polyline :points="wavePoints(opt.value)" fill="none" stroke="currentColor" stroke-width="1.5" />
+                      </svg>
+                      <div class="ds-wave-meta">
+                        <div class="ds-wave-name">{{ opt.label }}</div>
+                        <div class="ds-wave-desc">{{ WAVE_DESCS[opt.value] }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </span>
+              </label>
               <select v-model="form.profile" class="ds-input">
                 <option value="">跟随协议特征波形（{{ defaultWaveLabel }}）</option>
                 <option v-for="opt in DEMO_WAVE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
+              <!-- 当前生效波形的样例小图（随选择实时变化） -->
+              <div class="ds-wave-preview">
+                <svg viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true">
+                  <polyline :points="wavePoints(currentWave)" fill="none" stroke="currentColor" stroke-width="1.5" />
+                </svg>
+                <span>当前波形样例</span>
+              </div>
             </div>
 
             <!-- 工业协议设备参数（S7 / OPC UA / Modbus 的真实设备模式），抽取为子组件 -->
@@ -353,6 +377,49 @@ function isIndustrialType(t: DataSourceType): boolean {
 /** 当前类型是否为工业协议（需配置设备参数） */
 const isIndustrial = computed(() => isIndustrialType(form.type))
 
+/** 四档波形的帮助说明文案（气泡内图形样例旁的描述） */
+const WAVE_DESCS: Record<DemoWave, string> = {
+  websocket: '平滑正弦，约 20~80 连续变化，适合温度/速度等平滑遥测',
+  http: '随机游走，0~100 内缓慢漂移，每秒小幅步进',
+  sse: '锯齿斜升，约 10 秒 0→100 后归零重来，适合进度/计数',
+  mqtt: '离散档位，0/25/50/75/100 约每 3 秒切换，模拟设备档位',
+}
+
+/**
+ * 生成波形的 SVG 折线点串（viewBox 120×40，供帮助气泡与预览小图使用）。
+ * 各形状与 Rust DemoAdapter 的数据特征一致，仅用于示意。
+ */
+function wavePoints(kind: DemoWave): string {
+  const N = 48 // 采样点数（档位波形靠密集采样画出陡变沿）
+  const pts: string[] = []
+  for (let i = 0; i <= N; i++) {
+    const t = i / N
+    let v = 50 // 波形取值 0~100
+    switch (kind) {
+      case 'websocket': // 正弦：两个周期，20~80
+        v = 50 + 30 * Math.sin(t * Math.PI * 4)
+        break
+      case 'http': // 随机游走：低频正弦叠加模拟缓慢漂移
+        v = 50 + 18 * Math.sin(t * 5.1) + 9 * Math.sin(t * 13.7)
+        break
+      case 'sse': // 锯齿：两个周期 0→100 后归零
+        v = ((t * 2) % 1) * 100
+        break
+      case 'mqtt': // 档位：五级阶梯
+        v = [0, 25, 50, 75, 100][Math.min(4, Math.floor(t * 5))]
+        break
+    }
+    pts.push(`${(t * 120).toFixed(1)},${(38 - v * 0.34).toFixed(1)}`)
+  }
+  return pts.join(' ')
+}
+
+/** 当前生效的波形（预览小图）：用户选择优先；跟随协议时工业协议归为正弦 */
+const currentWave = computed<DemoWave>(() => {
+  if (form.profile) return form.profile
+  return DEMO_WAVE_OPTIONS.some((o) => o.value === form.type) ? (form.type as DemoWave) : 'websocket'
+})
+
 /** 各工业协议的默认设备端口 */
 function defaultPortFor(t: DataSourceType): number {
   if (t === 's7') return 102
@@ -382,15 +449,17 @@ const modeHint = computed(() => {
   }
 })
 
-/** 连接模式说明气泡开关（点击 ? 切换，点击外部关闭） */
+/** 连接模式 / 演示波形说明气泡开关（点击 ? 切换，点击外部关闭） */
 const modeHelpOpen = ref(false)
-function onDocPointerDownForModeHelp(e: Event) {
-  if (!modeHelpOpen.value) return
-  const t = e.target
-  if (!(t instanceof Element && t.closest('.ds-help-wrap'))) modeHelpOpen.value = false
+const waveHelpOpen = ref(false)
+function onDocPointerDownForHelp(e: Event) {
+  if (!(e.target instanceof Element && e.target.closest('.ds-help-wrap'))) {
+    modeHelpOpen.value = false
+    waveHelpOpen.value = false
+  }
 }
-onMounted(() => document.addEventListener('pointerdown', onDocPointerDownForModeHelp))
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointerDownForModeHelp))
+onMounted(() => document.addEventListener('pointerdown', onDocPointerDownForHelp))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointerDownForHelp))
 
 /** 地址输入框是否只读：演示模式（无需地址）或工业协议（固定网关地址）下不可手改 */
 const urlReadonly = computed(() => form.demo || isIndustrial.value)
@@ -872,6 +941,46 @@ function handleClose() {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   white-space: normal;
+}
+/* 演示波形帮助气泡（四档样例）与下拉框下方的预览小图 */
+.ds-wave-help {
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ds-wave-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ds-wave-svg,
+.ds-wave-preview svg {
+  width: 96px;
+  height: 32px;
+  flex-shrink: 0;
+  color: var(--color-primary);
+  background: var(--statusbar-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+}
+.ds-wave-meta {
+  min-width: 0;
+}
+.ds-wave-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.ds-wave-desc {
+  margin-top: 1px;
+  color: var(--text-muted);
+}
+.ds-wave-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 .ds-field-row {
   display: flex;
