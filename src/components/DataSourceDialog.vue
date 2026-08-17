@@ -59,7 +59,7 @@
                     {{ ds.name }}
                     <span class="ds-type-tag">{{ typeLabel(ds.type) }}</span>
                   </div>
-                  <div class="ds-item-url" :title="ds.url">{{ ds.url }}</div>
+                  <div class="ds-item-url" :title="ds.url">{{ isDemoSource(ds) ? '演示模式（内置模拟引擎）' : ds.url }}</div>
                   <div v-if="ds.description" class="ds-item-desc">{{ ds.description }}</div>
                 </div>
                 <div class="ds-item-actions" @click.stop>
@@ -99,14 +99,14 @@
                 <div v-if="monitor.getState(ds.id).deviceMessage" class="ds-mon-devmsg">
                   {{ monitor.getState(ds.id).deviceMessage }}
                 </div>
-                <div v-if="ds.url === BUILTIN_MOCK_URLS[ds.type]" class="ds-mon-demo-note">
+                <div v-if="isDemoSource(ds)" class="ds-mon-demo-note">
                   演示模式：下列为内置模拟引擎生成的样例点位(sample-*)与实时模拟数据
                 </div>
 
                 <!-- 数据点实时值 -->
                 <div class="ds-mon-title">数据点实时值</div>
                 <div v-if="Object.keys(monitor.getState(ds.id).points).length === 0" class="ds-mon-empty">
-                  {{ ds.url === BUILTIN_MOCK_URLS[ds.type] ? '等待内置演示引擎推送…' : '暂无数据（未绑定节点点位或服务未推送）' }}
+                  {{ isDemoSource(ds) ? '等待内置演示引擎推送…' : '暂无数据（未绑定节点点位或服务未推送）' }}
                 </div>
                 <table v-else class="ds-mon-table">
                   <thead>
@@ -190,7 +190,7 @@
             </div>
 
             <div class="ds-field">
-              <label class="ds-label">地址 <span class="required">*</span></label>
+              <label class="ds-label">地址 <span v-if="!form.demo && !isIndustrial" class="required">*</span></label>
               <input
                 v-model="form.url"
                 class="ds-input"
@@ -232,7 +232,6 @@ import type { MonitorState } from '@/services/GatewayMonitorService'
 import {
   useDataSourceStore,
   DATA_SOURCE_TYPE_LABELS,
-  BUILTIN_MOCK_URLS,
   REAL_GATEWAY_URLS,
   type DataSource,
   type DataSourceType,
@@ -329,6 +328,11 @@ function typeLabel(type: DataSourceType): string {
   return DATA_SOURCE_TYPE_LABELS[type] ?? type
 }
 
+/** 数据源是否为演示模式（仅看 config.demo，演示模式地址可为空） */
+function isDemoSource(ds: DataSource): boolean {
+  return ds.config?.demo === true
+}
+
 /** 是否为需配置设备参数的工业协议类型 */
 function isIndustrialType(t: DataSourceType): boolean {
   return t === 'modbus' || t === 's7' || t === 'opc'
@@ -347,7 +351,7 @@ function defaultPortFor(t: DataSourceType): number {
 /** 连接模式提示文案（随类型与模式变化） */
 const modeHint = computed(() => {
   if (form.demo) {
-    return `演示模式：由桌面端内置模拟引擎生成数据（无需真实设备），地址自动填充为 ${BUILTIN_MOCK_URLS[form.type]}`
+    return '演示模式：由桌面端内置模拟引擎生成数据（无需真实设备，无需填写地址）'
   }
   switch (form.type) {
     case 'modbus':
@@ -371,11 +375,12 @@ function onDocPointerDownForModeHelp(e: Event) {
 onMounted(() => document.addEventListener('pointerdown', onDocPointerDownForModeHelp))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointerDownForModeHelp))
 
-/** 地址输入框是否只读：演示模式（内置地址）或工业协议（固定网关地址）下自动填充、不可手改 */
+/** 地址输入框是否只读：演示模式（无需地址）或工业协议（固定网关地址）下不可手改 */
 const urlReadonly = computed(() => form.demo || isIndustrial.value)
 
-/** 真实设备模式下非工业协议的地址占位符示例 */
+/** 地址占位符：演示模式提示无需地址；真实设备模式下非工业协议给出示例 */
 const urlPlaceholder = computed(() => {
+  if (form.demo) return '演示模式无需地址'
   switch (form.type) {
     case 'websocket':
       return '如：ws://192.168.0.10:9000/ws'
@@ -392,17 +397,15 @@ const urlPlaceholder = computed(() => {
 
 /**
  * 按「连接模式 + 类型」推导地址：
- * - 演示模式：内置模拟地址（仅作演示标识，数据由 Rust DemoAdapter 生成）；
+ * - 演示模式：无需地址（置空，数据由 Rust DemoAdapter 生成）；
  * - 工业协议真实设备：固定独立网关地址（设备地址在下方设备参数中配置）；
- * - 非工业协议真实设备：由用户手动填写（若当前仍是内置地址则清空待填）。
+ * - 非工业协议真实设备：由用户手动填写。
  */
 function syncUrl() {
   if (form.demo) {
-    form.url = BUILTIN_MOCK_URLS[form.type]
+    form.url = ''
   } else if (isIndustrialType(form.type)) {
     form.url = REAL_GATEWAY_URLS[form.type] as string
-  } else if (form.url === BUILTIN_MOCK_URLS[form.type]) {
-    form.url = ''
   }
 }
 
@@ -428,7 +431,7 @@ watch(
 function resetForm() {
   form.name = ''
   form.type = 'websocket'
-  form.url = BUILTIN_MOCK_URLS.websocket // 默认演示模式，预填内置地址
+  form.url = '' // 默认演示模式，无需地址
   form.description = ''
   form.demo = true
   form.host = '127.0.0.1'
@@ -454,9 +457,9 @@ function openEdit(ds: DataSource) {
   form.name = ds.name
   form.type = ds.type
   form.description = ds.description ?? ''
-  // 演示模式判定：地址等于内置模拟地址即为演示（兼容旧数据源 config.demo 字段）
+  // 演示模式判定：仅以 config.demo 为准
   const c = ds.config || {}
-  form.demo = c.demo !== false && ds.url === BUILTIN_MOCK_URLS[ds.type]
+  form.demo = c.demo === true
   form.host = c.host ?? '127.0.0.1'
   form.port = c.port ?? defaultPortFor(ds.type)
   form.unitId = c.unitId ?? 1
@@ -481,52 +484,49 @@ function handleSave() {
     formError.value = '请填写数据源名称'
     return
   }
-  if (!url) {
+  // 地址校验：演示模式无需地址；工业协议地址自动填充（设备参数在下方填写）；
+  // 仅非工业协议的真实设备模式必须填写真实服务地址
+  if (!form.demo && !isIndustrial.value && !url) {
     formError.value = '请填写数据源地址'
     return
   }
 
-  // 工业协议设备参数与校验
-  let config: Record<string, any> | undefined
+  // 工业协议设备参数与校验（演示模式统一以 config.demo 标识）
+  const config: Record<string, any> = { demo: form.demo }
   if (form.type === 'modbus') {
     if (!form.demo && !form.host.trim()) {
       formError.value = '真实设备模式下请填写设备主机地址'
       return
     }
-    config = {
-      demo: form.demo,
+    Object.assign(config, {
       host: form.host.trim(),
       port: Number(form.port) || 502,
       unitId: Number(form.unitId) || 1,
       pollInterval: Number(form.pollInterval) || 1000,
-    }
+    })
   } else if (form.type === 's7') {
     if (!form.demo && !form.host.trim()) {
       formError.value = '真实设备模式下请填写 PLC 主机地址'
       return
     }
-    config = {
-      demo: form.demo,
+    Object.assign(config, {
       host: form.host.trim(),
       port: Number(form.port) || 102,
       rack: Number(form.rack) || 0,
       slot: Number(form.slot) || 2,
       pollInterval: Number(form.pollInterval) || 1000,
-    }
+    })
   } else if (form.type === 'opc') {
     if (!form.demo && !form.endpoint.trim()) {
       formError.value = '真实设备模式下请填写 OPC UA 端点 URL'
       return
     }
-    config = {
-      demo: form.demo,
+    Object.assign(config, {
       endpoint: form.endpoint.trim(),
       pollInterval: Number(form.pollInterval) || 1000,
-    }
+    })
   } else if (form.type === 'http') {
-    config = {
-      interval: Number(form.interval) || 2000,
-    }
+    config.interval = Number(form.interval) || 2000
   }
 
   if (mode.value === 'edit' && editingId.value) {

@@ -4,22 +4,31 @@
       "id": "tpl4-ds-ws",
       "name": "综合线主数据源(WS)",
       "type": "websocket",
-      "url": "ws://localhost:8080/ws",
-      "description": "综合模板 - 输送线/堆垛机/货架/机械手/提升机实时数据"
+      "url": "",
+      "description": "综合模板 - 输送线/堆垛机/货架/机械手/提升机实时数据",
+      "config": {
+        "demo": true
+      }
     },
     {
       "id": "tpl4-ds-mqtt",
       "name": "AGV车队(MQTT)",
       "type": "mqtt",
-      "url": "ws://localhost:8083",
-      "description": "综合模板 - 入库/出库 AGV 车队遥测"
+      "url": "",
+      "description": "综合模板 - 入库/出库 AGV 车队遥测",
+      "config": {
+        "demo": true
+      }
     },
     {
       "id": "tpl4-ds-sse",
       "name": "分拣事件流(SSE)",
       "type": "sse",
-      "url": "http://localhost:8082/sse",
-      "description": "综合模板 - 入库分拣机计数与速率事件"
+      "url": "",
+      "description": "综合模板 - 入库分拣机计数与速率事件",
+      "config": {
+        "demo": true
+      }
     }
   ],
   "nodes": [

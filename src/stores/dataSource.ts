@@ -4,7 +4,7 @@
 //   数据源就是数据“来源”的配置，比如一个 WebSocket 服务器、一个 MQTT 主题、
 //   一台 Modbus PLC 设备等。节点通过 sourceId 绑定到某个数据源实例，
 //   运行时就从这个数据源订阅/轮询数据来驱动节点动画。
-// 本文件职责：数据源实例的增删改查 + 类型定义 + 内置模拟地址 + 持久化。
+// 本文件职责：数据源实例的增删改查 + 类型定义 + 持久化。
 
 import { defineStore } from 'pinia'
 import { ref, watch, toRaw, nextTick } from 'vue'
@@ -26,7 +26,7 @@ export interface DataSource {
     name: string
     /** 数据源类型 */
     type: DataSourceType
-    /** 数据源地址（如 ws://host:port/path） */
+    /** 数据源地址（如 ws://host:port/path）；演示模式下为空 */
     url: string
     /** 备注说明（可选） */
     description?: string
@@ -43,26 +43,6 @@ export const DATA_SOURCE_TYPE_LABELS: Record<DataSourceType, string> = {
     s7: '西门子 S7',
     opc: 'OPC UA',
     modbus: 'Modbus',
-}
-
-/**
- * 内置模拟地址（仅作演示模式标识，桌面端无对应本地端口）。
- *
- * Node 版内置模拟服务器（原 mock/server.ts）已随 Tauri 迁移移除：
- * 所有协议的演示模式数据均由桌面端 Rust 原生网关内置 DemoAdapter 生成
- *（经 IPC 推送，不占用任何端口）。此处保留这些地址仅用于：
- * 1. 演示模式下表单预填；
- * 2. 识别历史数据源的演示模式（地址等于内置模拟地址即视为演示，
- *    见 platform/deviceConfig.ts 的 isDemoSource）。
- */
-export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
-    websocket: 'ws://localhost:8080/ws',
-    http: 'http://localhost:8081/api/data',
-    sse: 'http://localhost:8082/sse',
-    mqtt: 'ws://localhost:8083',
-    s7: 'ws://localhost:8084/s7',
-    opc: 'ws://localhost:8085/opc',
-    modbus: 'ws://localhost:8086/modbus',
 }
 
 /**

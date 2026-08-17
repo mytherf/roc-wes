@@ -9,7 +9,7 @@
 
 ### 演示模式：仪表盘绑定内置模拟数据
 
-1. 数据源管理新建 WebSocket 演示数据源 → 预填 `ws://localhost:8080/ws`（仅标识）
+1. 数据源管理新建 WebSocket 演示数据源 → 无需地址（`config.demo = true` 标识）
 
 ![img.png](img/img.png)
 
@@ -107,23 +107,16 @@ HslCommunciationTools 是 HslCommunication 库配套的工业联调测试工具�
 
 ## ② 数据源注册（配置层）
 
-用户在「数据源管理」对话框新建数据源（[dataSource.ts](file://C:/myf/project/allinone/roc-wes/src/stores/dataSource.ts)）。选 WebSocket 类型 + 演示模式时，地址自动预填为演示标识地址：
+用户在「数据源管理」对话框新建数据源（[dataSource.ts](file://C:/myf/project/allinone/roc-wes/src/stores/dataSource.ts)）。选 WebSocket 类型 + 演示模式时无需填写地址（地址框置空只读），保存时 `config.demo` 置为 `true`。
 
-```ts
-export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
-    websocket: 'ws://localhost:8080/ws',   // 仅作演示模式标识，无对应本地服务
-    // ...
-}
-```
-
-是否为演示模式由 [isDemoSource](file://C:/myf/project/allinone/roc-wes/src/platform/deviceConfig.ts) 判定：显式 `config.demo` 优先，其次地址等于内置演示标识地址才视为演示。两种模式保存后均落盘到 `datasources.json`：
+是否为演示模式由 [isDemoSource](file://C:/myf/project/allinone/roc-wes/src/platform/deviceConfig.ts) 判定：仅以 `config.demo === true` 为准（演示模式地址可为空）。两种模式保存后均落盘到 `datasources.json`：
 
 ```json
-{ "id": "ds-1712345-abc123", "name": "车间遥测", "type": "websocket", "url": "ws://localhost:8080/ws" }
+{ "id": "ds-1712345-abc123", "name": "车间遥测", "type": "websocket", "url": "", "config": { "demo": true } }
 ```
 
 ```json
-{ "id": "ds-1712345-def456", "name": "WebSocket测试数据源", "type": "websocket", "url": "ws://127.0.0.1:12345" }
+{ "id": "ds-1712345-def456", "name": "WebSocket测试数据源", "type": "websocket", "url": "ws://127.0.0.1:12345", "config": { "demo": false } }
 ```
 
 前者判定为演示模式（映射配置 `{ kind:'demo', profile:'websocket', pollIntervalMs }`）；后者为真实模式（映射配置 `{ kind:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
@@ -137,7 +130,6 @@ export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
 // 有主点即提交绑定，sourceId 允许后补（无 sourceId 的绑定运行期不订阅，节点保持静态值）
 if (primary) {
   binding = {
-    pointId: primary.pointId,                    // 主点（兼容旧工程单字段）
     points: validGroups,                         // 全部点组：点ID + 转换函数成组，首组为主点
     sourceId: bindingSourceId.value || undefined,
   }

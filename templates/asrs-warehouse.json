@@ -4,14 +4,17 @@
       "id": "tpl1-ds-ws",
       "name": "立库主数据源(WS)",
       "type": "websocket",
-      "url": "ws://localhost:8080/ws",
-      "description": "AS/RS 立库模板 - 堆垛机/输送线/提升机实时数据"
+      "url": "",
+      "description": "AS/RS 立库模板 - 堆垛机/输送线/提升机实时数据",
+      "config": {
+        "demo": true
+      }
     },
     {
       "id": "tpl1-ds-modbus",
       "name": "提升机Modbus",
       "type": "modbus",
-      "url": "ws://localhost:8086/modbus",
+      "url": "",
       "description": "AS/RS 立库模板 - 提升机寄存器数据",
       "config": {
         "demo": true

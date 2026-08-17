@@ -40,15 +40,15 @@ export function useDataService() {
   const nodeDataSubscriptions = new Map<string, string[]>()
 
   /**
-   * 根据 sourceType 和 sourceUrl 获取或创建数据服务实例
-   * - 无 sourceUrl：返回 null（未绑定数据源的节点不接收任何数据）
+   * 根据数据源配置获取或创建数据服务实例
    * - 全部协议统一路由到 Rust 原生网关（IPC）：演示模式由 DemoAdapter 生成模拟数据，
    *   WebSocket/HTTP/SSE/MQTT 真实模式由 Rust 原生客户端接管，工业协议由 Rust 原生 TCP 直连
+   * - 演示模式地址可为空；真实模式地址为空时返回 null（无法建连，节点保持静态值）
    * - sourceConfig：协议特定参数（如 HTTP 的 pollInterval / 演示标志），经 buildDeviceConfig 翻译给 Rust
    */
   function getDataService(sourceType: string, sourceUrl?: string, sourceConfig?: Record<string, any>): IDataService | null {
-    if (!sourceUrl) {
-      // 未绑定数据源 → 不提供任何数据服务（节点保持静态值）
+    if (!sourceUrl && sourceConfig?.demo !== true) {
+      // 非演示模式且无地址 → 不提供任何数据服务（节点保持静态值）
       return null
     }
     const key = serviceKey(sourceType, sourceUrl, sourceConfig)
@@ -59,10 +59,10 @@ export function useDataService() {
     return dataServiceMap.get(key)!
   }
 
-  /** 生成数据服务缓存键：类型 + 地址 + 设备配置（区分同地址不同设备） */
-  function serviceKey(sourceType: string, sourceUrl: string, sourceConfig?: Record<string, any>): string {
+  /** 生成数据服务缓存键：类型 + 地址 + 设备配置（区分同地址不同设备；演示模式地址可为空） */
+  function serviceKey(sourceType: string, sourceUrl?: string, sourceConfig?: Record<string, any>): string {
     const cfg = sourceConfig ? JSON.stringify(sourceConfig) : ''
-    return `${sourceType}:${sourceUrl}:${cfg}`
+    return `${sourceType}:${sourceUrl ?? ''}:${cfg}`
   }
 
   /** 归一化后的绑定点：点 ID + 该点专属转换函数源码 */

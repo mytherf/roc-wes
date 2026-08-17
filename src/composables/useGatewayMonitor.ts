@@ -8,14 +8,14 @@
 //   4. 组件卸载时自动停止全部探针，避免后台残留连接
 //
 // 关键概念：
-//   - 演示模式：数据源地址 = 内置演示标识地址时，自动注入一组样例点位，
+//   - 演示模式（config.demo = true）：自动注入一组样例点位，
 //     即使没有节点绑定也能展示实时跳动数据，方便预览效果
 //   - 真实设备模式：只监控节点实际绑定的点位
 
 import { reactive, onUnmounted } from 'vue'
 import { GatewayMonitorService, type MonitorState } from '@/services/GatewayMonitorService'
 import { useEditorStore } from '@/stores/editor'
-import { BUILTIN_MOCK_URLS, type DataSource, type DataSourceType } from '@/stores/dataSource'
+import type { DataSource, DataSourceType } from '@/stores/dataSource'
 
 /** 空闲（未监控）的初始快照 */
 function idleState(): MonitorState {
@@ -31,11 +31,11 @@ function idleState(): MonitorState {
 }
 
 /**
- * 是否为演示模式：地址等于该类型的内置演示标识地址即为演示。
- * 与 DataSourceDialog 的判定保持一致（兼容旧数据源 config.demo 字段）。
+ * 是否为演示模式：仅以 config.demo 为准，
+ * 与 platform/deviceConfig.ts 的 isDemoSource 判定保持一致。
  */
 function isDemoSource(ds: DataSource): boolean {
-    return ds.url === BUILTIN_MOCK_URLS[ds.type]
+    return ds.config?.demo === true
 }
 
 /**

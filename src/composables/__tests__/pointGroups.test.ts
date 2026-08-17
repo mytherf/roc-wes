@@ -59,7 +59,7 @@ vi.mock('@/platform/fileStorage', () => ({
     removePath: vi.fn(async () => true),
 }))
 
-import { useDataSourceStore, BUILTIN_MOCK_URLS } from '@/stores/dataSource'
+import { useDataSourceStore } from '@/stores/dataSource'
 import { useDataService } from '@/composables/useDataService'
 
 /** 构造一个最小化的 X6 节点替身（只需 getData/setData/id） */
@@ -74,13 +74,14 @@ function makeNode(id: string, binding: any) {
     } as any
 }
 
-/** 创建一个演示模式 WebSocket 数据源（内置模拟地址 → 路由到 IpcGatewayService） */
+/** 创建一个演示模式 WebSocket 数据源（config.demo → 路由到 IpcGatewayService） */
 function addDemoSource() {
     const store = useDataSourceStore()
     return store.addDataSource({
         name: 'demo-ws',
         type: 'websocket',
-        url: BUILTIN_MOCK_URLS.websocket,
+        url: '',
+        config: { demo: true },
     })
 }
 

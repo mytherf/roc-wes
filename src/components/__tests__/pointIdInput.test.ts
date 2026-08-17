@@ -133,12 +133,13 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         editorStore.setSelected('node-1')
 
         // 注入一个演示模式数据源供下拉选择
-        const { useDataSourceStore, BUILTIN_MOCK_URLS } = await import('@/stores/dataSource')
+        const { useDataSourceStore } = await import('@/stores/dataSource')
         const dsStore = useDataSourceStore()
         const ds = dsStore.addDataSource({
             name: 'demo-ws',
             type: 'websocket',
-            url: BUILTIN_MOCK_URLS.websocket,
+            url: '',
+            config: { demo: true },
         })
 
         const cell = makeFakeCell('node-1')
@@ -173,12 +174,13 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
 
     it('删除附加点组：节点 binding.points 整体替换，无深合并残留旧条目', async () => {
         const editorStore = useEditorStore()
-        const { useDataSourceStore, BUILTIN_MOCK_URLS } = await import('@/stores/dataSource')
+        const { useDataSourceStore } = await import('@/stores/dataSource')
         const dsStore = useDataSourceStore()
         const ds = dsStore.addDataSource({
             name: 'demo-ws',
             type: 'websocket',
-            url: BUILTIN_MOCK_URLS.websocket,
+            url: '',
+            config: { demo: true },
         })
 
         // 节点已带两点绑定（主点 + 附加点）
@@ -264,12 +266,13 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         })
         editorStore.setSelected('node-1')
 
-        const { useDataSourceStore, BUILTIN_MOCK_URLS } = await import('@/stores/dataSource')
+        const { useDataSourceStore } = await import('@/stores/dataSource')
         const dsStore = useDataSourceStore()
         const ds = dsStore.addDataSource({
             name: 'demo-ws',
             type: 'websocket',
-            url: BUILTIN_MOCK_URLS.websocket,
+            url: '',
+            config: { demo: true },
         })
 
         const cell = makeFakeCell('node-1')

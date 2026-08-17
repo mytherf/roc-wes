@@ -10,7 +10,6 @@
  * Rust `gateway_core::config::DeviceConfig`（camelCase），交给 gateway_connect。
  */
 
-import { BUILTIN_MOCK_URLS } from '@/stores/dataSource' // 内置演示标识地址表（用于识别演示模式）
 import type { DeviceConfig } from '@/services/IpcGatewayService' // Rust 侧设备配置的 TS 类型定义
 
 // 工具函数：把任意值安全地转成数字；
@@ -21,16 +20,10 @@ const num = (v: unknown, fallback: number): number => {
 }
 
 /**
- * 判定某数据源是否为演示模式。
- * 优先读 config.demo（用户显式选择）；
- * 兼容旧数据：地址等于内置演示标识地址即视为演示（历史版本没有 demo 字段）。
+ * 判定某数据源是否为演示模式：仅以 config.demo（用户在数据源对话框中显式选择）为准。
  */
-export function isDemoSource(sourceType: string, sourceUrl?: string, sourceConfig?: Record<string, any>): boolean {
-    // 显式配置了 demo 布尔值 → 直接采信
-    if (typeof sourceConfig?.demo === 'boolean') return sourceConfig.demo
-    // 旧数据兼容：url 与内置演示标识地址一致 → 视为演示
-    if (sourceUrl && sourceUrl === (BUILTIN_MOCK_URLS as Record<string, string>)[sourceType]) return true
-    return false
+export function isDemoSource(sourceConfig?: Record<string, any>): boolean {
+    return sourceConfig?.demo === true
 }
 
 /** 支持波形档位的四种 Web 协议（演示模式下 Rust 按其生成特征波形） */
@@ -44,7 +37,7 @@ const WEB_DEMO_PROFILES = new Set<string>(['websocket', 'http', 'sse', 'mqtt'])
  *（websocket=正弦 / http=随机游走 / sse=锯齿 / mqtt=档位）；
  * 工业协议演示省略 profile，由 Rust 侧默认波形兜底。
  * @param sourceType 数据源类型（modbus/s7/opc/...）
- * @param sourceUrl 数据源地址（用于演示模式判断）
+ * @param sourceUrl 数据源地址（真实模式下的连接地址，演示模式下可为空）
  * @param sourceConfig 数据源管理里保存的设备参数
  * @returns Rust 网关认识的 DeviceConfig 对象
  */
@@ -57,7 +50,7 @@ export function buildDeviceConfig(
     const pollIntervalMs = num(cfg.pollInterval, 1000) // 轮询间隔，默认 1000ms
 
     // 演示模式：不连接任何真实设备，由 Rust 的 DemoAdapter 定时生成模拟数据
-    if (isDemoSource(sourceType, sourceUrl, cfg)) {
+    if (isDemoSource(cfg)) {
         // 四种 Web 协议传递波形档位；工业协议演示省略（Rust 默认波形）
         if (WEB_DEMO_PROFILES.has(sourceType)) {
             return { kind: 'demo', profile: sourceType as WebDemoProfile, pollIntervalMs }

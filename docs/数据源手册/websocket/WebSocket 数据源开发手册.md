@@ -70,23 +70,16 @@ export interface DataSource {
 
 ## 三、数据源注册与演示模式判定
 
-用户在「数据源管理」对话框新建数据源（`src/stores/dataSource.ts`）。选 WebSocket 类型 + 演示模式时，地址自动预填为演示标识地址：
+用户在「数据源管理」对话框新建数据源（`src/stores/dataSource.ts`）。选 WebSocket 类型 + 演示模式时无需填写地址（地址框置空只读），保存时 `config.demo` 置为 `true`。
 
-```ts
-export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
-    websocket: 'ws://localhost:8080/ws',   // 仅作演示模式标识，无对应本地服务
-    // ...
-}
-```
-
-是否为演示模式由 `src/platform/deviceConfig.ts` 的 `isDemoSource` 判定：显式 `config.demo` 优先，其次地址等于内置演示标识地址才视为演示。两种模式保存后均落盘到 `datasources.json`：
+是否为演示模式由 `src/platform/deviceConfig.ts` 的 `isDemoSource` 判定：仅以 `config.demo === true` 为准（演示模式地址可为空）。两种模式保存后均落盘到 `datasources.json`：
 
 ```json
-{ "id": "ds-1712345-abc123", "name": "内置WebSocket模拟源", "type": "websocket", "url": "ws://localhost:8080/ws" }
+{ "id": "ds-1712345-abc123", "name": "内置WebSocket模拟源", "type": "websocket", "url": "", "config": { "demo": true } }
 ```
 
 ```json
-{ "id": "ds-1712345-def456", "name": "车间遥测", "type": "websocket", "url": "ws://127.0.0.1:12345" }
+{ "id": "ds-1712345-def456", "name": "车间遥测", "type": "websocket", "url": "ws://127.0.0.1:12345", "config": { "demo": false } }
 ```
 
 前者判定为演示模式（映射 Rust 网关配置 `{ kind:'demo', profile:'websocket', pollIntervalMs }`）；后者为真实模式（`{ kind:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
@@ -245,7 +238,7 @@ wscat -c ws://192.168.0.10:9000/telemetry
 | `src/services/DataService.ts` | `DataPoint` / `IDataService` / `DataBindingConfig` 定义 |
 | `src/services/IpcGatewayService.ts` | IPC 数据服务（所有数据源唯一通道） |
 | `src/composables/useDataService.ts` | 统一路由、缓存服务、节点绑定 |
-| `src/stores/dataSource.ts` | 数据源实例 CRUD 与持久化、演示标识地址常量 |
+| `src/stores/dataSource.ts` | 数据源实例 CRUD 与持久化 |
 | `src/platform/deviceConfig.ts` | `isDemoSource` 演示判定与 Rust 网关配置映射 |
 | `src/components/PropertyPanel.vue` | 「数据绑定」标签页 UI 与 `updateBinding` 提交 |
 | `src/composables/useNodeData.ts` | 节点组件响应式数据刷新 |

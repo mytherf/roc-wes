@@ -4,15 +4,21 @@
       "id": "tpl3-ds-mqtt",
       "name": "AGV车队遥测(MQTT)",
       "type": "mqtt",
-      "url": "ws://localhost:8083",
-      "description": "AGV 调度区模板 - 车队位置/电量/任务状态"
+      "url": "",
+      "description": "AGV 调度区模板 - 车队位置/电量/任务状态",
+      "config": {
+        "demo": true
+      }
     },
     {
       "id": "tpl3-ds-ws",
       "name": "接驳站数据(WS)",
       "type": "websocket",
-      "url": "ws://localhost:8080/ws",
-      "description": "AGV 调度区模板 - 接驳输送线/充电桩状态"
+      "url": "",
+      "description": "AGV 调度区模板 - 接驳输送线/充电桩状态",
+      "config": {
+        "demo": true
+      }
     }
   ],
   "nodes": [

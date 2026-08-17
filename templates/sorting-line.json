@@ -4,15 +4,21 @@
       "id": "tpl2-ds-ws",
       "name": "分拣线主数据源(WS)",
       "type": "websocket",
-      "url": "ws://localhost:8080/ws",
-      "description": "分拣线模板 - 分拣机/输送线/机械手实时数据"
+      "url": "",
+      "description": "分拣线模板 - 分拣机/输送线/机械手实时数据",
+      "config": {
+        "demo": true
+      }
     },
     {
       "id": "tpl2-ds-sse",
       "name": "分拣事件流(SSE)",
       "type": "sse",
-      "url": "http://localhost:8082/sse",
-      "description": "分拣线模板 - 分拣速率与计数事件流"
+      "url": "",
+      "description": "分拣线模板 - 分拣速率与计数事件流",
+      "config": {
+        "demo": true
+      }
     }
   ],
   "nodes": [
