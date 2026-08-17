@@ -3,11 +3,11 @@
 #
 # 工程结构说明：
 #   1. 这是一个“工作区（workspace）”工程：根目录只放桌面壳（roc-wes-desktop），
-#      真正的设备网关业务逻辑拆成 4 个独立 crate 放在 crates/ 目录，
+#      真正的设备网关业务逻辑拆成多个独立 crate 放在 crates/ 目录，
 #      各自可单独编译、单独测试，与 Tauri 解耦。
 #   2. 桌面壳职责：启动 WebView、注册 IPC 命令、把 Tauri 事件桥接给网关引擎。
 #      业务 crate：领域模型/会话编排/演示 + 每协议一个适配器 crate
-#      （modbus/websocket/http/sse/mqtt，Web 协议共享内核 gateway-common）。
+#      （modbus/s7/opcua/websocket/http/sse/mqtt，Web 协议共享内核 gateway-common）。
 # ═══════════════════════════════════════════════════════════════
 
 # ---- 工作区定义：包含 crates/ 下的全部子 crate ----
@@ -56,6 +56,8 @@ gateway-websocket = { path = "crates/gateway-websocket" }   # WebSocket 适配�
 gateway-http = { path = "crates/gateway-http" }             # HTTP 轮询适配器（真实模式）
 gateway-sse = { path = "crates/gateway-sse" }               # SSE 适配器（真实模式）
 gateway-mqtt = { path = "crates/gateway-mqtt" }             # MQTT 适配器（真实模式）
+gateway-s7 = { path = "crates/gateway-s7" }                 # 西门子 S7 适配器（snap7-client）
+gateway-opcua = { path = "crates/gateway-opcua" }           # OPC UA 适配器（opcua crate，匿名轮询）
 gateway-demo = { path = "crates/gateway-demo" }             # 演示模式适配器（模拟数据）
 
 # ---- 特性开关（Cargo features） ----

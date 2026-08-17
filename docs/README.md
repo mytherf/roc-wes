@@ -62,16 +62,16 @@ docs/
 - 代码清理：Node 网关与工业 mock 桥接退役、依赖精简、S7 slot 默认值统一
 - 应用图标与 NSIS 打包配置、`npx tauri dev` 开发链路
 - 持久化升级：tauri-plugin-fs 全部工程数据落盘为应用配置目录 JSON 文件（原子写入），全面替代 localStorage / sessionStorage
+- 全协议 Rust 网关统一：Web 协议（WebSocket/HTTP/SSE/MQTT）适配器 crate 上线，真实模式与演示模式统一走 IPC
+- S7 / OPC UA 适配器上线：`gateway-s7`（snap7-client，nodes7 点位合同，snap7-server 往返测试）+ `gateway-opcua`（opcua crate 匿名轮询），factory 最后两个 Unsupported 分支补齐，7 类协议真实模式全通
 
 ### 后续（按风险排序）
 
-1. **S7 spike**（风险最高）：snap7 绑定 vs 自研 S7comm（已有 TPKT/COTP/S7 PDU 的 JS 逆向经验可移植），产出 `gateway-s7` 并在 factory 注册
-2. **OPC UA**：引入 `opcua` crate，产出 `gateway-opcua`
-3. **打包完善**：NSIS 安装器调优、（可选）tauri-plugin-updater 自动更新
-4. **日志落盘**：tracing-appender 滚动文件（AppData）
+1. **打包完善**：NSIS 安装器调优、（可选）tauri-plugin-updater 自动更新
+2. **日志落盘**：tracing-appender 滚动文件（AppData）
 
 ### 已知限制（现状声明）
 
 - 应用为纯桌面版（Tauri），统一以 `npx tauri dev` 启动；ws/http/sse/mqtt 需外部服务或使用演示模式。
-- 桌面版真实模式目前仅 Modbus 可用；S7 / OPC UA 连接会返回「适配器待实现」错误（演示模式不受影响）。
+- 7 类协议真实模式均已上线（S7 需真实 PLC、OPC UA 需真实服务器）；S7/OPC UA 构建依赖仓库根 `.cargo/config.toml` 中的 OpenSSL 静态链接配置。
 - 未绑定数据源的节点保持静态值，不产生任何模拟数据变化；需要实时数据请显式绑定数据源。

@@ -16,16 +16,8 @@ pub fn create_adapter(config: DeviceConfig) -> Result<(Box<dyn DeviceAdapter>, u
         DeviceConfig::Http(cfg) => Box::new(gateway_http::HttpAdapter::new(cfg)),
         DeviceConfig::Sse(cfg) => Box::new(gateway_sse::SseAdapter::new(cfg)),
         DeviceConfig::Mqtt(cfg) => Box::new(gateway_mqtt::MqttAdapter::new(cfg)),
-        DeviceConfig::S7(_) => {
-            return Err(GatewayError::Unsupported(
-                "S7 适配器待 spike（snap7 绑定 / 自研 S7comm），见 docs/tauri-迁移方案.md".into(),
-            ))
-        }
-        DeviceConfig::Opc(_) => {
-            return Err(GatewayError::Unsupported(
-                "OPC UA 适配器待引入 opcua crate".into(),
-            ))
-        }
+        DeviceConfig::S7(cfg) => Box::new(gateway_s7::S7Adapter::new(cfg)),
+        DeviceConfig::Opc(cfg) => Box::new(gateway_opcua::OpcuaAdapter::new(cfg)),
     };
     Ok((adapter, poll_interval_ms))
 }

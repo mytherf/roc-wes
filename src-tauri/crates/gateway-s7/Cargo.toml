@@ -1,0 +1,27 @@
+# ═══════════════════════════════════════════════════════════════
+# gateway-s7 - 西门子 S7 适配器 crate
+#
+# 职责：实现 DeviceAdapter 端口，与 S7-300/400/1200/1500 PLC 通信：
+#   - 点 ID 沿用 nodes7 风格合同（DB1,REAL0 / DB1,X0.0 / MB0 / M0.0 / IB0）
+#   - 基于 snap7-client（纯 Rust 异步 S7Comm 协议栈），多点合并 PDU 批量读
+#   - v1 仅 S7Comm（S7Client）；S7CommPlus（S7PlusClient）作为后续演进
+# 由桌面壳组合根（factory.rs）按配置实例化并交给网关引擎。
+# ═══════════════════════════════════════════════════════════════
+
+[package]
+name = "gateway-s7"
+version = "0.1.0"
+description = "西门子 S7 适配器（snap7-client）：nodes7 风格点位合同，多点合并批量读"
+edition = "2021"
+
+[dependencies]
+gateway-core = { path = "../gateway-core" }  # 领域模型（配置/遥测/端口）
+snap7-client = "=0.1.7"   # 纯 Rust 异步 S7 协议栈（pre-1.0，精确 pin 锁定 API）
+tokio = { version = "1", features = ["net"] }  # 主机名解析
+async-trait = "0.1"   # async trait（DeviceAdapter 实现）
+tracing = "0.1"       # 日志
+serde_json = "1"      # JSON 值类型（解码结果）
+
+[dev-dependencies]
+snap7-server = "=0.1.7"  # 进程内 PLC 模拟器（往返集成测试，无需真机）
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

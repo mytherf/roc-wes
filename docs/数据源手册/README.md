@@ -13,8 +13,8 @@
 | [HTTP 轮询](./http/用户使用手册.md) | `http` | 请求/响应、定时拉取 | WebView 原生 fetch 直连 | 桌面演示模式（DemoAdapter 随机游走） | ✅ 直连接口 |
 | [SSE](./sse/用户使用手册.md) | `sse` | HTTP 单向推送、自动重连 | WebView 原生 EventSource 直连 | 桌面演示模式（DemoAdapter 锯齿波） | ✅ 直连接口 |
 | [MQTT](./mqtt/用户使用手册.md) | `mqtt` | 发布/订阅、主题分发 | mqtt.js over WebSocket 直连 | 桌面演示模式（DemoAdapter 离散档位） | ✅ 直连 broker |
-| [西门子 S7](./s7/用户使用手册.md) | `s7` | S7comm 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ⏳ 适配器开发中 |
-| [OPC UA](./opc/用户使用手册.md) | `opc` | opc.tcp 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ⏳ 适配器开发中 |
+| [西门子 S7](./s7/用户使用手册.md) | `s7` | S7comm 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生直连 PLC（snap7-client） |
+| [OPC UA](./opc/用户使用手册.md) | `opc` | opc.tcp 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生轮询读取（opcua crate） |
 | [Modbus](./modbus/用户使用手册.md) | `modbus` | Modbus TCP 二进制 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生直连设备 |
 
 > 前 4 种是 WebView 原生支持的协议，**真实模式**下前端 Service 直连即可；后 3 种是工业 TCP 协议，浏览器无法直连，**桌面版经 Tauri IPC 由 Rust 网关原生连接设备**（无中间进程、无本地端口）。
@@ -55,7 +55,7 @@ interface DataPoint {
 | HTTP 轮询 | 查询参数 pointId | `env.humidity.01` |
 | SSE | 查询参数 pointId | `progress.task.01` |
 | MQTT | MQTT 主题（支持 `+`/`#`） | `device/pump/01/status` |
-| 西门子 S7 | 规划沿用 nodes7 风格地址（待 S7 spike 确认） | `DB1,REAL0` / `MB0` / `M0.0` |
+| 西门子 S7 | nodes7 风格地址（DB/M/I/Q 区标量与位；数组点 v2） | `DB1,REAL0` / `MB0` / `M0.0` |
 | OPC UA | NodeId 字符串 | `ns=2;s=Ramp` |
 | Modbus | 数据区:地址（0 基） | `holding:100` / `coil:0` |
 
@@ -75,8 +75,8 @@ interface DataPoint {
 - 服务端只有 REST 接口、数据变化不快 → **HTTP 轮询**
 - 服务端单向推送、想走标准 HTTP 且省自重连 → **SSE**
 - 海量 IoT 设备、发布/订阅、主题分发 → **MQTT**
-- 西门子 S7 系列 PLC → **西门子 S7**（桌面适配器开发中，当前可用演示模式）
-- 多厂商统一接入、标准化信息模型 → **OPC UA**（桌面适配器开发中，当前可用演示模式）
+- 西门子 S7 系列 PLC → **西门子 S7**（桌面版已可直连真实 PLC）
+- 多厂商统一接入、标准化信息模型 → **OPC UA**（桌面版已可轮询真实服务器）
 - 通用 PLC/仪表、按寄存器读写 → **Modbus**（桌面版已可直连真实设备）
 
 ## 七、关键源码索引
@@ -91,6 +91,6 @@ interface DataPoint {
 | 网关监控探针 | `src/services/GatewayMonitorService.ts`（桌面工业协议走 `mon:` 独立 IPC 会话） |
 | 数据源实例 Store | `src/stores/dataSource.ts` |
 | 数据源管理对话框 | `src/components/DataSourceDialog.vue` + `DataSourceDeviceConfig.vue` |
-| Rust 网关 workspace | `src-tauri/crates/{gateway-core,gateway-engine,gateway-modbus,gateway-demo}` |
+| Rust 网关 workspace | `src-tauri/crates/{gateway-core,gateway-engine,gateway-modbus,gateway-s7,gateway-opcua,gateway-demo,gateway-common}` |
 | IPC 命令与适配器工厂 | `src-tauri/src/{commands.rs,factory.rs}` |
 | 内置演示波形引擎（桌面演示模式） | `src-tauri/crates/gateway-demo/src/lib.rs`（DemoAdapter 四种协议特征波形） |

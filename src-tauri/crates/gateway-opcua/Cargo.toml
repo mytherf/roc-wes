@@ -1,0 +1,27 @@
+# ═══════════════════════════════════════════════════════════════
+# gateway-opcua - OPC UA 适配器 crate
+#
+# 职责：实现 DeviceAdapter 端口，以匿名会话轮询 OPC UA 服务器：
+#   - 点 ID 解析为 NodeId（ns={n};s={str} / ns={n};i={num}）
+#   - 批量 Read 服务，DataValue → Telemetry（含质量戳映射）
+#   - SecurityPolicy None，与旧 Node 网关行为对齐
+# 由桌面壳组合根（factory.rs）按配置实例化并交给网关引擎。
+# ═══════════════════════════════════════════════════════════════
+
+[package]
+name = "gateway-opcua"
+version = "0.1.0"
+description = "OPC UA 适配器（opcua crate）：匿名轮询，NodeId 批量读，质量戳映射"
+edition = "2021"
+
+[dependencies]
+gateway-core = { path = "../gateway-core" }  # 领域模型（配置/遥测/端口）
+# 依赖系统预编译 OpenSSL（参数见仓库根 .cargo/config.toml，静态链接无需 DLL）
+opcua = { version = "0.12", default-features = false, features = ["client"] }  # 纯 Rust OPC UA 协议栈
+tokio = { version = "1", features = ["net", "rt"] }  # spawn_blocking 包裹同步会话调用
+async-trait = "0.1"   # async trait（DeviceAdapter 实现）
+tracing = "0.1"       # 日志
+serde_json = "1"      # JSON 值类型（读取结果）
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

@@ -54,9 +54,9 @@ src-tauri/
    ├─ gateway-sse/         # SseAdapter（reqwest 字节流，按点位建流）
    ├─ gateway-mqtt/        # MqttAdapter（rumqttc，主题过滤器订阅）
    ├─ gateway-common/      # Web 协议共享内核：帧解析 / 通配符匹配 / 最新值缓冲
+   ├─ gateway-s7/          # S7Adapter（snap7-client，nodes7 风格点位合同）
+   ├─ gateway-opcua/       # OpcuaAdapter（opcua crate，匿名 + SecurityPolicy None 轮询）
    └─ gateway-demo/        # DemoAdapter（演示模式模拟数据）
-   #（规划中）gateway-s7/  # snap7 绑定或自研 S7comm —— 风险最高，spike 前置
-   #（规划中）gateway-opcua/ # opcua crate
 ```
 
 依赖方向严格单向：`壳 → engine → core`，`适配器 crate → core`（Web 协议适配器另依赖共享内核 `gateway-common`）；
@@ -106,7 +106,7 @@ src-tauri/
 ### 3.3 点位 ID 约定（与现有 Node 网关一致）
 
 - Modbus：`holding:N` / `input:N` / `coil:N` / `discrete:N`
-- S7：`db{n}.dbx{b}.{bit}` / `db{n}.dbw{w}` 等（沿用 nodes7 风格，待 spike 确认）
+- S7：nodes7 风格地址（DB/M/I/Q 区标量与位；数组点 v2），见数据源手册 s7 §六
 - OPC UA：`ns=2;s=...`
 - WebSocket / HTTP / SSE：任意字符串（即订阅主题 / 轮询 pointId，需与服务端一致）
 - MQTT：主题过滤器（支持 `+` / `#` 通配符），遥测 point_id 即订阅过滤器
@@ -188,10 +188,9 @@ sequenceDiagram
 - 持久化升级：tauri-plugin-fs + `platform/fileStorage`（原子写入），全部工程数据落盘为应用配置目录 JSON 文件，全面替代 localStorage / sessionStorage
 - 全协议 Rust 网关统一：新增 Web 协议适配器 crate（WebSocket/HTTP/SSE/MQTT，推送型协议采用「后台读取任务 + 最新值缓冲」+ 订阅差量同步），ws/http/sse/mqtt 真实模式不再由 WebView 直连，与演示模式/工业协议统一走 IPC；前端删除 4 个直连服务类与 mqtt 依赖，`GatewayMonitorService` 收敛为纯 IPC 探测
 - Web 协议 crate 拆分：按「每协议一个 crate」拆为 `gateway-websocket` / `gateway-http` / `gateway-sse` / `gateway-mqtt`（对齐 `gateway-modbus` 组织），共享逻辑（帧解析 / MQTT 通配符 / `LatestValueBuffer` 最新值缓冲）提取为 `gateway-common` 内核；缓冲对象化消除三个推送型适配器的同构排空代码
+- S7 / OPC UA 适配器上线（factory 最后两个 `Unsupported` 分支补齐，7 类协议真实模式全通）：`gateway-s7`（snap7-client =0.1.7，nodes7 点位合同，批量 `read_multi_vars` + 逐点降级，snap7-server 进程内模拟器往返测试 9 项）；`gateway-opcua`（opcua crate 0.12 同步客户端 + `spawn_blocking` 包裹，匿名 + SecurityPolicy None，NodeId 仅 `ns={n};s=` / `ns={n};i=`，7 项测试）；OpenSSL 静态链接参数固化于仓库根 `.cargo/config.toml`（`OPENSSL_LIB_DIR` + `OPENSSL_LIBS=libssl_static:libcrypto_static`），发布免 DLL；引擎 / 命令层 / 前端零改动
 
 后续（按风险排序）：
 
-1. **S7 spike**（风险最高）：snap7 绑定 vs 自研 S7comm（TPKT/COTP 已有 JS 逆向经验），产出 `gateway-s7` 并在 factory 注册
-2. OPC UA：引入 `opcua` crate，`gateway-opcua`
-3. 打包完善：NSIS 安装器调优、（可选）tauri-plugin-updater 自动更新
-4. 日志落盘：tracing-appender 滚动文件（AppData）
+1. 打包完善：NSIS 安装器调优、（可选）tauri-plugin-updater 自动更新
+2. 日志落盘：tracing-appender 滚动文件（AppData）

@@ -1,0 +1,14 @@
+# ═══════════════════════════════════════════════════════════════
+# workspace 构建配置
+#
+# OPENSSL_*：opcua crate（gateway-opcua）硬依赖 OpenSSL。
+# Windows MSVC 本机需安装预编译 OpenSSL（ShiningLight Win64 完整版，
+# winget install ShiningLight.OpenSSL.Dev，默认装到 C:\Program Files\OpenSSL-Win64）。
+# 此处静态链接 ssl_static/crypto_static（/MD CRT），发布包无需携带 OpenSSL DLL。
+# ═══════════════════════════════════════════════════════════════
+
+[env]
+OPENSSL_LIB_DIR = "C:\\Program Files\\OpenSSL-Win64\\lib\\VC\\x64\\MD"
+OPENSSL_INCLUDE_DIR = "C:\\Program Files\\OpenSSL-Win64\\include"
+OPENSSL_STATIC = "1"
+OPENSSL_LIBS = "libssl_static:libcrypto_static"
