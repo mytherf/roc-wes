@@ -70,7 +70,7 @@ export interface DataSource {
 
 ## 三、数据源注册与演示模式判定
 
-用户在「数据源管理」对话框新建数据源（`src/stores/dataSource.ts`）。选 WebSocket 类型 + 演示模式时无需填写地址（地址框置空只读），保存时 `config.demo` 置为 `true`。
+用户在「数据源管理」对话框新建数据源（`src/stores/dataSource.ts`）。选 WebSocket 类型 + 演示模式时无需填写地址（地址框置空只读），保存时 `config.demo` 置为 `true`；演示模式下还可选择「演示波形」（默认跟随协议特征波形，四档任选），选择后写入 `config.profile`。
 
 是否为演示模式由 `src/platform/deviceConfig.ts` 的 `isDemoSource` 判定：仅以 `config.demo === true` 为准（演示模式地址可为空）。两种模式保存后均落盘到 `datasources.json`：
 
@@ -82,7 +82,7 @@ export interface DataSource {
 { "id": "ds-1712345-def456", "name": "车间遥测", "type": "websocket", "url": "ws://127.0.0.1:12345", "config": { "demo": false } }
 ```
 
-前者判定为演示模式（映射 Rust 网关配置 `{ kind:'demo', profile:'websocket', pollIntervalMs }`）；后者为真实模式（`{ kind:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
+前者判定为演示模式（映射 Rust 网关配置 `{ kind:'demo', profile:'websocket', pollIntervalMs }`；若用户选了「演示波形」则 profile 取 `config.profile`）；后者为真实模式（`{ kind:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
 
 ## 四、节点绑定提交（PropertyPanel）
 
@@ -182,6 +182,8 @@ listen('gateway://telemetry', (e) => {
 演示模式由桌面端 Rust 网关内置实现：`src-tauri/crates/gateway-demo/src/lib.rs` 的 `DemoAdapter`（`profile = Websocket`），不监听任何端口。
 
 链路：前端 `useDataService` 判定演示模式 → 创建 `IpcGatewayService`（`{ kind:'demo', profile:'websocket' }`）→ `invoke('gateway_connect')` → Rust 会话任务按轮询周期调用 `DemoAdapter.read()` → 遥测经 `gateway://telemetry` 事件批量推回前端。真实模式链路完全相同，仅配置为 `{ kind:'websocket', url, pollIntervalMs }`、适配器为 `WebSocketAdapter`。
+
+波形 profile 由 `buildDeviceConfig` 推导：优先取用户选择的 `config.profile`（四档：websocket=正弦 / http=随机游走 / sse=锯齿 / mqtt=离散档位，任意协议均可指定）；未选择时 Web 协议按数据源类型取协议特征波形，工业协议省略（Rust 默认正弦）。
 
 数据生成算法——平滑正弦波 + 确定性伪噪声，范围约 20~80：
 

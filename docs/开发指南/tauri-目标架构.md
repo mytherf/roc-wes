@@ -182,8 +182,8 @@ sequenceDiagram
 - Modbus / 演示模式在桌面端可用
 - 代码清理（A+B+C）：移除 Node 网关 `gateway/`（约 1000 行）与 mock 工业桥接（端口 8084/8085/8086）、相关 scripts 与依赖（modbus-serial / node-opcua / nodes7 / tsx / ts-node）；`GatewayMonitorService` 工业类型在 Tauri 下改经 IPC 探测（独立 `mon:` 前缀会话，避免与业务会话冲突）；S7 slot 默认值统一为 2；clippy 零警告
 - 纯桌面化：移除 `mock/` 内置模拟服务与浏览器版 WS 桥接服务（GatewayService / Modbus / S7 / Opc Service），数据链路统一为 IPC；vite dev 端口固定 1420（规避 Hyper-V 保留端口）；演示模式统一以数据源配置 `config.demo` 标识（地址可为空，无需表单预填）
-- 演示波形 profile 化：`DemoAdapter` 按 `DemoProfile` 复刻原 mock 各协议特征波形（正弦/阶梯/锯齿/离散档位/三角波等）；演示模式（任意协议）的监控探针与业务链路一致，统一经 Rust 演示引擎 IPC 探测
-- 多点绑定（点组）：`binding.points[]`（点 ID + 转换函数成组），首组为主点驱动节点渲染，全部点写入 `data.values`；配套前端测试（vitest + jsdom，3 文件 13 项）
+- 演示波形 profile 化：`DemoAdapter` 按 `DemoProfile` 复刻原 mock 各协议特征波形（正弦/随机游走/锯齿/离散档位）；演示模式（任意协议）的监控探针与业务链路一致，统一经 Rust 演示引擎 IPC 探测；波形可在数据源对话框「演示波形」中选择（config.profile，缺省按协议特征波形）
+- 多点绑定（点组）：`binding.points[]`（点 ID + 转换函数成组），首组为主点驱动节点渲染，全部点写入 `data.values`；配套前端测试（vitest + jsdom，4 文件 20 项，含演示波形选择用例）
 - 点组数据丢失回归修复：`data.values` 属运行期遥测字段，纳入 `useGraphSync` 的 `RUNTIME_DATA_KEYS`（否则遥测刷新被误判为实质变化 → 整画布重建 → 数据回落旧快照）；`binding` / `events` 写回改用 `node.updateData`（顶层替换），规避 X6 深合并（lodash.merge）数组按下标合并导致的删除残留；「切换丢失」修复——`PropertyPanel.updateBinding` 只要有主点即提交绑定（`sourceId` 允许后补，无源绑定运行期不订阅、节点保持静态值），避免未选数据源时录入的点位在切换节点/清空数据源时丢失
 - 持久化升级：tauri-plugin-fs + `platform/fileStorage`（原子写入），全部工程数据落盘为应用配置目录 JSON 文件，全面替代 localStorage / sessionStorage
 - 全协议 Rust 网关统一：新增 Web 协议适配器 crate（WebSocket/HTTP/SSE/MQTT，推送型协议采用「后台读取任务 + 最新值缓冲」+ 订阅差量同步），ws/http/sse/mqtt 真实模式不再由 WebView 直连，与演示模式/工业协议统一走 IPC；前端删除 4 个直连服务类与 mqtt 依赖，`GatewayMonitorService` 收敛为纯 IPC 探测

@@ -177,6 +177,15 @@
               </div>
             </div>
 
+            <!-- 演示波形：默认跟随协议特征波形，可指定内置演示引擎的任意一种 -->
+            <div v-if="form.demo" class="ds-field">
+              <label class="ds-label">演示波形</label>
+              <select v-model="form.profile" class="ds-input">
+                <option value="">跟随协议特征波形（{{ defaultWaveLabel }}）</option>
+                <option v-for="opt in DEMO_WAVE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+
             <!-- 工业协议设备参数（S7 / OPC UA / Modbus 的真实设备模式），抽取为子组件 -->
             <DataSourceDeviceConfig v-if="isIndustrial && !form.demo" :form="form" />
 
@@ -229,6 +238,7 @@ import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } 
 import DataSourceDeviceConfig from './DataSourceDeviceConfig.vue'
 import { useGatewayMonitor } from '@/composables/useGatewayMonitor'
 import type { MonitorState } from '@/services/GatewayMonitorService'
+import { DEMO_WAVE_OPTIONS, type DemoWave } from '@/platform/deviceConfig'
 import {
   useDataSourceStore,
   DATA_SOURCE_TYPE_LABELS,
@@ -313,6 +323,8 @@ const form = reactive({
   description: '',
   // 工业协议设备参数（S7 / OPC UA / Modbus，仅对应类型时生效）
   demo: true,
+  // 演示波形档位：空串 = 跟随协议特征波形；否则为 DEMO_WAVE_OPTIONS 的某个 value
+  profile: '' as '' | DemoWave,
   host: '127.0.0.1',
   port: 502,
   unitId: 1, // Modbus 从站地址
@@ -348,10 +360,15 @@ function defaultPortFor(t: DataSourceType): number {
   return 502 // modbus
 }
 
+/** 当前类型的特征波形显示名（波形下拉「跟随协议」选项的兜底说明） */
+const defaultWaveLabel = computed(() => {
+  return DEMO_WAVE_OPTIONS.find((o) => o.value === form.type)?.label ?? '正弦波（平滑遥测）'
+})
+
 /** 连接模式提示文案（随类型与模式变化） */
 const modeHint = computed(() => {
   if (form.demo) {
-    return '演示模式：由桌面端内置模拟引擎生成数据（无需真实设备，无需填写地址）'
+    return '演示模式：由桌面端内置模拟引擎生成数据（无需真实设备，无需填写地址）；波形默认跟随协议特征，可在下方「演示波形」中更换'
   }
   switch (form.type) {
     case 'modbus':
@@ -434,6 +451,7 @@ function resetForm() {
   form.url = '' // 默认演示模式，无需地址
   form.description = ''
   form.demo = true
+  form.profile = ''
   form.host = '127.0.0.1'
   form.port = 502
   form.unitId = 1
@@ -460,6 +478,8 @@ function openEdit(ds: DataSource) {
   // 演示模式判定：仅以 config.demo 为准
   const c = ds.config || {}
   form.demo = c.demo === true
+  // 波形回填：非法值归为「跟随协议」
+  form.profile = DEMO_WAVE_OPTIONS.some((o) => o.value === c.profile) ? (c.profile as DemoWave) : ''
   form.host = c.host ?? '127.0.0.1'
   form.port = c.port ?? defaultPortFor(ds.type)
   form.unitId = c.unitId ?? 1
@@ -491,8 +511,9 @@ function handleSave() {
     return
   }
 
-  // 工业协议设备参数与校验（演示模式统一以 config.demo 标识）
+  // 工业协议设备参数与校验（演示模式统一以 config.demo 标识，波形以 config.profile 保存）
   const config: Record<string, any> = { demo: form.demo }
+  if (form.profile) config.profile = form.profile
   if (form.type === 'modbus') {
     if (!form.demo && !form.host.trim()) {
       formError.value = '真实设备模式下请填写设备主机地址'

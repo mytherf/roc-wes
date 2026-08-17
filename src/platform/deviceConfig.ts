@@ -26,16 +26,24 @@ export function isDemoSource(sourceConfig?: Record<string, any>): boolean {
     return sourceConfig?.demo === true
 }
 
-/** 支持波形档位的四种 Web 协议（演示模式下 Rust 按其生成特征波形） */
-type WebDemoProfile = 'websocket' | 'http' | 'sse' | 'mqtt'
-const WEB_DEMO_PROFILES = new Set<string>(['websocket', 'http', 'sse', 'mqtt'])
+/** 演示波形档位（与 Rust `DemoProfile` 一一对应，值为 serde 小写串） */
+export type DemoWave = 'websocket' | 'http' | 'sse' | 'mqtt'
+
+/** 演示模式可选波形（供数据源对话框下拉；不选则按协议特征波形） */
+export const DEMO_WAVE_OPTIONS: { value: DemoWave; label: string }[] = [
+    { value: 'websocket', label: '正弦波（平滑遥测）' },
+    { value: 'http', label: '随机游走（缓慢漂移）' },
+    { value: 'sse', label: '锯齿斜升（升满归零）' },
+    { value: 'mqtt', label: '离散档位（阶梯切换）' },
+]
+const DEMO_WAVES = new Set<string>(['websocket', 'http', 'sse', 'mqtt'])
 
 /**
  * 依据数据源类型与配置构建 Rust DeviceConfig。
  * 演示模式统一映射为 `{ kind:'demo', profile?, pollIntervalMs }`：
- * Rust DemoAdapter 按 profile 生成对应协议的特征波形
- *（websocket=正弦 / http=随机游走 / sse=锯齿 / mqtt=档位）；
- * 工业协议演示省略 profile，由 Rust 侧默认波形兜底。
+ * 波形优先取用户在数据源配置中选择的 config.profile（任意协议均可指定）；
+ * 未选择时 Web 协议按协议特征波形（websocket=正弦 / http=随机游走 / sse=锯齿 / mqtt=档位），
+ * 工业协议省略 profile，由 Rust 侧默认正弦波兜底。
  * @param sourceType 数据源类型（modbus/s7/opc/...）
  * @param sourceUrl 数据源地址（真实模式下的连接地址，演示模式下可为空）
  * @param sourceConfig 数据源管理里保存的设备参数
@@ -51,11 +59,16 @@ export function buildDeviceConfig(
 
     // 演示模式：不连接任何真实设备，由 Rust 的 DemoAdapter 定时生成模拟数据
     if (isDemoSource(cfg)) {
-        // 四种 Web 协议传递波形档位；工业协议演示省略（Rust 默认波形）
-        if (WEB_DEMO_PROFILES.has(sourceType)) {
-            return { kind: 'demo', profile: sourceType as WebDemoProfile, pollIntervalMs }
-        }
-        return { kind: 'demo', pollIntervalMs }
+        // 波形：优先用户选择（config.profile）；未选时 Web 协议用协议特征波形，
+        // 工业协议省略 profile（Rust 默认正弦波）
+        const profile = DEMO_WAVES.has(cfg.profile)
+            ? (cfg.profile as DemoWave)
+            : DEMO_WAVES.has(sourceType)
+              ? (sourceType as DemoWave)
+              : undefined
+        return profile
+            ? { kind: 'demo', profile, pollIntervalMs }
+            : { kind: 'demo', pollIntervalMs }
     }
 
     // 按协议类型分别构造对应的连接参数
