@@ -9,7 +9,7 @@
 
 | 类型 | 标识 | 协议特征 | 接入方式（真实模式） | 内置演示 | 桌面版真实模式 |
 | --- | --- | --- | --- | --- | --- |
-| [WebSocket](./websocket/用户使用手册.md) | `websocket` | 全双工长连接、服务端推送 | WebView 原生 WebSocket 直连 | 桌面演示模式（DemoAdapter 正弦波） | ✅ 直连服务 |
+| [WebSocket](websocket/WebSocket 数据源使用手册.md) | `websocket` | 全双工长连接、服务端推送 | WebView 原生 WebSocket 直连 | 桌面演示模式（DemoAdapter 正弦波） | ✅ 直连服务 |
 | [HTTP 轮询](./http/用户使用手册.md) | `http` | 请求/响应、定时拉取 | WebView 原生 fetch 直连 | 桌面演示模式（DemoAdapter 随机游走） | ✅ 直连接口 |
 | [SSE](./sse/用户使用手册.md) | `sse` | HTTP 单向推送、自动重连 | WebView 原生 EventSource 直连 | 桌面演示模式（DemoAdapter 锯齿波） | ✅ 直连接口 |
 | [MQTT](./mqtt/用户使用手册.md) | `mqtt` | 发布/订阅、主题分发 | mqtt.js over WebSocket 直连 | 桌面演示模式（DemoAdapter 离散档位） | ✅ 直连 broker |
@@ -24,7 +24,7 @@
 
 | 数据源 | 用户使用手册 | 开发手册 |
 | --- | --- | --- |
-| WebSocket | [用户使用手册](./websocket/用户使用手册.md) | [开发手册](./websocket/开发手册.md) |
+| WebSocket | [用户使用手册](websocket/WebSocket 数据源使用手册.md) | [开发手册](websocket/WebSocket 数据源开发手册.md) |
 | HTTP 轮询 | [用户使用手册](./http/用户使用手册.md) | [开发手册](./http/开发手册.md) |
 | SSE | [用户使用手册](./sse/用户使用手册.md) | [开发手册](./sse/开发手册.md) |
 | MQTT | [用户使用手册](./mqtt/用户使用手册.md) | [开发手册](./mqtt/开发手册.md) |
