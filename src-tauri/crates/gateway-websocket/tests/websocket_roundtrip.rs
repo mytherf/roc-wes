@@ -3,7 +3,7 @@
 
 use futures_util::{SinkExt, StreamExt};
 use gateway_core::{DeviceAdapter, WebsocketConfig};
-use gateway_web::WebSocketAdapter;
+use gateway_websocket::WebSocketAdapter;
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message;

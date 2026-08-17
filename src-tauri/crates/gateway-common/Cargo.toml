@@ -1,0 +1,18 @@
+# ═══════════════════════════════════════════════════════════════
+# gateway-common - Web 协议共享内核 crate
+#
+# 职责：四种 Web 协议适配器（WebSocket/HTTP/SSE/MQTT）共用的
+#   帧解析（parse_frame）、MQTT 通配符匹配（topic_matches）、
+#   最新值缓冲（LatestValueBuffer）与 URL/时间工具。
+# 各协议 crate 独立依赖本内核，避免共享逻辑重复。
+# ═══════════════════════════════════════════════════════════════
+
+[package]
+name = "gateway-common"
+version = "0.1.0"
+description = "Web 协议共享内核：推送帧解析、MQTT 通配符匹配、点位最新值缓冲"
+edition = "2021"
+
+[dependencies]
+gateway-core = { path = "../gateway-core" }  # 领域模型（遥测/质量）
+serde_json = "1"       # 推送帧 JSON 解析

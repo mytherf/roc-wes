@@ -1,4 +1,8 @@
-//! 四种 Web 协议适配器共用的解析与缓冲工具
+//! gateway-common — 四种 Web 协议适配器共用的解析与缓冲工具
+//!
+//! 供 gateway-websocket / gateway-http / gateway-sse / gateway-mqtt 依赖：
+//! 推送帧解析（parse_frame）、MQTT 通配符匹配（topic_matches）、
+//! 点位最新值缓冲（LatestValueBuffer）及 URL/时间工具。
 
 use gateway_core::{Quality, Telemetry};
 use serde_json::Value;
@@ -6,12 +10,36 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// 点位最新值缓冲：point_id → 未读遥测样本（read 时排空，只保留最新一帧）
-pub type SampleBuffer = Arc<Mutex<HashMap<String, Telemetry>>>;
+/// 点位最新值缓冲：point_id → 未读遥测样本。
+///
+/// 推送型适配器（WebSocket/SSE/MQTT）共用：后台读取任务写入最新帧，
+/// `read()` 每轮排空本轮请求的点位。内部锁收敛于此对象，
+/// 适配器无需直接接触 Mutex（clone 廉价，可在任务间共享）。
+#[derive(Clone, Default)]
+pub struct LatestValueBuffer {
+    inner: Arc<Mutex<HashMap<String, Telemetry>>>,
+}
 
-/// 创建空缓冲
-pub fn new_buffer() -> SampleBuffer {
-    Arc::new(Mutex::new(HashMap::new()))
+impl LatestValueBuffer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 写入某点位的最新样本（后台读取任务调用）
+    pub fn insert(&self, point_id: String, tel: Telemetry) {
+        self.inner.lock().unwrap().insert(point_id, tel);
+    }
+
+    /// 排空本轮请求点位的最新样本（read 调用，只保留最新一帧）
+    pub fn drain(&self, point_ids: &[String]) -> Vec<Telemetry> {
+        let mut buf = self.inner.lock().unwrap();
+        point_ids.iter().filter_map(|id| buf.remove(id)).collect()
+    }
+
+    /// 清空全部样本（断连/会话销毁时调用）
+    pub fn clear(&self) {
+        self.inner.lock().unwrap().clear();
+    }
 }
 
 /// 当前 Unix 毫秒时间戳
@@ -162,6 +190,29 @@ mod tests {
     fn append_query_handles_existing_question_mark() {
         assert_eq!(append_query("http://h/x", "pointId=a"), "http://h/x?pointId=a");
         assert_eq!(append_query("http://h/x?k=1", "pointId=a"), "http://h/x?k=1&pointId=a");
+    }
+
+    #[test]
+    fn buffer_drain_returns_only_requested_points_once() {
+        let buf = LatestValueBuffer::new();
+        let tel = |id: &str| Telemetry {
+            point_id: id.into(),
+            value: serde_json::json!(1),
+            timestamp: 0,
+            quality: Quality::Good,
+        };
+        buf.insert("a".into(), tel("a"));
+        buf.insert("b".into(), tel("b"));
+        // 只排空请求的点位，且排空后不再返回
+        let out = buf.drain(&["a".into()]);
+        assert_eq!(out.len(), 1);
+        assert!(buf.drain(&["a".into()]).is_empty());
+        let out = buf.drain(&["a".into(), "b".into()]);
+        assert_eq!(out.len(), 1);
+        // clear 后全部排空
+        buf.insert("a".into(), tel("a"));
+        buf.clear();
+        assert!(buf.drain(&["a".into(), "b".into()]).is_empty());
     }
 
     #[test]

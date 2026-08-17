@@ -16,7 +16,7 @@ pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info,gateway_engine=debug,gateway_modbus=debug,gateway_web=debug")),
+                .unwrap_or_else(|_| EnvFilter::new("info,gateway_engine=debug,gateway_modbus=debug,gateway_websocket=debug,gateway_http=debug,gateway_sse=debug,gateway_mqtt=debug")),
         )
         .init();
 

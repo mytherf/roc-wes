@@ -11,11 +11,11 @@ pub fn create_adapter(config: DeviceConfig) -> Result<(Box<dyn DeviceAdapter>, u
     let adapter: Box<dyn DeviceAdapter> = match config {
         DeviceConfig::Modbus(cfg) => Box::new(gateway_modbus::ModbusAdapter::new(cfg)),
         DeviceConfig::Demo(cfg) => Box::new(gateway_demo::DemoAdapter::new(cfg.profile)),
-        // 真实模式 Web 协议：Rust 原生客户端接管，前端不再直连
-        DeviceConfig::Websocket(cfg) => Box::new(gateway_web::WebSocketAdapter::new(cfg)),
-        DeviceConfig::Http(cfg) => Box::new(gateway_web::HttpAdapter::new(cfg)),
-        DeviceConfig::Sse(cfg) => Box::new(gateway_web::SseAdapter::new(cfg)),
-        DeviceConfig::Mqtt(cfg) => Box::new(gateway_web::MqttAdapter::new(cfg)),
+        // 真实模式 Web 协议：每协议一个适配器 crate，Rust 原生客户端接管，前端不再直连
+        DeviceConfig::Websocket(cfg) => Box::new(gateway_websocket::WebSocketAdapter::new(cfg)),
+        DeviceConfig::Http(cfg) => Box::new(gateway_http::HttpAdapter::new(cfg)),
+        DeviceConfig::Sse(cfg) => Box::new(gateway_sse::SseAdapter::new(cfg)),
+        DeviceConfig::Mqtt(cfg) => Box::new(gateway_mqtt::MqttAdapter::new(cfg)),
         DeviceConfig::S7(_) => {
             return Err(GatewayError::Unsupported(
                 "S7 适配器待 spike（snap7 绑定 / 自研 S7comm），见 docs/tauri-迁移方案.md".into(),

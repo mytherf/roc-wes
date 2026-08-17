@@ -1,4 +1,4 @@
-//! WebSocket 适配器：Rust 作为 WS 客户端连接外部推送服务
+//! WebSocket 适配器 crate：Rust 作为 WS 客户端连接外部推送服务
 //!
 //! 协议约定与旧前端 WebSocketService 完全一致：
 //! - 订阅/退订：连接上发送 `{ "action": "subscribe" | "unsubscribe", "topic": <点ID> }`；
@@ -7,7 +7,7 @@
 //! 实现模式：connect 后拆出读写半，writer 任务经 mpsc 通道收发订阅指令帧，
 //! reader 任务解析推送帧写入缓冲；read() 每 tick 同步订阅差量并排空缓冲。
 
-use crate::common::{new_buffer, parse_frame, SampleBuffer};
+use gateway_common::{parse_frame, LatestValueBuffer};
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
 use gateway_core::{DeviceAdapter, GatewayError, Telemetry, WebsocketConfig};
@@ -33,7 +33,7 @@ enum WsCmd {
 pub struct WebSocketAdapter {
     url: String,
     /// 推送帧缓冲（按点位保留最新未读样本）
-    buffer: SampleBuffer,
+    buffer: LatestValueBuffer,
     /// 已向服务端发送 subscribe 的点集（与下一轮 point_ids 做差量同步）
     subscribed: HashSet<String>,
     /// 与 reader 任务共享的活动订阅集：只缓冲已订阅点，防止缓冲区膨胀
@@ -50,7 +50,7 @@ impl WebSocketAdapter {
     pub fn new(config: WebsocketConfig) -> Self {
         Self {
             url: config.url,
-            buffer: new_buffer(),
+            buffer: LatestValueBuffer::new(),
             subscribed: HashSet::new(),
             active: Arc::new(Mutex::new(HashSet::new())),
             cmd_tx: None,
@@ -88,7 +88,7 @@ impl DeviceAdapter for WebSocketAdapter {
         self.cmd_tx = None;
         self.subscribed.clear();
         self.active.lock().unwrap().clear();
-        self.buffer.lock().unwrap().clear();
+        self.buffer.clear();
         Ok(())
     }
 
@@ -108,14 +108,7 @@ impl DeviceAdapter for WebSocketAdapter {
         self.subscribed = next.clone();
         *self.active.lock().unwrap() = next;
         // 排空缓冲中本轮请求点位的最新样本
-        let mut buf = self.buffer.lock().unwrap();
-        let mut out = Vec::new();
-        for id in point_ids {
-            if let Some(t) = buf.remove(id) {
-                out.push(t);
-            }
-        }
-        Ok(out)
+        Ok(self.buffer.drain(point_ids))
     }
 
     fn kind(&self) -> &'static str {
@@ -142,7 +135,7 @@ async fn writer_task(
 /// reader 任务：解析服务端推送帧，命中活动订阅集的写入缓冲
 async fn reader_task(
     mut reader: futures_util::stream::SplitStream<WsStream>,
-    buffer: SampleBuffer,
+    buffer: LatestValueBuffer,
     active: Arc<Mutex<HashSet<String>>>,
     dead: Arc<AtomicBool>,
 ) {
@@ -153,7 +146,7 @@ async fn reader_task(
                     if let Some(tel) = parse_frame(&v, None, None) {
                         let act = active.lock().unwrap();
                         if act.contains(&tel.point_id) {
-                            buffer.lock().unwrap().insert(tel.point_id.clone(), tel);
+                            buffer.insert(tel.point_id.clone(), tel);
                         }
                     }
                     // 无 topic/value 的自定义指令帧（如业务回执）安全忽略

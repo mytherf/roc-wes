@@ -1,4 +1,4 @@
-//! MQTT 适配器：Rust 连接 broker，点ID 作为主题过滤器订阅
+//! MQTT 适配器 crate：Rust 连接 broker，点ID 作为主题过滤器订阅
 //!
 //! 语义与旧前端 MqttService 一致：
 //! - broker 地址沿用现有语义（ws:// MQTT-over-WebSocket；rumqttc 亦支持 mqtt:// 原生 TCP）；
@@ -9,7 +9,7 @@
 //! 实现模式：eventloop 后台任务接收发布并按命中过滤器写入缓冲，
 //! read() 每 tick 同步过滤器差量（subscribe/unsubscribe）并排空缓冲。
 
-use crate::common::{new_buffer, parse_frame, topic_matches, SampleBuffer};
+use gateway_common::{parse_frame, topic_matches, LatestValueBuffer};
 use async_trait::async_trait;
 use gateway_core::{DeviceAdapter, GatewayError, MqttConfig, Telemetry};
 use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS};
@@ -23,7 +23,7 @@ use tracing::{debug, warn};
 pub struct MqttAdapter {
     url: String,
     /// 发布帧缓冲（按订阅过滤器保留最新未读样本）
-    buffer: SampleBuffer,
+    buffer: LatestValueBuffer,
     /// 与 eventloop 任务共享的活动过滤器集
     filters: Arc<Mutex<HashSet<String>>>,
     /// 已向 broker 发送 subscribe 的过滤器集（与下一轮 point_ids 做差量同步）
@@ -38,7 +38,7 @@ impl MqttAdapter {
     pub fn new(config: MqttConfig) -> Self {
         Self {
             url: config.url,
-            buffer: new_buffer(),
+            buffer: LatestValueBuffer::new(),
             filters: Arc::new(Mutex::new(HashSet::new())),
             subscribed: HashSet::new(),
             client: None,
@@ -57,7 +57,7 @@ impl DeviceAdapter for MqttAdapter {
         let client_id = format!(
             "roc-wes-{}-{}",
             std::process::id(),
-            crate::common::now_ms()
+            gateway_common::now_ms()
         );
         opts.set_client_id(client_id);
         opts.set_keep_alive(Duration::from_secs(30));
@@ -82,7 +82,7 @@ impl DeviceAdapter for MqttAdapter {
         self.client = None;
         self.subscribed.clear();
         self.filters.lock().unwrap().clear();
-        self.buffer.lock().unwrap().clear();
+        self.buffer.clear();
         Ok(())
     }
 
@@ -108,14 +108,7 @@ impl DeviceAdapter for MqttAdapter {
         self.subscribed = next.clone();
         *self.filters.lock().unwrap() = next;
         // 排空缓冲中本轮请求过滤器的最新样本
-        let mut buf = self.buffer.lock().unwrap();
-        let mut out = Vec::new();
-        for id in point_ids {
-            if let Some(t) = buf.remove(id) {
-                out.push(t);
-            }
-        }
-        Ok(out)
+        Ok(self.buffer.drain(point_ids))
     }
 
     fn kind(&self) -> &'static str {
@@ -126,7 +119,7 @@ impl DeviceAdapter for MqttAdapter {
 /// eventloop 任务：驱动 MQTT 收发，发布帧按命中的过滤器写入缓冲
 async fn mqtt_eventloop(
     mut eventloop: EventLoop,
-    buffer: SampleBuffer,
+    buffer: LatestValueBuffer,
     filters: Arc<Mutex<HashSet<String>>>,
     dead: Arc<AtomicBool>,
 ) {
@@ -141,7 +134,7 @@ async fn mqtt_eventloop(
                             // point_id 用订阅过滤器；无 value/data 字段时取整个 JSON
                             if let Some(mut t) = parse_frame(&v, Some(f), Some(&v)) {
                                 t.point_id = f.clone();
-                                buffer.lock().unwrap().insert(f.clone(), t);
+                                buffer.insert(f.clone(), t);
                             }
                         }
                     }

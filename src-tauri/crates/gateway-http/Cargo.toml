@@ -1,0 +1,23 @@
+# ═══════════════════════════════════════════════════════════════
+# gateway-http - HTTP 轮询适配器 crate
+#
+# 职责：真实模式 HTTP 数据源由 Rust 原生客户端接管：
+#   按点位发起 GET ${url}?pointId=xxx 查询最新值，无后台任务，
+#   轮询节奏由网关引擎 tick 驱动；全部点位失败视为服务不可达。
+# 由桌面壳组合根（factory.rs）按配置实例化并交给网关引擎。
+# ═══════════════════════════════════════════════════════════════
+
+[package]
+name = "gateway-http"
+version = "0.1.0"
+description = "HTTP 轮询适配器（reqwest）：按点位 GET 查询，响应解析为遥测"
+edition = "2021"
+
+[dependencies]
+gateway-core = { path = "../gateway-core" }            # 领域模型（配置/遥测/端口）
+gateway-common = { path = "../gateway-common" }        # 帧解析与 URL 工具
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "rustls-native-certs"] }  # HTTP 客户端（支持 https）
+percent-encoding = "2" # 点ID 拼入查询参数时的 URL 编码
+async-trait = "0.1"    # async trait（DeviceAdapter 实现）
+serde_json = "1"       # 响应 JSON 解析
+tracing = "0.1"        # 日志

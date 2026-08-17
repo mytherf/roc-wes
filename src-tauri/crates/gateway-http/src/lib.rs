@@ -1,10 +1,10 @@
-//! HTTP 轮询适配器：按点位 GET 查询最新值
+//! HTTP 轮询适配器 crate：按点位 GET 查询最新值
 //!
 //! 语义与旧前端 HttpPollingService 一致：对每个点发起
 //! `GET ${url}?pointId=xxx`，服务端返回 `{ id, value, timestamp, quality }` 结构
 //! （兼容 value/data 字段）。无后台任务——轮询节奏由引擎 tick 驱动。
 
-use crate::common::{append_query, parse_frame};
+use gateway_common::{append_query, parse_frame};
 use async_trait::async_trait;
 use gateway_core::{DeviceAdapter, GatewayError, HttpConfig, Telemetry};
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};

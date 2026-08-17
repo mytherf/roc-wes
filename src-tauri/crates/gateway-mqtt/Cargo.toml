@@ -1,0 +1,24 @@
+# ═══════════════════════════════════════════════════════════════
+# gateway-mqtt - MQTT 适配器 crate
+#
+# 职责：真实模式 MQTT 数据源由 Rust 原生客户端接管：
+#   连接 broker（ws:// MQTT-over-WebSocket 或 mqtt:// 原生 TCP），
+#   点ID 作为主题过滤器（支持 +/# 通配符）差量订阅，发布帧解析
+#   入最新值缓冲，read() 每轮排空缓冲上报。
+# 由桌面壳组合根（factory.rs）按配置实例化并交给网关引擎。
+# ═══════════════════════════════════════════════════════════════
+
+[package]
+name = "gateway-mqtt"
+version = "0.1.0"
+description = "MQTT 适配器（rumqttc）：主题过滤器差量订阅 + 最新值缓冲"
+edition = "2021"
+
+[dependencies]
+gateway-core = { path = "../gateway-core" }            # 领域模型（配置/遥测/端口）
+gateway-common = { path = "../gateway-common" }        # 帧解析、通配符匹配与最新值缓冲
+rumqttc = { version = "0.25", default-features = false, features = ["url", "websocket", "use-rustls"] }  # MQTT 客户端（url 解析支持 ws:// 与 mqtt://）
+tokio = { version = "1", features = ["rt"] }  # eventloop 后台任务
+async-trait = "0.1"    # async trait（DeviceAdapter 实现）
+serde_json = "1"       # 发布帧 JSON 解析
+tracing = "0.1"        # 日志

@@ -1,11 +1,11 @@
-//! SSE 适配器：按点位维持 Server-Sent Events 长连接
+//! SSE 适配器 crate：按点位维持 Server-Sent Events 长连接
 //!
 //! 语义与旧前端 SseService 一致：每个点单独建立
 //! `GET ${url}?pointId=xxx` 的 SSE 流，服务端推送 `data: {JSON}` 帧。
 //! 订阅变化时增删对应的读取任务；任一流的连接中断会置位 dead，
 //! 由引擎重连后统一重建全部流。
 
-use crate::common::{append_query, new_buffer, parse_frame, SampleBuffer};
+use gateway_common::{append_query, parse_frame, LatestValueBuffer};
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use gateway_core::{DeviceAdapter, GatewayError, SseConfig, Telemetry};
@@ -22,7 +22,7 @@ pub struct SseAdapter {
     /// HTTP 客户端（长连接不设整体超时，仅限制建连时间）
     client: Option<reqwest::Client>,
     /// 推送帧缓冲（按点位保留最新未读样本）
-    buffer: SampleBuffer,
+    buffer: LatestValueBuffer,
     /// 每点位一个读取任务
     tasks: HashMap<String, JoinHandle<()>>,
     /// 任一 SSE 流断开时置位 → 下次 read 报错触发引擎重连
@@ -34,7 +34,7 @@ impl SseAdapter {
         Self {
             url: config.url,
             client: None,
-            buffer: new_buffer(),
+            buffer: LatestValueBuffer::new(),
             tasks: HashMap::new(),
             dead: Arc::new(AtomicBool::new(false)),
         }
@@ -58,7 +58,7 @@ impl DeviceAdapter for SseAdapter {
             t.abort();
         }
         self.client = None;
-        self.buffer.lock().unwrap().clear();
+        self.buffer.clear();
         Ok(())
     }
 
@@ -91,14 +91,7 @@ impl DeviceAdapter for SseAdapter {
             }
         }
         // 排空缓冲中本轮请求点位的最新样本
-        let mut buf = self.buffer.lock().unwrap();
-        let mut out = Vec::new();
-        for id in point_ids {
-            if let Some(t) = buf.remove(id) {
-                out.push(t);
-            }
-        }
-        Ok(out)
+        Ok(self.buffer.drain(point_ids))
     }
 
     fn kind(&self) -> &'static str {
@@ -111,7 +104,7 @@ async fn sse_point_task(
     client: reqwest::Client,
     base_url: String,
     point: String,
-    buffer: SampleBuffer,
+    buffer: LatestValueBuffer,
     dead: Arc<AtomicBool>,
 ) {
     let encoded = utf8_percent_encode(&point, NON_ALPHANUMERIC);
@@ -159,7 +152,7 @@ async fn sse_point_task(
                 }
                 if let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) {
                     if let Some(t) = parse_frame(&v, Some(&point), None) {
-                        buffer.lock().unwrap().insert(point.clone(), t);
+                        buffer.insert(point.clone(), t);
                     }
                 }
                 // 心跳等非 JSON 帧忽略

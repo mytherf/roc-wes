@@ -6,6 +6,8 @@
 #      真正的设备网关业务逻辑拆成 4 个独立 crate 放在 crates/ 目录，
 #      各自可单独编译、单独测试，与 Tauri 解耦。
 #   2. 桌面壳职责：启动 WebView、注册 IPC 命令、把 Tauri 事件桥接给网关引擎。
+#      业务 crate：领域模型/会话编排/演示 + 每协议一个适配器 crate
+#      （modbus/websocket/http/sse/mqtt，Web 协议共享内核 gateway-common）。
 # ═══════════════════════════════════════════════════════════════
 
 # ---- 工作区定义：包含 crates/ 下的全部子 crate ----
@@ -48,9 +50,13 @@ thiserror = "2"                                # 简化错误类型定义（gate
 # ---- 内部网关 crate（本地路径依赖） ----
 gateway-core = { path = "crates/gateway-core" }      # 领域模型：配置/遥测/错误/适配器端口
 gateway-engine = { path = "crates/gateway-engine" }    # 会话编排：连接/轮询/重连
-gateway-modbus = { path = "crates/gateway-modbus" }    # Modbus TCP 适配器实现
-gateway-web = { path = "crates/gateway-web" }          # Web 协议适配器（WebSocket/HTTP/SSE/MQTT 真实模式）
-gateway-demo = { path = "crates/gateway-demo" }        # 演示模式适配器（模拟数据）
+gateway-modbus = { path = "crates/gateway-modbus" }        # Modbus TCP 适配器实现
+gateway-common = { path = "crates/gateway-common" }         # Web 协议共享内核（帧解析/通配符/最新值缓冲）
+gateway-websocket = { path = "crates/gateway-websocket" }   # WebSocket 适配器（真实模式）
+gateway-http = { path = "crates/gateway-http" }             # HTTP 轮询适配器（真实模式）
+gateway-sse = { path = "crates/gateway-sse" }               # SSE 适配器（真实模式）
+gateway-mqtt = { path = "crates/gateway-mqtt" }             # MQTT 适配器（真实模式）
+gateway-demo = { path = "crates/gateway-demo" }             # 演示模式适配器（模拟数据）
 
 # ---- 特性开关（Cargo features） ----
 [features]

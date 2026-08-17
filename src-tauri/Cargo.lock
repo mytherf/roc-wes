@@ -1284,6 +1284,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gateway-common"
+version = "0.1.0"
+dependencies = [
+ "gateway-core",
+ "serde_json",
+]
+
+[[package]]
 name = "gateway-core"
 version = "0.1.0"
 dependencies = [
@@ -1316,6 +1324,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "gateway-http"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "gateway-common",
+ "gateway-core",
+ "percent-encoding",
+ "reqwest",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "gateway-modbus"
 version = "0.1.0"
 dependencies = [
@@ -1328,15 +1349,41 @@ dependencies = [
 ]
 
 [[package]]
-name = "gateway-web"
+name = "gateway-mqtt"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "gateway-common",
+ "gateway-core",
+ "rumqttc",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "gateway-sse"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "futures-util",
+ "gateway-common",
  "gateway-core",
  "percent-encoding",
  "reqwest",
- "rumqttc",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "gateway-websocket"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures-util",
+ "gateway-common",
+ "gateway-core",
  "serde_json",
  "tokio",
  "tokio-tungstenite",
@@ -3210,11 +3257,15 @@ dependencies = [
 name = "roc-wes-desktop"
 version = "0.1.0"
 dependencies = [
+ "gateway-common",
  "gateway-core",
  "gateway-demo",
  "gateway-engine",
+ "gateway-http",
  "gateway-modbus",
- "gateway-web",
+ "gateway-mqtt",
+ "gateway-sse",
+ "gateway-websocket",
  "serde",
  "serde_json",
  "tauri",

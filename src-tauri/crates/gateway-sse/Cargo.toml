@@ -1,0 +1,26 @@
+# ═══════════════════════════════════════════════════════════════
+# gateway-sse - SSE 适配器 crate
+#
+# 职责：真实模式 SSE 数据源由 Rust 原生客户端接管：
+#   每个点位单独建立 GET ${url}?pointId=xxx 的 Server-Sent Events
+#   长连接，data: 帧解析入最新值缓冲；任一流中断置位 dead，
+#   由引擎重连后统一重建全部流。
+# 由桌面壳组合根（factory.rs）按配置实例化并交给网关引擎。
+# ═══════════════════════════════════════════════════════════════
+
+[package]
+name = "gateway-sse"
+version = "0.1.0"
+description = "SSE 适配器（reqwest 字节流）：按点位建流，data: 帧解析入缓冲"
+edition = "2021"
+
+[dependencies]
+gateway-core = { path = "../gateway-core" }            # 领域模型（配置/遥测/端口）
+gateway-common = { path = "../gateway-common" }        # 帧解析、URL 工具与最新值缓冲
+reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls", "rustls-native-certs"] }  # SSE 长连接（支持 https）
+futures-util = "0.3"   # StreamExt（字节流读取）
+percent-encoding = "2" # 点ID 拼入查询参数时的 URL 编码
+tokio = { version = "1", features = ["rt"] }  # 每点位一个后台读取任务
+async-trait = "0.1"    # async trait（DeviceAdapter 实现）
+serde_json = "1"       # data: 帧 JSON 解析
+tracing = "0.1"        # 日志
