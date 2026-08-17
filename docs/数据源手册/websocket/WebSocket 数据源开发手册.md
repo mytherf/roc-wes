@@ -4,7 +4,7 @@
 
 ## 一、架构与数据流
 
-WebSocket 数据接入统一由桌面端 Rust 网关接管（**真实模式与演示模式同一条 IPC 链路**，WebView 不再直连外部服务）：
+WebSocket 数据接入统一由桌面端 Rust 网关接管（**真实模式与演示模式同一条 IPC 链路**，WebView 不直连外部服务）：
 
 ```
 真实模式：
@@ -72,45 +72,52 @@ export interface DataSource {
 }
 ```
 
-## 三、Rust 适配器实现
+## 三、数据源注册与演示模式判定
 
-文件：`src-tauri/crates/gateway-websocket/src/lib.rs`（`WebSocketAdapter`，每协议一个独立 crate）。原前端 `src/services/WebSocketService.ts`（浏览器直连）已随网关统一移除。
+用户在「数据源管理」对话框新建数据源（`src/stores/dataSource.ts`）。选 WebSocket 类型 + 演示模式时，地址自动预填为演示标识地址：
 
-关键机制（「后台读取任务 + 最新值缓冲」模式）：
-
-- **建连与拆分**：`connect()` 用 `tokio-tungstenite` 建连后拆为读写两半；writer 任务经 mpsc 通道收订阅/退订指令并发送 JSON 帧，reader 任务专职解析推送帧。
-- **解析入缓冲**：reader 解析 JSON 帧（点ID取 `topic||id||pointId`，值取 `value??data`，与旧前端规则一致），仅当前已订阅点位的帧写入共享缓冲，防止缓冲膨胀。
-- **订阅差量同步**：`read(point_ids)` 每 tick 对比上次订阅集，新增/移除点位分别下发 `{action:"subscribe"|"unsubscribe", topic}` 帧，随后排空缓冲返回未读样本（无新数据返回空 vec，引擎自动跳过）。
-- **断线重连**：reader 退出时置 `dead` 标志，下次 `read()` 报错触发网关引擎指数退避重连（2s→30s），重连后按当前订阅集重新下发订阅帧。
-
-## 四、数据格式与点ID约定
-
-| 方向 | 报文 | 说明 |
-| --- | --- | --- |
-| Rust 网关 → 服务端 | `{ "action": "subscribe", "topic": "<pointId>" }` | 订阅 |
-| Rust 网关 → 服务端 | `{ "action": "unsubscribe", "topic": "<pointId>" }` | 取消订阅 |
-| 服务端 → Rust 网关 | `{ "topic", "value", "timestamp"?, "quality"? }` | 数据帧 |
-
-点ID即订阅主题，无格式约束，需与服务端一致。
-
-## 五、内置模拟引擎（演示模式）
-
-Node 版内置模拟服务器（原 `mock/server.ts`，监听 `ws://localhost:8080/ws`）已移除。演示模式改由桌面端 Rust 网关内置实现：`src-tauri/crates/gateway-demo/src/lib.rs` 的 `DemoAdapter`（`profile = Websocket`），不监听任何端口。
-
-链路：前端 `useDataService` 判定演示模式 → 创建 `IpcGatewayService`（`{ kind:'demo', profile:'websocket' }`）→ `invoke('gateway_connect')` → Rust 会话任务按轮询周期调用 `DemoAdapter.read()` → 遥测经 `gateway://telemetry` 事件批量推回前端。真实模式链路完全相同，仅配置为 `{ kind:'websocket', url, pollIntervalMs }`、适配器为 `WebSocketAdapter`。
-
-数据生成算法——平滑正弦波 + 确定性伪噪声，范围约 20~80（与原 Node 版 `wsValue()` 行为一致，噪声改由哈希派生以保证可复现）：
-
-```rust
-/// WebSocket 特征：正弦主波（约 20~80）+ 微噪声，随时间连续变化
-fn ws_value(point_id: &str, now_ms: u64) -> f64 {
-    let phase = (hash_u64(point_id) % 628) as f64 / 100.0;   // 0~2π，错开各点波形
-    let noise = (pseudo_noise(point_id, now_ms) - 0.5) * 2.0; // ±1
-    round1(50.0 + 30.0 * (now_ms as f64 / 5000.0 + phase).sin() + noise)
+```ts
+export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
+    websocket: 'ws://localhost:8080/ws',   // 仅作演示模式标识，无对应本地服务
+    // ...
 }
 ```
 
-## 六、路由与节点绑定机制
+是否为演示模式由 `src/platform/deviceConfig.ts` 的 `isDemoSource` 判定：显式 `config.demo` 优先，其次地址等于内置演示标识地址才视为演示。两种模式保存后均落盘到 `datasources.json`：
+
+```json
+{ "id": "ds-1712345-abc123", "name": "内置WebSocket模拟源", "type": "websocket", "url": "ws://localhost:8080/ws" }
+```
+
+```json
+{ "id": "ds-1712345-def456", "name": "车间遥测", "type": "websocket", "url": "ws://127.0.0.1:12345" }
+```
+
+前者判定为演示模式（映射 Rust 网关配置 `{ kind:'demo', profile:'websocket', pollIntervalMs }`）；后者为真实模式（`{ kind:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
+
+## 四、节点绑定提交（PropertyPanel）
+
+属性面板「数据绑定」页选择数据源 + 填写点ID（可「＋ 添加点组」追加附加点）后，`updateBinding` 把配置写入节点并触发订阅（两种模式完全一致）：
+
+```ts
+// 有主点即提交绑定，sourceId 允许后补（无 sourceId 的绑定运行期不订阅，节点保持静态值）
+if (primary) {
+  binding = {
+    pointId: primary.pointId,                    // 主点（兼容旧工程单字段）
+    points: validGroups,                         // 全部点组：点ID + 转换函数成组，首组为主点
+    sourceId: bindingSourceId.value || undefined,
+  }
+}
+// 写 X6 节点：必须 updateData 顶层整体替换（deep:false），深合并会导致点组删除残留
+node.updateData({ binding })
+// 写 Store 持久化
+editorStore.updateNode(nodeId, { data: { ...(storeNode.data || {}), binding } })
+// 先退订旧点，再重建订阅
+props.canvasRef.unbindNodeData(nodeId)
+if (binding) props.canvasRef.bindNodeData(node)
+```
+
+## 五、路由与点组订阅（useDataService）
 
 `src/composables/useDataService.ts` 统一路由并缓存服务实例（演示/真实/工业协议一律走 Rust 网关）：
 
@@ -123,7 +130,7 @@ const service = new IpcGatewayService(
 )
 ```
 
-缓存键为 `${sourceType}:${sourceUrl}:${JSON.stringify(config)}`，同一数据源只建一条连接。节点绑定时按**点组**逐点订阅（`resolveBindingPoints` 归一化：优先 `points[]`，旧单点格式回退为单组）：
+缓存键为 `${sourceType}:${sourceUrl}:${JSON.stringify(config)}`：10 个节点绑同一个数据源只创建 **1 个** IPC 会话（`dataServiceMap`），各自订阅不同的 pointId。节点绑定时按**点组**逐点订阅（`resolveBindingPoints` 归一化：优先 `points[]`，旧单点格式回退为单组）：
 
 ```ts
 for (const p of resolveBindingPoints(binding)) {
@@ -140,17 +147,93 @@ for (const p of resolveBindingPoints(binding)) {
 
 未绑定数据源（无 `sourceId`）的节点不订阅任何数据，保持静态值。
 
-## 七、扩展指南
+## 六、IPC 连接与订阅分发（IpcGatewayService → Rust）
+
+`src/services/IpcGatewayService.ts` 实现统一的 `IDataService` 接口，底层为 Tauri IPC（所有数据源的唯一通道）。两种模式仅 `gateway_connect` 的 config 不同：
+
+```ts
+// 建会话：演示模式用 DemoAdapter，真实模式用 WebSocketAdapter（作为 WS 客户端连接外部服务）
+await invoke('gateway_connect', { deviceId, config: { kind: 'demo', profile: 'websocket', pollIntervalMs: 1000 } })
+await invoke('gateway_connect', { deviceId, config: { kind: 'websocket', url: 'ws://127.0.0.1:12345', pollIntervalMs: 1000 } })
+
+// 订阅：登记回调 + 通知 Rust（连接建立前的订阅会补发；真实模式下网关每 tick 差量同步，
+// 向服务端发 subscribe 帧）
+await invoke('gateway_subscribe', { deviceId, pointId })
+
+// 接收遥测：批量事件按 pointId 分发给该点的所有回调
+listen('gateway://telemetry', (e) => {
+  for (const p of e.payload.points) { /* 分发给 callbacks.get(p.pointId) */ }
+})
+```
+
+真实模式下 Rust 侧 `WebSocketAdapter` 接管订阅/解析：建连后拆为读写两半，writer 任务发订阅帧，reader 任务解析推送帧入缓冲，引擎按轮询周期排空缓冲批量上报。
+
+## 七、Rust 适配器实现
+
+文件：`src-tauri/crates/gateway-websocket/src/lib.rs`（`WebSocketAdapter`，每协议一个独立 crate）。
+
+关键机制（「后台读取任务 + 最新值缓冲」模式）：
+
+- **建连与拆分**：`connect()` 用 `tokio-tungstenite` 建连后拆为读写两半；writer 任务经 mpsc 通道收订阅/退订指令并发送 JSON 帧，reader 任务专职解析推送帧。
+- **解析入缓冲**：reader 解析 JSON 帧（点ID取 `topic||id||pointId`，值取 `value??data`），仅当前已订阅点位的帧写入共享缓冲，防止缓冲膨胀。
+- **订阅差量同步**：`read(point_ids)` 每 tick 对比上次订阅集，新增/移除点位分别下发 `{action:"subscribe"|"unsubscribe", topic}` 帧，随后排空缓冲返回未读样本（无新数据返回空 vec，引擎自动跳过）。
+- **断线重连**：reader 退出时置 `dead` 标志，下次 `read()` 报错触发网关引擎指数退避重连（2s→30s），重连后按当前订阅集重新下发订阅帧。
+
+## 八、数据格式与点ID约定
+
+| 方向 | 报文 | 说明 |
+| --- | --- | --- |
+| Rust 网关 → 服务端 | `{ "action": "subscribe", "topic": "<pointId>" }` | 订阅 |
+| Rust 网关 → 服务端 | `{ "action": "unsubscribe", "topic": "<pointId>" }` | 取消订阅 |
+| 服务端 → Rust 网关 | `{ "topic", "value", "timestamp"?, "quality"? }` | 数据帧 |
+
+数据帧中点ID字段三选一：`topic` / `id` / `pointId`；数值字段二选一：`value` / `data`；`timestamp`（毫秒）与 `quality` 可省略。点ID即订阅主题，无格式约束，需与服务端一致；不含上述字段的业务指令帧会被安全忽略。
+
+## 九、内置模拟引擎（演示模式）
+
+演示模式由桌面端 Rust 网关内置实现：`src-tauri/crates/gateway-demo/src/lib.rs` 的 `DemoAdapter`（`profile = Websocket`），不监听任何端口。
+
+链路：前端 `useDataService` 判定演示模式 → 创建 `IpcGatewayService`（`{ kind:'demo', profile:'websocket' }`）→ `invoke('gateway_connect')` → Rust 会话任务按轮询周期调用 `DemoAdapter.read()` → 遥测经 `gateway://telemetry` 事件批量推回前端。真实模式链路完全相同，仅配置为 `{ kind:'websocket', url, pollIntervalMs }`、适配器为 `WebSocketAdapter`。
+
+数据生成算法——平滑正弦波 + 确定性伪噪声，范围约 20~80：
+
+```rust
+/// WebSocket 特征：正弦主波（约 20~80）+ 微噪声，随时间连续变化
+fn ws_value(point_id: &str, now_ms: u64) -> f64 {
+    let phase = (hash_u64(point_id) % 628) as f64 / 100.0;   // 0~2π，错开各点波形
+    let noise = (pseudo_noise(point_id, now_ms) - 0.5) * 2.0; // ±1
+    round1(50.0 + 30.0 * (now_ms as f64 / 5000.0 + phase).sin() + noise)
+}
+```
+
+不同 pointId 的相位由哈希派生错开，多个仪表的曲线不会重叠；数据每轮询一次批量推一批（减少 IPC 开销）。
+
+## 十、数据到达节点 UI 与生命周期管理
+
+`node.setData()` 触发 X6 的 `change:data` 事件，节点 Vue 组件通过 `src/composables/useNodeData.ts` 声明的响应式 ref 自动刷新：
+
+```ts
+const { value } = useNodeData(props.node, { value: 0 })  // 模板里 {{ value }} 实时跳动
+```
+
+生命周期与清理：
+
+- **断线重连**：真实模式下外部服务停止（或网络中断）后，网关引擎指数退避自动重连（2s→30s）；重连成功后按当前订阅集重新下发订阅帧，无需手动干预。
+- **改绑定点ID**：`unbindNodeData(nodeId)` 先退订（真实模式下网关向服务端发 `unsubscribe` 帧）再重建订阅。
+- **画布重载**：`unbindAllNodes()` 只退订**不断会话**（会话可复用）。
+- **组件卸载**：`dispose()` 退订 + `disconnect()` 销毁全部 IPC 会话（应用退出时 Rust 侧也统一 shutdown）。
+
+## 十一、扩展指南
 
 - **修改模拟数据特征**：编辑 `src-tauri/crates/gateway-demo/src/lib.rs` 的 `ws_value()`（如改为方波、叠加趋势项），`cargo test -p gateway-demo` 验证后重新 `npx tauri dev`。
 - **新增推送字段**：在 `src-tauri/crates/gateway-common/src/lib.rs` 的 `parse_frame()` 中扩展解析，并同步前端 `DataPoint` 接口。
 - **支持自定义订阅协议**：若你的后端订阅帧不是 `{action,topic}`，在 `gateway-websocket/src/lib.rs` 的订阅帧构造处适配。
 - **调整重连策略**：网关引擎统一采用指数退避（2s→30s），见 `src-tauri/crates/gateway-engine`；轮询周期由数据源配置 `pollIntervalMs` 决定（下限 200ms）。
 
-## 八、调试与验证
+## 十二、调试与验证
 
 1. 演示模式：`npx tauri dev` 启动桌面应用，新建 WebSocket 演示数据源并绑定节点，观察正弦波数值每秒刷新；Rust 侧日志可见 `kind="demo"` 会话创建记录。
-2. 真实模式：连接自己的 WS 服务后，可用 `wscat` 独立验证服务端协议约定：
+2. 真实模式：无真实设备时可用 **HslCommunicationTools**（HslCommunication 工业联调工具）一键起 WS 服务端做集成测试：切到 WebSocket 页签 → 设置监听地址（如 `ws://127.0.0.1:12345`）并启动 → roc-wes 建真实模式数据源指向该地址 → 工具「接收」区可见网关的订阅帧；在「指令」框手动发送 `{"topic":"sensor.temp.001","value":63.4}` 即可观察节点刷新。工具不实现订阅语义（数据帧需手动发送），正好用于验证网关对任意推送格式的解析兼容性。也可用 `wscat` 独立验证服务端协议约定：
 
 ```bash
 wscat -c ws://192.168.0.10:9000/telemetry
@@ -160,7 +243,7 @@ wscat -c ws://192.168.0.10:9000/telemetry
 
 3. IPC 通道排查：若无数据，依次检查 `gateway://status` 事件是否收到 `connected: true`、`invoke('gateway_subscribe')` 是否成功（前端控制台 `[IPC]` 日志）、Rust 侧日志 `gateway_websocket` 目标是否有连接/订阅记录。
 
-## 九、关键文件清单
+## 十三、关键文件清单
 
 | 文件 | 职责 |
 | --- | --- |
@@ -168,7 +251,9 @@ wscat -c ws://192.168.0.10:9000/telemetry
 | `src/services/IpcGatewayService.ts` | IPC 数据服务（所有数据源唯一通道） |
 | `src/composables/useDataService.ts` | 统一路由、缓存服务、节点绑定 |
 | `src/stores/dataSource.ts` | 数据源实例 CRUD 与持久化、演示标识地址常量 |
-| `src/components/PropertyPanel.vue` | 「数据绑定」标签页 UI（数据源/点ID/转换函数） |
+| `src/platform/deviceConfig.ts` | `isDemoSource` 演示判定与 Rust 网关配置映射 |
+| `src/components/PropertyPanel.vue` | 「数据绑定」标签页 UI 与 `updateBinding` 提交 |
+| `src/composables/useNodeData.ts` | 节点组件响应式数据刷新 |
 | `src-tauri/crates/gateway-websocket/src/lib.rs` | WebSocket 适配器（真实模式：订阅、缓冲、重连） |
 | `src-tauri/crates/gateway-common/src/lib.rs` | Web 协议共享内核（帧解析 / 最新值缓冲） |
 | `src-tauri/crates/gateway-demo/src/lib.rs` | 内置演示波形引擎（`ws_value()` 正弦波算法） |
