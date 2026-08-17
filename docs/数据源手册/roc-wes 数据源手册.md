@@ -9,15 +9,15 @@
 
 | 类型 | 标识 | 协议特征 | 接入方式（真实模式） | 内置演示 | 桌面版真实模式 |
 | --- | --- | --- | --- | --- | --- |
-| [WebSocket](websocket/WebSocket 数据源使用手册.md) | `websocket` | 全双工长连接、服务端推送 | WebView 原生 WebSocket 直连 | 桌面演示模式（DemoAdapter 正弦波） | ✅ 直连服务 |
-| [HTTP 轮询](./http/用户使用手册.md) | `http` | 请求/响应、定时拉取 | WebView 原生 fetch 直连 | 桌面演示模式（DemoAdapter 随机游走） | ✅ 直连接口 |
-| [SSE](./sse/用户使用手册.md) | `sse` | HTTP 单向推送、自动重连 | WebView 原生 EventSource 直连 | 桌面演示模式（DemoAdapter 锯齿波） | ✅ 直连接口 |
-| [MQTT](./mqtt/用户使用手册.md) | `mqtt` | 发布/订阅、主题分发 | mqtt.js over WebSocket 直连 | 桌面演示模式（DemoAdapter 离散档位） | ✅ 直连 broker |
+| [WebSocket](websocket/WebSocket 数据源使用手册.md) | `websocket` | 全双工长连接、服务端推送 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter 正弦波） | ✅ WebSocketAdapter 直连服务 |
+| [HTTP 轮询](./http/用户使用手册.md) | `http` | 请求/响应、定时拉取 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter 随机游走） | ✅ HttpAdapter 直连接口 |
+| [SSE](./sse/用户使用手册.md) | `sse` | HTTP 单向推送、自动重连 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter 锯齿波） | ✅ SseAdapter 直连接口 |
+| [MQTT](./mqtt/用户使用手册.md) | `mqtt` | 发布/订阅、主题分发 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter 离散档位） | ✅ MqttAdapter 直连 broker |
 | [西门子 S7](./s7/用户使用手册.md) | `s7` | S7comm 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生直连 PLC（snap7-client） |
 | [OPC UA](./opc/用户使用手册.md) | `opc` | opc.tcp 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生轮询读取（opcua crate） |
 | [Modbus](./modbus/用户使用手册.md) | `modbus` | Modbus TCP 二进制 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生直连设备 |
 
-> 前 4 种是 WebView 原生支持的协议，**真实模式**下前端 Service 直连即可；后 3 种是工业 TCP 协议，浏览器无法直连，**桌面版经 Tauri IPC 由 Rust 网关原生连接设备**（无中间进程、无本地端口）。
+> 全部 7 种数据源的演示与真实模式统一由桌面端 Rust 网关经 Tauri IPC 接管（**无中间进程、无本地端口**）：Web 协议由对应适配器 crate（gateway-websocket/http/sse/mqtt）连接外部服务，工业协议由 gateway-modbus/s7/opcua 直接 TCP 连接设备。前端 WebView 不直连任何外部服务，旧浏览器时代的直连服务类已移除。
 > 全部 7 类协议的**演示模式**均由桌面端 Rust 网关内置 `DemoAdapter` 生成模拟数据（按协议 profile 生成特征波形），不占用任何端口。Node 版内置模拟服务器（原 mock/ 目录）与工业协议 mock 桥接均已退役。
 
 ## 二、文档清单
@@ -64,7 +64,7 @@ interface DataPoint {
 | 场景 | 说明 |
 | --- | --- |
 | 桌面演示模式 | 全部 7 类协议由 Rust `DemoAdapter` 按协议 profile 生成特征波形（WebSocket 正弦 / HTTP 随机游走 / SSE 锯齿 / MQTT 档位），无任何端口 |
-| 桌面真实模式 | Web 协议由 WebView 直连真实服务；工业协议由 Rust 网关直接 TCP 连接设备（Modbus 默认端口 502），无中间进程 |
+| 桌面真实模式 | 全部 7 类协议由 Rust 网关适配器直接连接真实服务/设备（工业协议如 Modbus 默认端口 502），无中间进程 |
 
 > Node 版内置模拟服务器（原 `mock/server.ts`，曾占用 8080/8081/8082/8083 端口）已移除；生产构建与开发态均不再启动任何本地 mock 端口。工业协议不再有 8084/8085/8086 演示桥接与 19100–19102 独立网关进程。
 > 注：`BUILTIN_MOCK_URLS` 中的 `ws://localhost:8080/ws` 等地址仅保留作**演示模式标识**（表单预填与历史数据源识别），无对应本地服务。
@@ -84,13 +84,12 @@ interface DataPoint {
 | 模块 | 路径 |
 | --- | --- |
 | 统一类型定义 | `src/services/DataService.ts` |
-| WebView 直连类前端服务（Web 协议真实模式） | `src/services/{WebSocket,HttpPolling,Sse,Mqtt}Service.ts` |
-| IPC 数据服务（桌面工业协议 + 全部演示模式） | `src/services/IpcGatewayService.ts` |
+| IPC 数据服务（全部数据源唯一通道） | `src/services/IpcGatewayService.ts` |
 | 桌面平台接缝 | `src/platform/deviceConfig.ts` |
 | 类型路由与节点绑定 | `src/composables/useDataService.ts` |
-| 网关监控探针 | `src/services/GatewayMonitorService.ts`（桌面工业协议走 `mon:` 独立 IPC 会话） |
+| 网关监控探针 | `src/services/GatewayMonitorService.ts`（`mon:` 独立 IPC 会话，避免与业务会话冲突） |
 | 数据源实例 Store | `src/stores/dataSource.ts` |
 | 数据源管理对话框 | `src/components/DataSourceDialog.vue` + `DataSourceDeviceConfig.vue` |
-| Rust 网关 workspace | `src-tauri/crates/{gateway-core,gateway-engine,gateway-modbus,gateway-s7,gateway-opcua,gateway-demo,gateway-common}` |
+| Rust 网关 workspace | `src-tauri/crates/{gateway-core,gateway-engine,gateway-modbus,gateway-s7,gateway-opcua,gateway-websocket,gateway-http,gateway-sse,gateway-mqtt,gateway-common,gateway-demo}` |
 | IPC 命令与适配器工厂 | `src-tauri/src/{commands.rs,factory.rs}` |
-| 内置演示波形引擎（桌面演示模式） | `src-tauri/crates/gateway-demo/src/lib.rs`（DemoAdapter 四种协议特征波形） |
+| 内置演示波形引擎（桌面演示模式） | `src-tauri/crates/gateway-demo/src/lib.rs`（DemoAdapter 按协议 profile 生成特征波形） |

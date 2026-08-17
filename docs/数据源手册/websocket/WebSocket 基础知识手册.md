@@ -1,5 +1,7 @@
 # WebSocket 基础知识手册
 
+> 本篇为通用协议知识科普。roc-wes 桌面版的 WebSocket 客户端由 Rust 网关（`tokio-tungstenite`）实现，不走浏览器 API；项目内的接入方式见 [WebSocket 数据源使用手册](./WebSocket%20数据源使用手册.md) 与 [开发手册](./WebSocket%20数据源开发手册.md)。
+
 ## 一、什么是 WebSocket？
 
 WebSocket 是一种在单个 TCP 连接上提供全双工通信的网络协议，于 2011 年被 IETF 标准化为 RFC 6455。它允许客户端与服务器之间建立持久的连接，实现实时的双向通信。

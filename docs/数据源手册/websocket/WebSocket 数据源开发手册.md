@@ -40,16 +40,22 @@ export interface IDataService {
 }
 ```
 
-节点侧的绑定配置（存储在节点 `data.binding`）：
+节点侧的绑定配置（存储在节点 `data.binding`，完整定义见 `src/services/DataService.ts`）：
 
 ```ts
+export interface BindingPointEntry {
+    pointId: string                  // 用于订阅的数据点 ID
+    transformSource?: string         // 该点专属转换函数源码（可选）
+}
+
 export interface DataBindingConfig {
-    pointId: string                 // 用于订阅的数据点 ID
-    sourceId?: string               // 引用「数据源管理」中的实例；为空则用模拟数据
-    sourceType?: 'websocket' | 'mqtt' | 'http' | 'sse' | 's7' | 'opc' | 'modbus'
-    sourceUrl?: string              // 兼容旧数据
-    transform?: (raw: any) => number | string
-    interval?: number               // 仅 HTTP 轮询有效
+    pointId: string                  // 主点 ID（points[0].pointId，驱动 data.value；兼容旧工程单字段）
+    points?: Array<BindingPointEntry | string>  // 全部绑定点组：首组为主点，条目兼容字符串旧格式
+    sourceId?: string                // 引用「数据源管理」中的实例；无 sourceId 则不订阅（节点保持静态值）
+    sourceType?: 'websocket' | 'mqtt' | 'http' | 'sse' | 's7' | 'opc' | 'modbus'  // 兼容旧数据
+    sourceUrl?: string               // 兼容旧数据
+    transformSource?: string         // 主点转换函数源码（可持久化，点组优先）
+    transform?: (raw: any) => any    // 运行期编译缓存（不可序列化）
 }
 ```
 
@@ -117,18 +123,22 @@ const service = new IpcGatewayService(
 )
 ```
 
-缓存键为 `${sourceType}:${sourceUrl}:${JSON.stringify(config)}`，同一数据源只建一条连接。节点绑定时：
+缓存键为 `${sourceType}:${sourceUrl}:${JSON.stringify(config)}`，同一数据源只建一条连接。节点绑定时按**点组**逐点订阅（`resolveBindingPoints` 归一化：优先 `points[]`，旧单点格式回退为单组）：
 
 ```ts
-service.subscribe(binding.pointId, (point) => {
-    let newValue = point.value
-    if (binding.transform) newValue = binding.transform(point.value)
-    node.setData({ ...node.getData(), value: newValue, _timestamp: point.timestamp, _quality: point.quality })
-    evaluateNodeEvents(node.id, currentData, nextData)   // 触发比较类事件（上升沿）
-})
+for (const p of resolveBindingPoints(binding)) {
+    const transform = compileTransform(p.transformSource)   // 每点编译自己组内的转换函数
+    service.subscribe(p.pointId, (point) => {
+        const converted = transform ? transform(point.value) : point.value
+        // 全部点写入 data.values[pointId]（{ value, rawValue, timestamp, quality }）
+        // 主点额外写入 data.value / _rawValue / _timestamp / _quality 驱动节点渲染
+        node.setData(nextData)
+        evaluateNodeEvents(node.id, currentData, nextData)  // 触发比较类事件（上升沿）
+    })
+}
 ```
 
-即数据点更新会自动写入 `node.data.value`（附带 `_timestamp`/`_quality`），并驱动节点事件评估。
+未绑定数据源（无 `sourceId`）的节点不订阅任何数据，保持静态值。
 
 ## 七、扩展指南
 

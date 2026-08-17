@@ -131,16 +131,21 @@ export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
 
 ## ③ 节点绑定（PropertyPanel）
 
-属性面板「数据绑定」页选择该数据源 + 填写点ID（如 `sensor.temp.001`）后，`updateBinding` 把配置写入节点并触发订阅（两种模式完全一致）：
+属性面板「数据绑定」页选择该数据源 + 填写点ID（如 `sensor.temp.001`，可「＋ 添加点组」继续加附加点）后，`updateBinding` 把配置写入节点并触发订阅（两种模式完全一致）：
 
 ```ts
-// 必须同时具备点ID与数据源实例才启用绑定
-if (pointId && bindingSourceId.value) {
-  binding = { pointId, sourceId: bindingSourceId.value }
+// 有主点即提交绑定，sourceId 允许后补（无 sourceId 的绑定运行期不订阅，节点保持静态值）
+if (primary) {
+  binding = {
+    pointId: primary.pointId,                    // 主点（兼容旧工程单字段）
+    points: validGroups,                         // 全部点组：点ID + 转换函数成组，首组为主点
+    sourceId: bindingSourceId.value || undefined,
+  }
 }
-node.setData({ ...currentData, binding })   // 写 X6 节点
+node.updateData({ binding })   // 写 X6 节点：须顶层整体替换（深合并会导致点组删除残留）
 editorStore.updateNode(nodeId, { data: { ...(storeNode.data || {}), binding } })  // 写 Store 持久化
-if (binding && props.canvasRef.bindNodeData) props.canvasRef.bindNodeData(node)   // 建立订阅
+props.canvasRef.unbindNodeData(nodeId)            // 先退订旧点
+if (binding) props.canvasRef.bindNodeData(node)   // 重建订阅
 ```
 
 
@@ -157,16 +162,18 @@ sourceType = ds.type   // 'websocket'
 //    真实模式映射为 { kind:'websocket', url, pollIntervalMs }
 service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), 'WEBSOCKET')
 
-// 3. 订阅点ID，回调里把值写入节点
-service.subscribe(binding.pointId, (point) => {
-  const newValue = transform ? transform(point.value) : point.value  // 可选转换函数
-  const nextData = { ...currentData, value: newValue, _timestamp: point.timestamp, _quality: point.quality }
-  node.setData(nextData)
-  evaluateNodeEvents(node.id, currentData, nextData)  // 触发事件规则（如越限告警）
-})
+// 3. 按点组逐点订阅，回调里把值写入节点（每点用自己组内的转换函数）
+for (const p of resolveBindingPoints(binding)) {
+  service.subscribe(p.pointId, (point) => {
+    const converted = transform ? transform(point.value) : point.value
+    // 全部点写入 data.values[pointId]；主点额外写入 data.value / _timestamp / _quality 驱动渲染
+    node.setData(nextData)
+    evaluateNodeEvents(node.id, currentData, nextData)  // 触发事件规则（如越限告警）
+  })
+}
 ```
 
-**关键设计**：10 个节点绑同一个数据源，只会创建 **1 个** IPC 会话（`dataServiceMap` 按 `类型:URL:配置` 缓存），各自订阅不同的 pointId。
+**关键设计**：10 个节点绑同一个数据源，只会创建 **1 个** IPC 会话（`dataServiceMap` 按 `类型:URL:配置` 缓存），各自订阅不同的 pointId；未绑定数据源（无 sourceId）的节点不订阅，保持静态值。
 
 
 ## ⑤ 连接与订阅分发（IpcGatewayService → Rust）
