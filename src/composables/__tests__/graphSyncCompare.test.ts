@@ -18,7 +18,7 @@ function node(id: string, data: Record<string, any>) {
     return { id, x: 0, y: 0, data }
 }
 
-const BINDING = { pointId: 'p1', points: [{ pointId: 'p1' }], sourceId: 'ds-1' }
+const BINDING = { points: [{ pointId: 'p1' }], sourceId: 'ds-1' }
 
 describe('isSameGraphData 运行期字段剥离', () => {
     it('仅 value/_rawValue/_timestamp/_quality/values 不同 → 视为相同（不触发重建）', () => {

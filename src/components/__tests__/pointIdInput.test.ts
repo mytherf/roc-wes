@@ -118,7 +118,6 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         expect((input.element as HTMLInputElement).value).toBe(target)
         const storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
         expect(storeNode?.data?.binding).toMatchObject({
-            pointId: target,
             points: [{ pointId: target }],
         })
         expect(storeNode?.data?.binding?.sourceId).toBeUndefined()
@@ -166,7 +165,6 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         // store 中节点 binding 应为完整点组配置
         const storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
         expect(storeNode?.data?.binding).toMatchObject({
-            pointId: 'p-main',
             sourceId: ds.id,
             points: [{ pointId: 'p-main' }],
         })
@@ -190,7 +188,6 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
                 data: {
                     shape: 'gauge', label: '测试节点',
                     binding: {
-                        pointId: 'p-main',
                         sourceId: ds.id,
                         points: [{ pointId: 'p-main' }, { pointId: 'p-aux' }],
                     },
@@ -204,7 +201,6 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         // 预置节点数据与 store 一致（含两点绑定）
         cell.updateData({
             binding: {
-                pointId: 'p-main',
                 sourceId: ds.id,
                 points: [{ pointId: 'p-main' }, { pointId: 'p-aux' }],
             },
@@ -310,7 +306,6 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         await select.setValue(ds.id)
         storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
         expect(storeNode?.data?.binding).toMatchObject({
-            pointId: 'p-main',
             sourceId: ds.id,
             points: [{ pointId: 'p-main' }, { pointId: 'p-aux' }],
         })

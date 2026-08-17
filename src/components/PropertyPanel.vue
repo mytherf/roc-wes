@@ -828,14 +828,14 @@ watch(
       const data = newElement.data
       let binding = data?.binding || {}
 
-      // 如果 store 中没有 binding 数据，尝试从 X6 节点实例直接读取
-      if (!binding.pointId) {
+      // 如果 store 中没有 binding 点组，尝试从 X6 节点实例直接读取
+      if (!binding.points?.length) {
         const graph = getGraph()
         if (graph) {
           const node = graph.getCellById(newElement.data.id)
           if (node && node.isNode()) {
             const nodeData = node.getData()
-            if (nodeData?.binding?.pointId) {
+            if (nodeData?.binding?.points?.length) {
               binding = nodeData.binding
             }
           }
@@ -843,19 +843,12 @@ watch(
       }
 
       bindingSourceId.value = binding.sourceId || ''
-      // 点组回填：优先 points（每组 = 点ID + 转换函数，条目兼容字符串），
-      // 旧数据回退单组 [{ pointId, transformSource }]
+      // 点组回填：每组 = 点ID + 转换函数；无点组时给一个空主点草稿
       if (Array.isArray(binding.points) && binding.points.length > 0) {
         bindingGroups.value = binding.points.map((p: any) => ({
-          pointId: typeof p === 'string' ? p : (p?.pointId ?? ''),
-          transformSource: typeof p === 'string' ? '' : (p?.transformSource ?? ''),
+          pointId: p?.pointId ?? '',
+          transformSource: p?.transformSource ?? '',
         }))
-      } else if (binding.pointId) {
-        bindingGroups.value = [{
-          pointId: binding.pointId,
-          transformSource: binding.transformSource
-            || (binding.transform ? binding.transform.toString() : ''),
-        }]
       } else {
         bindingGroups.value = [{ pointId: '', transformSource: '' }]
       }
@@ -910,10 +903,8 @@ function updateBinding() {
   // 无 sourceId 的绑定运行期不会订阅——bindNodeData 解析不到数据源即静默返回，
   // 节点保持静态值，语义安全
   if (primary) {
-    // 点组列表：主点组在前；pointId / transformSource 顶层字段保留主点信息兼容旧工程
+    // 点组列表：主点组在前，points[0].pointId 即主点 ID
     binding = {
-      pointId: primary.pointId,
-      transformSource: primary.transformSource || undefined,
       points: validGroups.map((g) => ({
         pointId: g.pointId,
         transformSource: g.transformSource || undefined,

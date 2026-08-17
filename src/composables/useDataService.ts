@@ -72,24 +72,17 @@ export function useDataService() {
   }
 
   /**
-   * 归一化绑定点组列表：优先 points（点 ID + 转换函数成组，去重去空），
-   * 旧数据回退 [{ pointId, transformSource }] 单组；条目兼容字符串（视为无转换函数）。
+   * 归一化绑定点组列表：取 points（点 ID + 转换函数成组，去重去空）。
    * 返回列表首项即主点组（节点渲染值由它驱动）
    */
   function resolveBindingPoints(binding: DataBindingConfig): ResolvedBindingPoint[] {
-    const raw: Array<any> = Array.isArray(binding.points) && binding.points.length > 0
-      ? binding.points
-      : [{ pointId: binding.pointId, transformSource: binding.transformSource }]
     const seen = new Set<string>()
     const result: ResolvedBindingPoint[] = []
-    raw.forEach((entry, idx) => {
-      const pid = (typeof entry === 'string' ? entry : entry?.pointId ?? '').trim()
+    ;(binding.points ?? []).forEach((entry) => {
+      const pid = (entry?.pointId ?? '').trim()
       if (!pid || seen.has(pid)) return
       seen.add(pid)
-      // 转换函数：优先点组自带源码；主点回退顶层 transformSource（兼容旧工程）
-      const own = typeof entry === 'object' ? entry?.transformSource?.trim() : ''
-      const transformSource = own || (idx === 0 ? binding.transformSource : undefined)
-      result.push({ pointId: pid, transformSource })
+      result.push({ pointId: pid, transformSource: entry.transformSource?.trim() || undefined })
     })
     return result
   }
@@ -117,7 +110,7 @@ export function useDataService() {
   function bindNodeData(node: Node) {
     const nodeData = node.getData()
     const binding = nodeData?.binding as DataBindingConfig | undefined
-    if (!binding?.pointId) return
+    if (!binding) return
 
     // 归一化点组列表：为空则不订阅
     const points = resolveBindingPoints(binding)
@@ -126,39 +119,30 @@ export function useDataService() {
     // 先取消旧订阅（避免重复绑定）
     unbindNodeData(node.id)
 
-    // 解析数据源：优先 sourceId（数据源管理实例），回退旧字段 sourceType/sourceUrl
-    let sourceType = binding.sourceType
-    let sourceUrl = binding.sourceUrl
-    let sourceConfig: Record<string, any> | undefined
-    if (binding.sourceId) {
-      const ds = dataSourceStore.getDataSource(binding.sourceId)
-      if (ds) {
-        sourceType = ds.type
-        sourceUrl = ds.url
-        sourceConfig = ds.config
-      } else {
-        console.warn(`[useDataService] 未找到数据源实例: ${binding.sourceId}，不订阅数据`)
-      }
-    }
-
-    // 未绑定数据源（无 sourceId 且无旧字段 sourceUrl）→ 不订阅，节点保持静态值
-    if (!sourceUrl) {
+    // 解析数据源：仅通过 sourceId 引用「数据源管理」实例
+    if (!binding.sourceId) return
+    const ds = dataSourceStore.getDataSource(binding.sourceId)
+    if (!ds) {
+      console.warn(`[useDataService] 未找到数据源实例: ${binding.sourceId}，不订阅数据`)
       return
     }
+    const sourceType = ds.type
+    const sourceUrl = ds.url
+    const sourceConfig = ds.config
 
     // 根据配置获取对应的数据服务
-    const service = getDataService(sourceType ?? 'websocket', sourceUrl, sourceConfig)
+    const service = getDataService(sourceType, sourceUrl, sourceConfig)
     if (!service) {
       console.warn('[useDataService] 无法获取数据服务')
       return
     }
 
-    // 记录该节点使用的服务 key（使用解析后的数据源类型、地址与配置，兼容 sourceId 方式）
-    nodeServiceKeys.set(node.id, serviceKey(sourceType ?? 'websocket', sourceUrl, sourceConfig))
+    // 记录该节点使用的服务 key（类型 + 地址 + 配置）
+    nodeServiceKeys.set(node.id, serviceKey(sourceType, sourceUrl, sourceConfig))
 
     const primaryPointId = points[0].pointId
     for (const p of points) {
-      // 每个点编译自己组内的转换函数（主点已在归一化时回退顶层 transformSource）
+      // 每个点编译自己组内的转换函数
       const transform = compileTransform(p.transformSource)
       service.subscribe(p.pointId, (point) => {
         const currentData = node.getData()
@@ -197,7 +181,7 @@ export function useDataService() {
     const data = node.getData()
     const currentKey = (nodeDataSubscriptions.get(node.id) || []).join('|')
     const binding = data?.binding as DataBindingConfig | undefined
-    const newKey = binding?.pointId ? resolveBindingPoints(binding).map((p) => p.pointId).join('|') : ''
+    const newKey = binding && Array.isArray(binding.points) ? resolveBindingPoints(binding).map((p) => p.pointId).join('|') : ''
     if (currentKey !== newKey) {
       bindNodeData(node)
     }
@@ -222,12 +206,12 @@ export function useDataService() {
   }
 
   /**
-   * 为画布上所有配置了 binding.pointId 的节点绑定数据
+   * 为画布上所有配置了绑定点组的节点绑定数据
    */
   function bindAllNodes(graph: Graph) {
     for (const node of graph.getNodes()) {
       const nodeData = node.getData()
-      if (nodeData?.binding?.pointId) {
+      if (nodeData?.binding?.points?.length) {
         bindNodeData(node)
       }
     }

@@ -49,13 +49,9 @@ export interface BindingPointEntry {
 }
 
 export interface DataBindingConfig {
-    pointId: string                  // 主点 ID（points[0].pointId，驱动 data.value；兼容旧工程单字段）
-    points?: Array<BindingPointEntry | string>  // 全部绑定点组：首组为主点，条目兼容字符串旧格式
+    points: BindingPointEntry[]      // 全部绑定点组：首组为主点（points[0].pointId 即主点 ID，驱动 data.value）
     sourceId?: string                // 引用「数据源管理」中的实例；无 sourceId 则不订阅（节点保持静态值）
-    sourceType?: 'websocket' | 'mqtt' | 'http' | 'sse' | 's7' | 'opc' | 'modbus'  // 兼容旧数据
-    sourceUrl?: string               // 兼容旧数据
-    transformSource?: string         // 主点转换函数源码（可持久化，点组优先）
-    transform?: (raw: any) => any    // 运行期编译缓存（不可序列化）
+    interval?: number                // 更新间隔（毫秒，仅 HTTP 轮询有效）
 }
 ```
 
@@ -103,7 +99,6 @@ export const BUILTIN_MOCK_URLS: Record<DataSourceType, string> = {
 // 有主点即提交绑定，sourceId 允许后补（无 sourceId 的绑定运行期不订阅，节点保持静态值）
 if (primary) {
   binding = {
-    pointId: primary.pointId,                    // 主点（兼容旧工程单字段）
     points: validGroups,                         // 全部点组：点ID + 转换函数成组，首组为主点
     sourceId: bindingSourceId.value || undefined,
   }
@@ -130,7 +125,7 @@ const service = new IpcGatewayService(
 )
 ```
 
-缓存键为 `${sourceType}:${sourceUrl}:${JSON.stringify(config)}`：10 个节点绑同一个数据源只创建 **1 个** IPC 会话（`dataServiceMap`），各自订阅不同的 pointId。节点绑定时按**点组**逐点订阅（`resolveBindingPoints` 归一化：优先 `points[]`，旧单点格式回退为单组）：
+缓存键为 `${sourceType}:${sourceUrl}:${JSON.stringify(config)}`：10 个节点绑同一个数据源只创建 **1 个** IPC 会话（`dataServiceMap`），各自订阅不同的 pointId。节点绑定时按**点组**逐点订阅（`resolveBindingPoints` 归一化：取 `points[]` 去重去空）：
 
 ```ts
 for (const p of resolveBindingPoints(binding)) {

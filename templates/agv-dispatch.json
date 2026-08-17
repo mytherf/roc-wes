@@ -30,10 +30,13 @@
         "status": "idle",
         "pointId": "device.agv.1",
         "binding": {
-          "pointId": "device.agv.1",
           "sourceId": "tpl3-ds-mqtt",
-          "sourceType": "mqtt",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.agv.1",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -51,10 +54,13 @@
         "status": "idle",
         "pointId": "device.agv.2",
         "binding": {
-          "pointId": "device.agv.2",
           "sourceId": "tpl3-ds-mqtt",
-          "sourceType": "mqtt",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.agv.2",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -72,10 +78,13 @@
         "status": "idle",
         "pointId": "device.agv.3",
         "binding": {
-          "pointId": "device.agv.3",
           "sourceId": "tpl3-ds-mqtt",
-          "sourceType": "mqtt",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.agv.3",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -93,10 +102,13 @@
         "status": "charging",
         "pointId": "device.agv.4",
         "binding": {
-          "pointId": "device.agv.4",
           "sourceId": "tpl3-ds-mqtt",
-          "sourceType": "mqtt",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.agv.4",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -114,10 +126,13 @@
         "status": "idle",
         "pointId": "device.conveyor.1",
         "binding": {
-          "pointId": "device.conveyor.1",
           "sourceId": "tpl3-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.1",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -135,10 +150,13 @@
         "status": "idle",
         "pointId": "device.conveyor.2",
         "binding": {
-          "pointId": "device.conveyor.2",
           "sourceId": "tpl3-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.2",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -155,10 +173,13 @@
         "value": 50,
         "pointId": "sensor.temp.1",
         "binding": {
-          "pointId": "sensor.temp.1",
           "sourceId": "tpl3-ds-mqtt",
-          "sourceType": "mqtt",
-          "transformSource": "(raw) => Math.round(raw * 10) / 10"
+          "points": [
+            {
+              "pointId": "sensor.temp.1",
+              "transformSource": "(raw) => Math.round(raw * 10) / 10"
+            }
+          ]
         }
       }
     },
@@ -171,13 +192,37 @@
       "height": 160,
       "data": {
         "title": "任务吞吐量(次/min)",
-        "history": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        "history": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "pointId": "sensor.chart.1",
         "binding": {
-          "pointId": "sensor.chart.1",
           "sourceId": "tpl3-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => Math.round(raw * 10) / 10"
+          "points": [
+            {
+              "pointId": "sensor.chart.1",
+              "transformSource": "(raw) => Math.round(raw * 10) / 10"
+            }
+          ]
         }
       }
     },
@@ -193,10 +238,13 @@
         "value": "off",
         "pointId": "device.status.1",
         "binding": {
-          "pointId": "device.status.1",
           "sourceId": "tpl3-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+          "points": [
+            {
+              "pointId": "device.status.1",
+              "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+            }
+          ]
         }
       }
     },
@@ -212,10 +260,13 @@
         "value": "off",
         "pointId": "device.status.2",
         "binding": {
-          "pointId": "device.status.2",
           "sourceId": "tpl3-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+          "points": [
+            {
+              "pointId": "device.status.2",
+              "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+            }
+          ]
         }
       }
     }
@@ -224,30 +275,70 @@
     {
       "id": "tpl3-edge-01",
       "shape": "edge",
-      "source": { "cell": "tpl3-agv-01" },
-      "target": { "cell": "tpl3-conveyor-01" },
-      "attrs": { "line": { "stroke": "#FFC53D", "strokeWidth": 1.5, "strokeDasharray": "6 3" } }
+      "source": {
+        "cell": "tpl3-agv-01"
+      },
+      "target": {
+        "cell": "tpl3-conveyor-01"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#FFC53D",
+          "strokeWidth": 1.5,
+          "strokeDasharray": "6 3"
+        }
+      }
     },
     {
       "id": "tpl3-edge-02",
       "shape": "edge",
-      "source": { "cell": "tpl3-agv-02" },
-      "target": { "cell": "tpl3-conveyor-01" },
-      "attrs": { "line": { "stroke": "#FFC53D", "strokeWidth": 1.5, "strokeDasharray": "6 3" } }
+      "source": {
+        "cell": "tpl3-agv-02"
+      },
+      "target": {
+        "cell": "tpl3-conveyor-01"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#FFC53D",
+          "strokeWidth": 1.5,
+          "strokeDasharray": "6 3"
+        }
+      }
     },
     {
       "id": "tpl3-edge-03",
       "shape": "edge",
-      "source": { "cell": "tpl3-agv-03" },
-      "target": { "cell": "tpl3-conveyor-02" },
-      "attrs": { "line": { "stroke": "#FFC53D", "strokeWidth": 1.5, "strokeDasharray": "6 3" } }
+      "source": {
+        "cell": "tpl3-agv-03"
+      },
+      "target": {
+        "cell": "tpl3-conveyor-02"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#FFC53D",
+          "strokeWidth": 1.5,
+          "strokeDasharray": "6 3"
+        }
+      }
     },
     {
       "id": "tpl3-edge-04",
       "shape": "edge",
-      "source": { "cell": "tpl3-conveyor-02" },
-      "target": { "cell": "tpl3-agv-04" },
-      "attrs": { "line": { "stroke": "#FFC53D", "strokeWidth": 1.5, "strokeDasharray": "6 3" } }
+      "source": {
+        "cell": "tpl3-conveyor-02"
+      },
+      "target": {
+        "cell": "tpl3-agv-04"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#FFC53D",
+          "strokeWidth": 1.5,
+          "strokeDasharray": "6 3"
+        }
+      }
     }
   ]
 }

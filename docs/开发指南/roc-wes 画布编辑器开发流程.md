@@ -92,8 +92,9 @@ Sidebar.vue → @mousedown="handleDragStart($event, item)"
 3. 构建 `data`：
    - `buildData(pointId)` 优先（复杂节点，如货架：transform 需闭包引用随机货格）；
    - 否则 `data` 静态对象深拷贝 / 函数形式返回全新对象（避免引用共享）；
-4. 有 pointId 时自动注入绑定：`data.binding = { pointId, transform, transformSource }`
-   （`transform` 为运行期函数，`transformSource` 为其源码字符串，供持久化）。
+4. 有 pointId 时自动注入绑定：`data.binding = { points: [{ pointId, transformSource }] }`
+   （点组新格式：主点组携带转换函数源码字符串，供持久化；无 sourceId，
+   属性面板选数据源后才订阅生效）。
 
 ### 2.2 落点与 cell:added 事件链
 
@@ -103,7 +104,7 @@ Sidebar.vue → @mousedown="handleDragStart($event, item)"
 ```
 cell:added
   ├─ onNodeAdded(cell)                     // X6Canvas 提供的回调
-  │    ├─ dataService.bindNodeData(cell)   // 有 binding.pointId 才订阅（未选数据源则静默）
+  │    ├─ dataService.bindNodeData(cell)   // 有绑定点组才订阅（未选数据源则静默）
   │    ├─ applyNodeAnimation(cell)         // 应用节点动画（如有）
   │    └─ 图标模式下按 iconSize 压缩尺寸
   ├─ syncGraphToStore()                    // serializeGraph(graph) → editorStore.setGraphData
@@ -124,8 +125,7 @@ cell:added
 
 `useDataService.bindNodeData(cell)`：
 
-1. `resolveBindingPoints(binding)` 归一化点组：优先 `points[]`（去重去空），
-   旧单点格式回退为 `[{ pointId, transformSource }]`，首组为主点；
+1. `resolveBindingPoints(binding)` 归一化点组：取 `points[]`（去重去空），首组为主点；
 2. 按 `binding.sourceId` 解析数据源实例 → `getDataService` 路由：
    全部协议（演示 + 7 类真实模式）统一走 `IpcGatewayService`（Tauri IPC）；
 3. 逐点 `subscribe`。**未选数据源（无 sourceId）的绑定不订阅，节点保持静态值**；

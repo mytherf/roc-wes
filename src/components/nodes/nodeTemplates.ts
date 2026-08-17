@@ -277,11 +277,8 @@ export const nodeTemplates: NodeTemplate[] = [
         floorGrids: initial.floorGrids,
         pointId,
         binding: {
-          pointId,
-          sourceType: 'websocket',
-          transform: rackTransform,
-          // 持久化用：rackTransform 为无闭包自包含函数，toString 可安全序列化
-          transformSource: rackTransform.toString(),
+          // 点组新格式：主点组携带转换函数源码；无 sourceId 时运行期不订阅（属性面板选数据源后生效）
+          points: [{ pointId, transformSource: rackTransform.toString() }],
         },
       }
     },
@@ -367,13 +364,14 @@ export function buildNodeConfig(item: NodeTemplate, graph: Graph): Record<string
     // 自动注入 pointId 与数据绑定
     if (pointId) {
       config.data.pointId = pointId
+      // 点组新格式：主点组携带转换函数源码（自包含函数，toString 可安全序列化）；
+      // 无 sourceId 时运行期不订阅，属性面板选数据源后生效
       config.data.binding = {
-        pointId,
-        sourceType: 'websocket',
-        // transform 为运行期函数（不可序列化）；transformSource 为可持久化源码
-        ...(item.transform
-          ? { transform: item.transform, transformSource: item.transform.toString() }
-          : {}),
+        points: [
+          item.transform
+            ? { pointId, transformSource: item.transform.toString() }
+            : { pointId },
+        ],
       }
     }
   }

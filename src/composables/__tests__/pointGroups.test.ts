@@ -5,8 +5,7 @@
  * 1. 多点组订阅：points 中每个点组都被独立订阅
  * 2. 主点（points[0]）：转换后写入 data.value 驱动节点渲染，同时写 data.values
  * 3. 附加点：使用各自组内的转换函数，写入 data.values[pointId]
- * 4. 旧格式兼容：无 points 字段（单 pointId + 顶层 transformSource）、字符串条目数组
- * 5. rebindIfChanged：点组列表变化后重新绑定；unbindNodeData 退订全部点
+ * 4. rebindIfChanged：点组列表变化后重新绑定；unbindNodeData 退订全部点
  *
  * 通过 mock IpcGatewayService 拦截订阅回调，手动 emit 数据点验证写入结果。
  */
@@ -95,7 +94,6 @@ describe('数据绑定点组机制', () => {
         const ds = addDemoSource()
         const binding = {
             sourceId: ds.id,
-            pointId: 'p-main',
             points: [
                 { pointId: 'p-main', transformSource: '(raw) => raw * 10' },
                 { pointId: 'p-aux1', transformSource: '(raw) => Math.round(raw)' },
@@ -128,38 +126,20 @@ describe('数据绑定点组机制', () => {
         expect(d.values['p-aux2'].value).toBe('running')
     })
 
-    it('旧格式兼容：无 points 字段时按单组处理，顶层 transformSource 生效', () => {
+    it('无 points 字段：不订阅任何点位', () => {
         const ds = addDemoSource()
-        const binding = { sourceId: ds.id, pointId: 'p-old', transformSource: '(raw) => raw + 1' }
+        const binding = { sourceId: ds.id }
         const node = makeNode('n2', binding)
         const { bindNodeData } = useDataService()
         bindNodeData(node)
 
-        const svc = mockHolder.instances[0]
-        expect([...svc.callbacks.keys()]).toEqual(['p-old'])
-        svc.emit('p-old', 5)
-        expect(node.getData().value).toBe(6)
-    })
-
-    it('旧格式兼容：points 为字符串数组时视为无转换函数', () => {
-        const ds = addDemoSource()
-        const binding = { sourceId: ds.id, pointId: 'p-a', points: ['p-a', 'p-b'] }
-        const node = makeNode('n3', binding)
-        const { bindNodeData } = useDataService()
-        bindNodeData(node)
-
-        const svc = mockHolder.instances[0]
-        expect([...svc.callbacks.keys()].sort()).toEqual(['p-a', 'p-b'])
-        svc.emit('p-a', 3)
-        const d = node.getData()
-        expect(d.value).toBe(3) // 字符串条目无转换，主点原样写入
+        expect(mockHolder.instances.length).toBe(0)
     })
 
     it('rebindIfChanged：点组列表变化后重新订阅；unbindNodeData 退订全部点', () => {
         const ds = addDemoSource()
         const binding: any = {
             sourceId: ds.id,
-            pointId: 'p-main',
             points: [
                 { pointId: 'p-main' },
                 { pointId: 'p-extra' },

@@ -216,7 +216,7 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, s
   // 新增节点：绑定数据源 + 应用动画
   onNodeAdded: (cell) => {
     const data = cell.getData()
-    if (data?.binding?.pointId) {
+    if (data?.binding?.points?.length) {
       dataService.bindNodeData(cell)
     }
     applyNodeAnimation(cell)
@@ -240,12 +240,9 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, s
     }
     const binding = data?.binding
     if (binding) {
-      const points = Array.isArray(binding.points) && binding.points.length > 0
-        ? binding.points
-        : (binding.pointId ? [binding.pointId] : [])
-      for (const entry of points) {
-        // 条目兼容字符串/对象（点组 = 点ID + 转换函数）
-        const pid = typeof entry === 'string' ? entry : entry?.pointId
+      for (const entry of binding.points ?? []) {
+        // 点组 = 点ID + 转换函数
+        const pid = entry?.pointId
         if (pid) generator.release(pid)
       }
     }

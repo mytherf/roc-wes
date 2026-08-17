@@ -57,8 +57,6 @@
               <div v-for="group in groupedData" :key="group.pointId" class="point-group">
                 <div class="point-header">
                   <span class="point-id mono">{{ group.pointId || '未绑定点位' }}</span>
-                  <span v-if="group.sourceType" class="point-src">{{ group.sourceType }}</span>
-                  <span v-if="group.sourceUrl" class="point-url mono">{{ group.sourceUrl }}</span>
                 </div>
                 <div class="data-table">
                   <div v-for="entry in group.entries" :key="entry.key" class="data-row">
@@ -222,13 +220,10 @@ const groupedData = computed(() => {
     .map(([key, value]) => toEntry(key, value))
 
   const binding = data.binding
-  if (binding && binding.pointId) {
-    // 归一化绑定点列表：优先 points（点组，条目兼容字符串/对象），旧数据回退单字段 pointId
-    const rawPoints = Array.isArray(binding.points) && binding.points.length > 0
-      ? binding.points
-      : [binding.pointId]
-    const points = rawPoints
-      .map((p: any) => (typeof p === 'string' ? p : p?.pointId))
+  if (binding && Array.isArray(binding.points) && binding.points.length > 0) {
+    // 绑定点列表：取 points 点组的全部点 ID
+    const points = binding.points
+      .map((p: any) => p?.pointId)
       .filter((pid: any) => !!pid)
     // 各点的实时值（由 useDataService 写入 data.values[pointId]；rawValue 为转换前原始值）
     const values = (data.values || {}) as Record<string, { value?: any; rawValue?: any; timestamp?: number; quality?: string }>
@@ -253,15 +248,13 @@ const groupedData = computed(() => {
       }
       return {
         pointId: pid,
-        sourceType: binding.sourceType,
-        sourceUrl: binding.sourceUrl,
         entries: groupEntries,
       }
     })
   }
   // 未绑定但存在运行字段时，仍展示为“未绑定点位”组
   return entries.length > 0
-    ? [{ pointId: '', sourceType: '', sourceUrl: '', entries }]
+    ? [{ pointId: '', entries }]
     : []
 })
 </script>
@@ -425,18 +418,6 @@ const groupedData = computed(() => {
 .point-id {
   font-weight: 600;
   color: var(--color-primary);
-}
-.point-src {
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  background: var(--color-primary-light);
-  color: var(--color-primary);
-  font-size: 11px;
-}
-.point-url {
-  font-size: 11px;
-  color: var(--text-muted);
-  word-break: break-all;
 }
 .no-binding {
   font-size: 13px;

@@ -43,7 +43,7 @@ export interface IDataService {
 export interface BindingPointEntry {
     /** 点 ID（用于订阅） */
     pointId: string
-    /** 该点专属的转换函数源码（可选；主点兼容回退顶层 transformSource） */
+    /** 该点专属的转换函数源码（可选） */
     transformSource?: string
 }
 
@@ -52,36 +52,15 @@ export interface BindingPointEntry {
  * 画布上每个节点都可以配置“绑定哪个数据点”，字段如下：
  */
 export interface DataBindingConfig {
-    /** 主点 ID（points[0].pointId，节点渲染值 data.value 由它驱动；保留单字段兼容旧工程） */
-    pointId: string
     /**
-     * 全部绑定点组列表：每组 = 点 ID + 转换函数；points[0] 为主点组（属性面板中固定不可删），
-     * 其余为用户自由添加/删除的附加点组。条目兼容字符串（旧格式，视为无转换函数）。
-     * 旧工程无此字段时，按 [{ pointId, transformSource }] 单组兼容处理。
+     * 全部绑定点组列表：每组 = 点 ID + 转换函数；points[0] 为主点组（属性面板中固定不可删，
+     * 其 pointId 即主点 ID，节点渲染值 data.value 由它驱动），
+     * 其余为用户自由添加/删除的附加点组。
      * 附加点数据写入 data.values[pointId]，主点同时写入 data.value。
      */
-    points?: Array<BindingPointEntry | string>
-    /** 数据源实例 ID（引用「数据源管理」中创建的实例；为空则使用模拟数据） */
+    points: BindingPointEntry[]
+    /** 数据源实例 ID（引用「数据源管理」中创建的实例；为空则不订阅，节点保持静态值） */
     sourceId?: string
-    /** 数据源类型（兼容旧数据；新数据通过 sourceId 解析） */
-    sourceType?: 'websocket' | 'mqtt' | 'http' | 'sse' | 's7' | 'opc' | 'modbus'
-    /** 数据源地址（兼容旧数据；新数据通过 sourceId 解析） */
-    sourceUrl?: string
-    /**
-     * 转换函数源码（可持久化）。箭头函数字符串，参数固定为 raw，例如：
-     * - 简单表达式："(raw) => Math.round(raw * 10) / 10"
-     * - 多语句：    "(raw) => { const v = Number(raw); return { status: v > 80 ? 'error' : 'idle' } }"
-     * 序列化保存工程时保留此字符串；加载后由 useDataService 在订阅时编译为 transform。
-     * 为什么用字符串？因为函数（Function）无法被 JSON 序列化，
-     * 而工程文件（画布 JSON）需要落盘保存/导出，所以存源码字符串。
-     */
-    transformSource?: string
-    /**
-     * 运行时编译出的数据转换函数（原始值 → 数值/字符串/局部数据对象）。
-     * 注意：此字段为 Function，无法被 JSON 序列化，仅作运行期缓存；
-     * 持久化与跨会话恢复依赖 transformSource。
-     */
-    transform?: (raw: any) => number | string | Record<string, any>
     /** 更新间隔（毫秒，仅 HTTP 轮询有效） */
     interval?: number
 }

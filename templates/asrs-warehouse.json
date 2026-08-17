@@ -13,7 +13,9 @@
       "type": "modbus",
       "url": "ws://localhost:8086/modbus",
       "description": "AS/RS 立库模板 - 提升机寄存器数据",
-      "config": { "demo": true }
+      "config": {
+        "demo": true
+      }
     }
   ],
   "nodes": [
@@ -33,10 +35,13 @@
         "progress": 0,
         "pointId": "device.stacker.1",
         "binding": {
-          "pointId": "device.stacker.1",
           "sourceId": "tpl1-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }; if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }; if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }; return { status: 'error', isMoving: false, progress: 0 }; }"
+          "points": [
+            {
+              "pointId": "device.stacker.1",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }; if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }; if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }; return { status: 'error', isMoving: false, progress: 0 }; }"
+            }
+          ]
         }
       }
     },
@@ -56,10 +61,13 @@
         "progress": 0,
         "pointId": "device.stacker.2",
         "binding": {
-          "pointId": "device.stacker.2",
           "sourceId": "tpl1-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }; if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }; if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }; return { status: 'error', isMoving: false, progress: 0 }; }"
+          "points": [
+            {
+              "pointId": "device.stacker.2",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }; if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }; if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }; return { status: 'error', isMoving: false, progress: 0 }; }"
+            }
+          ]
         }
       }
     },
@@ -75,13 +83,105 @@
         "rows": 1,
         "cols": 6,
         "floors": 4,
-        "floorGrids": [[[{"status":"occupied"},{"status":"empty"},{"status":"reserved"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"}]],[[{"status":"empty"},{"status":"occupied"},{"status":"occupied"},{"status":"reserved"},{"status":"occupied"},{"status":"empty"}]],[[{"status":"reserved"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"},{"status":"reserved"},{"status":"occupied"}]],[[{"status":"occupied"},{"status":"reserved"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"},{"status":"reserved"}]]],
+        "floorGrids": [
+          [
+            [
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "occupied"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              }
+            ]
+          ]
+        ],
         "pointId": "device.rack.1",
         "binding": {
-          "pointId": "device.rack.1",
           "sourceId": "tpl1-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(_raw) => { const rows = 1; const cols = 6; const floors = 4; const newGrids = Array.from({ length: floors }, () => Array.from({ length: rows }, () => Array.from({ length: cols }, () => { const rand = Math.random(); const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'; return { status }; }))); return { floorGrids: newGrids }; }"
+          "points": [
+            {
+              "pointId": "device.rack.1",
+              "transformSource": "(_raw) => { const rows = 1; const cols = 6; const floors = 4; const newGrids = Array.from({ length: floors }, () => Array.from({ length: rows }, () => Array.from({ length: cols }, () => { const rand = Math.random(); const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'; return { status }; }))); return { floorGrids: newGrids }; }"
+            }
+          ]
         }
       }
     },
@@ -97,13 +197,105 @@
         "rows": 1,
         "cols": 6,
         "floors": 4,
-        "floorGrids": [[[{"status":"empty"},{"status":"occupied"},{"status":"occupied"},{"status":"reserved"},{"status":"empty"},{"status":"occupied"}]],[[{"status":"occupied"},{"status":"reserved"},{"status":"empty"},{"status":"occupied"},{"status":"occupied"},{"status":"reserved"}]],[[{"status":"reserved"},{"status":"empty"},{"status":"occupied"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"}]],[[{"status":"occupied"},{"status":"occupied"},{"status":"reserved"},{"status":"empty"},{"status":"occupied"},{"status":"empty"}]]],
+        "floorGrids": [
+          [
+            [
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              }
+            ]
+          ]
+        ],
         "pointId": "device.rack.2",
         "binding": {
-          "pointId": "device.rack.2",
           "sourceId": "tpl1-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(_raw) => { const rows = 1; const cols = 6; const floors = 4; const newGrids = Array.from({ length: floors }, () => Array.from({ length: rows }, () => Array.from({ length: cols }, () => { const rand = Math.random(); const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'; return { status }; }))); return { floorGrids: newGrids }; }"
+          "points": [
+            {
+              "pointId": "device.rack.2",
+              "transformSource": "(_raw) => { const rows = 1; const cols = 6; const floors = 4; const newGrids = Array.from({ length: floors }, () => Array.from({ length: rows }, () => Array.from({ length: cols }, () => { const rand = Math.random(); const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'; return { status }; }))); return { floorGrids: newGrids }; }"
+            }
+          ]
         }
       }
     },
@@ -121,10 +313,13 @@
         "status": "idle",
         "pointId": "device.conveyor.1",
         "binding": {
-          "pointId": "device.conveyor.1",
           "sourceId": "tpl1-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.1",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -142,10 +337,13 @@
         "status": "idle",
         "pointId": "device.conveyor.2",
         "binding": {
-          "pointId": "device.conveyor.2",
           "sourceId": "tpl1-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.2",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -163,10 +361,13 @@
         "status": "idle",
         "pointId": "device.conveyor.3",
         "binding": {
-          "pointId": "device.conveyor.3",
           "sourceId": "tpl1-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.3",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -185,10 +386,13 @@
         "status": "idle",
         "pointId": "device.elevator.1",
         "binding": {
-          "pointId": "device.elevator.1",
           "sourceId": "tpl1-ds-modbus",
-          "sourceType": "modbus",
-          "transformSource": "(raw) => { const v = Number(raw); const level = Math.floor(((v % 100) / 100) * 6) + 1; if (v < 30) return { currentLevel: level, position: v, status: 'idle' }; if (v < 80) return { currentLevel: level, position: v, status: 'running' }; return { currentLevel: level, position: v, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.elevator.1",
+              "transformSource": "(raw) => { const v = Number(raw); const level = Math.floor(((v % 100) / 100) * 6) + 1; if (v < 30) return { currentLevel: level, position: v, status: 'idle' }; if (v < 80) return { currentLevel: level, position: v, status: 'running' }; return { currentLevel: level, position: v, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -205,10 +409,13 @@
         "value": 50,
         "pointId": "sensor.temp.1",
         "binding": {
-          "pointId": "sensor.temp.1",
           "sourceId": "tpl1-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => Math.round(raw * 10) / 10"
+          "points": [
+            {
+              "pointId": "sensor.temp.1",
+              "transformSource": "(raw) => Math.round(raw * 10) / 10"
+            }
+          ]
         }
       }
     },
@@ -224,10 +431,13 @@
         "value": "off",
         "pointId": "device.status.1",
         "binding": {
-          "pointId": "device.status.1",
           "sourceId": "tpl1-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+          "points": [
+            {
+              "pointId": "device.status.1",
+              "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+            }
+          ]
         }
       }
     },
@@ -243,10 +453,13 @@
         "value": "off",
         "pointId": "device.status.2",
         "binding": {
-          "pointId": "device.status.2",
           "sourceId": "tpl1-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+          "points": [
+            {
+              "pointId": "device.status.2",
+              "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+            }
+          ]
         }
       }
     }
@@ -255,44 +468,98 @@
     {
       "id": "tpl1-edge-01",
       "shape": "edge",
-      "source": { "cell": "tpl1-conveyor-01" },
-      "target": { "cell": "tpl1-elevator-01" },
-      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl1-conveyor-01"
+      },
+      "target": {
+        "cell": "tpl1-elevator-01"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#5F95FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl1-edge-02",
       "shape": "edge",
-      "source": { "cell": "tpl1-elevator-01" },
-      "target": { "cell": "tpl1-stacker-01" },
-      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl1-elevator-01"
+      },
+      "target": {
+        "cell": "tpl1-stacker-01"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#5F95FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl1-edge-03",
       "shape": "edge",
-      "source": { "cell": "tpl1-stacker-01" },
-      "target": { "cell": "tpl1-rack-01" },
-      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl1-stacker-01"
+      },
+      "target": {
+        "cell": "tpl1-rack-01"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#5F95FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl1-edge-04",
       "shape": "edge",
-      "source": { "cell": "tpl1-stacker-02" },
-      "target": { "cell": "tpl1-rack-02" },
-      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl1-stacker-02"
+      },
+      "target": {
+        "cell": "tpl1-rack-02"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#5F95FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl1-edge-05",
       "shape": "edge",
-      "source": { "cell": "tpl1-conveyor-02" },
-      "target": { "cell": "tpl1-elevator-01" },
-      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl1-conveyor-02"
+      },
+      "target": {
+        "cell": "tpl1-elevator-01"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#5F95FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl1-edge-06",
       "shape": "edge",
-      "source": { "cell": "tpl1-conveyor-03" },
-      "target": { "cell": "tpl1-stacker-02" },
-      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl1-conveyor-03"
+      },
+      "target": {
+        "cell": "tpl1-stacker-02"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#5F95FF",
+          "strokeWidth": 2
+        }
+      }
     }
   ]
 }

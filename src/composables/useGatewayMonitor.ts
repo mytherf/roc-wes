@@ -78,18 +78,15 @@ export function useGatewayMonitor() {
     /** dsId → 探针实例（非响应式，仅内部持有） */
     const monitors = new Map<string, GatewayMonitorService>()
 
-    /** 收集某数据源被画布节点绑定的所有 pointId（去重；多点绑定取全部点组，条目兼容字符串/对象；兼容 sourceId 与旧 sourceUrl 引用） */
+    /** 收集某数据源被画布节点绑定的所有 pointId（去重；多点绑定取全部点组） */
     function collectPoints(ds: DataSource): string[] {
         const set = new Set<string>()
         for (const node of editorStore.graphData.nodes as any[]) {
             const b = node?.data?.binding
-            if (!b?.pointId) continue
-            if (b.sourceId === ds.id || (b.sourceUrl && b.sourceUrl === ds.url)) {
-                const points = Array.isArray(b.points) && b.points.length > 0
-                    ? b.points
-                    : [b.pointId]
-                for (const entry of points) {
-                    const pid = typeof entry === 'string' ? entry : entry?.pointId
+            if (!b) continue
+            if (b.sourceId === ds.id) {
+                for (const entry of b.points ?? []) {
+                    const pid = entry?.pointId
                     if (pid) set.add(pid)
                 }
             }

@@ -36,9 +36,12 @@
         "status": "运行中",
         "pointId": "device.card.in",
         "binding": {
-          "pointId": "device.card.in",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket"
+          "points": [
+            {
+              "pointId": "device.card.in"
+            }
+          ]
         }
       }
     },
@@ -55,13 +58,15 @@
         "status": "运行中",
         "pointId": "device.card.out",
         "binding": {
-          "pointId": "device.card.out",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket"
+          "points": [
+            {
+              "pointId": "device.card.out"
+            }
+          ]
         }
       }
     },
-
     {
       "id": "tpl4-in-conveyor-01",
       "shape": "conveyor-node",
@@ -76,10 +81,13 @@
         "status": "idle",
         "pointId": "device.conveyor.in1",
         "binding": {
-          "pointId": "device.conveyor.in1",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.in1",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -95,17 +103,36 @@
         "speed": 60,
         "status": "idle",
         "chutes": [
-          { "label": "A巷道", "count": 0, "active": false },
-          { "label": "B巷道", "count": 0, "active": false },
-          { "label": "C巷道", "count": 0, "active": false },
-          { "label": "D巷道", "count": 0, "active": false }
+          {
+            "label": "A巷道",
+            "count": 0,
+            "active": false
+          },
+          {
+            "label": "B巷道",
+            "count": 0,
+            "active": false
+          },
+          {
+            "label": "C巷道",
+            "count": 0,
+            "active": false
+          },
+          {
+            "label": "D巷道",
+            "count": 0,
+            "active": false
+          }
         ],
         "pointId": "device.sorter.in",
         "binding": {
-          "pointId": "device.sorter.in",
           "sourceId": "tpl4-ds-sse",
-          "sourceType": "sse",
-          "transformSource": "(raw) => { const v = Number(raw); const chutes = [ { label: 'A巷道', count: Math.floor(v * 0.1), active: v > 20 }, { label: 'B巷道', count: Math.floor(v * 0.2), active: v > 40 }, { label: 'C巷道', count: Math.floor(v * 0.3), active: v > 60 }, { label: 'D巷道', count: Math.floor(v * 0.4), active: v > 80 } ]; return { speed: 30 + v * 0.7, status: v > 90 ? 'error' : v > 10 ? 'running' : 'idle', chutes }; }"
+          "points": [
+            {
+              "pointId": "device.sorter.in",
+              "transformSource": "(raw) => { const v = Number(raw); const chutes = [ { label: 'A巷道', count: Math.floor(v * 0.1), active: v > 20 }, { label: 'B巷道', count: Math.floor(v * 0.2), active: v > 40 }, { label: 'C巷道', count: Math.floor(v * 0.3), active: v > 60 }, { label: 'D巷道', count: Math.floor(v * 0.4), active: v > 80 } ]; return { speed: 30 + v * 0.7, status: v > 90 ? 'error' : v > 10 ? 'running' : 'idle', chutes }; }"
+            }
+          ]
         }
       }
     },
@@ -123,10 +150,13 @@
         "status": "idle",
         "pointId": "device.agv.in",
         "binding": {
-          "pointId": "device.agv.in",
           "sourceId": "tpl4-ds-mqtt",
-          "sourceType": "mqtt",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.agv.in",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -146,10 +176,13 @@
         "progress": 0,
         "pointId": "device.stacker.in",
         "binding": {
-          "pointId": "device.stacker.in",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }; if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }; if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }; return { status: 'error', isMoving: false, progress: 0 }; }"
+          "points": [
+            {
+              "pointId": "device.stacker.in",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }; if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }; if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }; return { status: 'error', isMoving: false, progress: 0 }; }"
+            }
+          ]
         }
       }
     },
@@ -165,17 +198,108 @@
         "rows": 1,
         "cols": 6,
         "floors": 4,
-        "floorGrids": [[[{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"}]],[[{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"}]],[[{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"}]],[[{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"},{"status":"empty"}]]],
+        "floorGrids": [
+          [
+            [
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "empty"
+              }
+            ]
+          ]
+        ],
         "pointId": "device.rack.in",
         "binding": {
-          "pointId": "device.rack.in",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(_raw) => { const rows = 1; const cols = 6; const floors = 4; const newGrids = Array.from({ length: floors }, () => Array.from({ length: rows }, () => Array.from({ length: cols }, () => { const rand = Math.random(); const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'; return { status }; }))); return { floorGrids: newGrids }; }"
+          "points": [
+            {
+              "pointId": "device.rack.in",
+              "transformSource": "(_raw) => { const rows = 1; const cols = 6; const floors = 4; const newGrids = Array.from({ length: floors }, () => Array.from({ length: rows }, () => Array.from({ length: cols }, () => { const rand = Math.random(); const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'; return { status }; }))); return { floorGrids: newGrids }; }"
+            }
+          ]
         }
       }
     },
-
     {
       "id": "tpl4-out-rack",
       "shape": "rack-node",
@@ -188,13 +312,105 @@
         "rows": 1,
         "cols": 6,
         "floors": 4,
-        "floorGrids": [[[{"status":"occupied"},{"status":"occupied"},{"status":"reserved"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"}]],[[{"status":"occupied"},{"status":"reserved"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"},{"status":"reserved"}]],[[{"status":"reserved"},{"status":"occupied"},{"status":"empty"},{"status":"occupied"},{"status":"occupied"},{"status":"empty"}]],[[{"status":"occupied"},{"status":"empty"},{"status":"occupied"},{"status":"reserved"},{"status":"occupied"},{"status":"occupied"}]]],
+        "floorGrids": [
+          [
+            [
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              }
+            ]
+          ],
+          [
+            [
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "empty"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "reserved"
+              },
+              {
+                "status": "occupied"
+              },
+              {
+                "status": "occupied"
+              }
+            ]
+          ]
+        ],
         "pointId": "device.rack.out",
         "binding": {
-          "pointId": "device.rack.out",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(_raw) => { const rows = 1; const cols = 6; const floors = 4; const newGrids = Array.from({ length: floors }, () => Array.from({ length: rows }, () => Array.from({ length: cols }, () => { const rand = Math.random(); const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'; return { status }; }))); return { floorGrids: newGrids }; }"
+          "points": [
+            {
+              "pointId": "device.rack.out",
+              "transformSource": "(_raw) => { const rows = 1; const cols = 6; const floors = 4; const newGrids = Array.from({ length: floors }, () => Array.from({ length: rows }, () => Array.from({ length: cols }, () => { const rand = Math.random(); const status = rand < 0.3 ? 'empty' : rand < 0.6 ? 'occupied' : 'reserved'; return { status }; }))); return { floorGrids: newGrids }; }"
+            }
+          ]
         }
       }
     },
@@ -214,10 +430,13 @@
         "progress": 0,
         "pointId": "device.stacker.out",
         "binding": {
-          "pointId": "device.stacker.out",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }; if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }; if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }; return { status: 'error', isMoving: false, progress: 0 }; }"
+          "points": [
+            {
+              "pointId": "device.stacker.out",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }; if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }; if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }; return { status: 'error', isMoving: false, progress: 0 }; }"
+            }
+          ]
         }
       }
     },
@@ -235,10 +454,13 @@
         "status": "idle",
         "pointId": "device.agv.out",
         "binding": {
-          "pointId": "device.agv.out",
           "sourceId": "tpl4-ds-mqtt",
-          "sourceType": "mqtt",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.agv.out",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }; if (v < 40) return { battery: v, isMoving: false, status: 'idle' }; if (v < 80) return { battery: v, isMoving: true, status: 'running' }; return { battery: v, isMoving: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -256,10 +478,13 @@
         "status": "idle",
         "pointId": "device.conveyor.out1",
         "binding": {
-          "pointId": "device.conveyor.out1",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.out1",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -277,10 +502,13 @@
         "status": "idle",
         "pointId": "device.robot.out",
         "binding": {
-          "pointId": "device.robot.out",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { jointAngle: 0, isOpen: false, status: 'idle' }; if (v < 40) return { jointAngle: 30, isOpen: false, status: 'idle' }; if (v < 60) return { jointAngle: 60, isOpen: true, status: 'running' }; if (v < 80) return { jointAngle: 90, isOpen: true, status: 'running' }; return { jointAngle: 0, isOpen: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.robot.out",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { jointAngle: 0, isOpen: false, status: 'idle' }; if (v < 40) return { jointAngle: 30, isOpen: false, status: 'idle' }; if (v < 60) return { jointAngle: 60, isOpen: true, status: 'running' }; if (v < 80) return { jointAngle: 90, isOpen: true, status: 'running' }; return { jointAngle: 0, isOpen: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -298,14 +526,16 @@
         "status": "idle",
         "pointId": "device.conveyor.out2",
         "binding": {
-          "pointId": "device.conveyor.out2",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.out2",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
-
     {
       "id": "tpl4-elevator",
       "shape": "elevator-node",
@@ -321,10 +551,13 @@
         "status": "idle",
         "pointId": "device.elevator.1",
         "binding": {
-          "pointId": "device.elevator.1",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); const level = Math.floor(((v % 100) / 100) * 6) + 1; if (v < 30) return { currentLevel: level, position: v, status: 'idle' }; if (v < 80) return { currentLevel: level, position: v, status: 'running' }; return { currentLevel: level, position: v, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.elevator.1",
+              "transformSource": "(raw) => { const v = Number(raw); const level = Math.floor(((v % 100) / 100) * 6) + 1; if (v < 30) return { currentLevel: level, position: v, status: 'idle' }; if (v < 80) return { currentLevel: level, position: v, status: 'running' }; return { currentLevel: level, position: v, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -341,10 +574,13 @@
         "value": 50,
         "pointId": "sensor.temp.1",
         "binding": {
-          "pointId": "sensor.temp.1",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => Math.round(raw * 10) / 10"
+          "points": [
+            {
+              "pointId": "sensor.temp.1",
+              "transformSource": "(raw) => Math.round(raw * 10) / 10"
+            }
+          ]
         }
       }
     },
@@ -357,13 +593,37 @@
       "height": 160,
       "data": {
         "title": "出入库吞吐(托/h)",
-        "history": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        "history": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "pointId": "sensor.chart.1",
         "binding": {
-          "pointId": "sensor.chart.1",
           "sourceId": "tpl4-ds-sse",
-          "sourceType": "sse",
-          "transformSource": "(raw) => Math.round(raw * 10) / 10"
+          "points": [
+            {
+              "pointId": "sensor.chart.1",
+              "transformSource": "(raw) => Math.round(raw * 10) / 10"
+            }
+          ]
         }
       }
     },
@@ -379,10 +639,13 @@
         "value": "off",
         "pointId": "device.status.in",
         "binding": {
-          "pointId": "device.status.in",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+          "points": [
+            {
+              "pointId": "device.status.in",
+              "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+            }
+          ]
         }
       }
     },
@@ -398,10 +661,13 @@
         "value": "off",
         "pointId": "device.status.out",
         "binding": {
-          "pointId": "device.status.out",
           "sourceId": "tpl4-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+          "points": [
+            {
+              "pointId": "device.status.out",
+              "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+            }
+          ]
         }
       }
     }
@@ -410,79 +676,180 @@
     {
       "id": "tpl4-edge-in-01",
       "shape": "edge",
-      "source": { "cell": "tpl4-in-conveyor-01" },
-      "target": { "cell": "tpl4-in-sorter" },
-      "attrs": { "line": { "stroke": "#52C41A", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl4-in-conveyor-01"
+      },
+      "target": {
+        "cell": "tpl4-in-sorter"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#52C41A",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl4-edge-in-02",
       "shape": "edge",
-      "source": { "cell": "tpl4-in-sorter" },
-      "target": { "cell": "tpl4-in-agv" },
-      "attrs": { "line": { "stroke": "#52C41A", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl4-in-sorter"
+      },
+      "target": {
+        "cell": "tpl4-in-agv"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#52C41A",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl4-edge-in-03",
       "shape": "edge",
-      "source": { "cell": "tpl4-in-agv" },
-      "target": { "cell": "tpl4-in-stacker" },
-      "attrs": { "line": { "stroke": "#52C41A", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl4-in-agv"
+      },
+      "target": {
+        "cell": "tpl4-in-stacker"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#52C41A",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl4-edge-in-04",
       "shape": "edge",
-      "source": { "cell": "tpl4-in-stacker" },
-      "target": { "cell": "tpl4-in-rack" },
-      "attrs": { "line": { "stroke": "#52C41A", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl4-in-stacker"
+      },
+      "target": {
+        "cell": "tpl4-in-rack"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#52C41A",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl4-edge-out-01",
       "shape": "edge",
-      "source": { "cell": "tpl4-out-rack" },
-      "target": { "cell": "tpl4-out-stacker" },
-      "attrs": { "line": { "stroke": "#1890FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl4-out-rack"
+      },
+      "target": {
+        "cell": "tpl4-out-stacker"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#1890FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl4-edge-out-02",
       "shape": "edge",
-      "source": { "cell": "tpl4-out-stacker" },
-      "target": { "cell": "tpl4-out-agv" },
-      "attrs": { "line": { "stroke": "#1890FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl4-out-stacker"
+      },
+      "target": {
+        "cell": "tpl4-out-agv"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#1890FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl4-edge-out-03",
       "shape": "edge",
-      "source": { "cell": "tpl4-out-agv" },
-      "target": { "cell": "tpl4-out-conveyor-01" },
-      "attrs": { "line": { "stroke": "#1890FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl4-out-agv"
+      },
+      "target": {
+        "cell": "tpl4-out-conveyor-01"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#1890FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl4-edge-out-04",
       "shape": "edge",
-      "source": { "cell": "tpl4-out-conveyor-01" },
-      "target": { "cell": "tpl4-out-robot" },
-      "attrs": { "line": { "stroke": "#1890FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl4-out-conveyor-01"
+      },
+      "target": {
+        "cell": "tpl4-out-robot"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#1890FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl4-edge-out-05",
       "shape": "edge",
-      "source": { "cell": "tpl4-out-robot" },
-      "target": { "cell": "tpl4-out-conveyor-02" },
-      "attrs": { "line": { "stroke": "#1890FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl4-out-robot"
+      },
+      "target": {
+        "cell": "tpl4-out-conveyor-02"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#1890FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl4-edge-elev-01",
       "shape": "edge",
-      "source": { "cell": "tpl4-in-rack" },
-      "target": { "cell": "tpl4-elevator" },
-      "attrs": { "line": { "stroke": "#FAAD14", "strokeWidth": 1.5, "strokeDasharray": "5 3" } }
+      "source": {
+        "cell": "tpl4-in-rack"
+      },
+      "target": {
+        "cell": "tpl4-elevator"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#FAAD14",
+          "strokeWidth": 1.5,
+          "strokeDasharray": "5 3"
+        }
+      }
     },
     {
       "id": "tpl4-edge-elev-02",
       "shape": "edge",
-      "source": { "cell": "tpl4-elevator" },
-      "target": { "cell": "tpl4-out-rack" },
-      "attrs": { "line": { "stroke": "#FAAD14", "strokeWidth": 1.5, "strokeDasharray": "5 3" } }
+      "source": {
+        "cell": "tpl4-elevator"
+      },
+      "target": {
+        "cell": "tpl4-out-rack"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#FAAD14",
+          "strokeWidth": 1.5,
+          "strokeDasharray": "5 3"
+        }
+      }
     }
   ]
 }

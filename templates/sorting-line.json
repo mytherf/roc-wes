@@ -30,10 +30,13 @@
         "status": "idle",
         "pointId": "device.conveyor.1",
         "binding": {
-          "pointId": "device.conveyor.1",
           "sourceId": "tpl2-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.1",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -49,17 +52,36 @@
         "speed": 60,
         "status": "idle",
         "chutes": [
-          { "label": "A区", "count": 0, "active": false },
-          { "label": "B区", "count": 0, "active": false },
-          { "label": "C区", "count": 0, "active": false },
-          { "label": "D区", "count": 0, "active": false }
+          {
+            "label": "A区",
+            "count": 0,
+            "active": false
+          },
+          {
+            "label": "B区",
+            "count": 0,
+            "active": false
+          },
+          {
+            "label": "C区",
+            "count": 0,
+            "active": false
+          },
+          {
+            "label": "D区",
+            "count": 0,
+            "active": false
+          }
         ],
         "pointId": "device.sorter.1",
         "binding": {
-          "pointId": "device.sorter.1",
           "sourceId": "tpl2-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); const chutes = [ { label: 'A区', count: Math.floor(v * 0.1), active: v > 20 }, { label: 'B区', count: Math.floor(v * 0.2), active: v > 40 }, { label: 'C区', count: Math.floor(v * 0.3), active: v > 60 }, { label: 'D区', count: Math.floor(v * 0.4), active: v > 80 } ]; return { speed: 30 + v * 0.7, status: v > 90 ? 'error' : v > 10 ? 'running' : 'idle', chutes }; }"
+          "points": [
+            {
+              "pointId": "device.sorter.1",
+              "transformSource": "(raw) => { const v = Number(raw); const chutes = [ { label: 'A区', count: Math.floor(v * 0.1), active: v > 20 }, { label: 'B区', count: Math.floor(v * 0.2), active: v > 40 }, { label: 'C区', count: Math.floor(v * 0.3), active: v > 60 }, { label: 'D区', count: Math.floor(v * 0.4), active: v > 80 } ]; return { speed: 30 + v * 0.7, status: v > 90 ? 'error' : v > 10 ? 'running' : 'idle', chutes }; }"
+            }
+          ]
         }
       }
     },
@@ -77,10 +99,13 @@
         "status": "idle",
         "pointId": "device.conveyor.2",
         "binding": {
-          "pointId": "device.conveyor.2",
           "sourceId": "tpl2-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.2",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -98,10 +123,13 @@
         "status": "idle",
         "pointId": "device.conveyor.3",
         "binding": {
-          "pointId": "device.conveyor.3",
           "sourceId": "tpl2-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.3",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -119,10 +147,13 @@
         "status": "idle",
         "pointId": "device.conveyor.4",
         "binding": {
-          "pointId": "device.conveyor.4",
           "sourceId": "tpl2-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.conveyor.4",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 30) return { isRunning: false, status: 'idle' }; if (v < 70) return { isRunning: true, status: 'running' }; return { isRunning: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -140,10 +171,13 @@
         "status": "idle",
         "pointId": "device.robot.1",
         "binding": {
-          "pointId": "device.robot.1",
           "sourceId": "tpl2-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { jointAngle: 0, isOpen: false, status: 'idle' }; if (v < 40) return { jointAngle: 30, isOpen: false, status: 'idle' }; if (v < 60) return { jointAngle: 60, isOpen: true, status: 'running' }; if (v < 80) return { jointAngle: 90, isOpen: true, status: 'running' }; return { jointAngle: 0, isOpen: false, status: 'error' }; }"
+          "points": [
+            {
+              "pointId": "device.robot.1",
+              "transformSource": "(raw) => { const v = Number(raw); if (v < 20) return { jointAngle: 0, isOpen: false, status: 'idle' }; if (v < 40) return { jointAngle: 30, isOpen: false, status: 'idle' }; if (v < 60) return { jointAngle: 60, isOpen: true, status: 'running' }; if (v < 80) return { jointAngle: 90, isOpen: true, status: 'running' }; return { jointAngle: 0, isOpen: false, status: 'error' }; }"
+            }
+          ]
         }
       }
     },
@@ -156,13 +190,37 @@
       "height": 160,
       "data": {
         "title": "分拣速率(件/min)",
-        "history": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        "history": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "pointId": "sensor.chart.1",
         "binding": {
-          "pointId": "sensor.chart.1",
           "sourceId": "tpl2-ds-sse",
-          "sourceType": "sse",
-          "transformSource": "(raw) => Math.round(raw * 10) / 10"
+          "points": [
+            {
+              "pointId": "sensor.chart.1",
+              "transformSource": "(raw) => Math.round(raw * 10) / 10"
+            }
+          ]
         }
       }
     },
@@ -178,10 +236,13 @@
         "value": "off",
         "pointId": "device.status.1",
         "binding": {
-          "pointId": "device.status.1",
           "sourceId": "tpl2-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+          "points": [
+            {
+              "pointId": "device.status.1",
+              "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+            }
+          ]
         }
       }
     },
@@ -197,10 +258,13 @@
         "value": "off",
         "pointId": "device.status.2",
         "binding": {
-          "pointId": "device.status.2",
           "sourceId": "tpl2-ds-ws",
-          "sourceType": "websocket",
-          "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+          "points": [
+            {
+              "pointId": "device.status.2",
+              "transformSource": "(raw) => { if (raw > 80) return 'on'; if (raw > 50) return 'warning'; if (raw > 20) return 'off'; return 'error'; }"
+            }
+          ]
         }
       }
     }
@@ -209,37 +273,83 @@
     {
       "id": "tpl2-edge-01",
       "shape": "edge",
-      "source": { "cell": "tpl2-conveyor-main" },
-      "target": { "cell": "tpl2-sorter-01" },
-      "attrs": { "line": { "stroke": "#5F95FF", "strokeWidth": 2 } }
+      "source": {
+        "cell": "tpl2-conveyor-main"
+      },
+      "target": {
+        "cell": "tpl2-sorter-01"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#5F95FF",
+          "strokeWidth": 2
+        }
+      }
     },
     {
       "id": "tpl2-edge-02",
       "shape": "edge",
-      "source": { "cell": "tpl2-sorter-01" },
-      "target": { "cell": "tpl2-conveyor-branch-a" },
-      "attrs": { "line": { "stroke": "#69C0FF", "strokeWidth": 1.5 } }
+      "source": {
+        "cell": "tpl2-sorter-01"
+      },
+      "target": {
+        "cell": "tpl2-conveyor-branch-a"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#69C0FF",
+          "strokeWidth": 1.5
+        }
+      }
     },
     {
       "id": "tpl2-edge-03",
       "shape": "edge",
-      "source": { "cell": "tpl2-sorter-01" },
-      "target": { "cell": "tpl2-conveyor-branch-b" },
-      "attrs": { "line": { "stroke": "#69C0FF", "strokeWidth": 1.5 } }
+      "source": {
+        "cell": "tpl2-sorter-01"
+      },
+      "target": {
+        "cell": "tpl2-conveyor-branch-b"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#69C0FF",
+          "strokeWidth": 1.5
+        }
+      }
     },
     {
       "id": "tpl2-edge-04",
       "shape": "edge",
-      "source": { "cell": "tpl2-sorter-01" },
-      "target": { "cell": "tpl2-conveyor-branch-c" },
-      "attrs": { "line": { "stroke": "#69C0FF", "strokeWidth": 1.5 } }
+      "source": {
+        "cell": "tpl2-sorter-01"
+      },
+      "target": {
+        "cell": "tpl2-conveyor-branch-c"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#69C0FF",
+          "strokeWidth": 1.5
+        }
+      }
     },
     {
       "id": "tpl2-edge-05",
       "shape": "edge",
-      "source": { "cell": "tpl2-robot-01" },
-      "target": { "cell": "tpl2-sorter-01" },
-      "attrs": { "line": { "stroke": "#95DE64", "strokeWidth": 1.5, "strokeDasharray": "5 3" } }
+      "source": {
+        "cell": "tpl2-robot-01"
+      },
+      "target": {
+        "cell": "tpl2-sorter-01"
+      },
+      "attrs": {
+        "line": {
+          "stroke": "#95DE64",
+          "strokeWidth": 1.5,
+          "strokeDasharray": "5 3"
+        }
+      }
     }
   ]
 }
