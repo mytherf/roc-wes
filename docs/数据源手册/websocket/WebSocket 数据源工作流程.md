@@ -35,7 +35,7 @@
 
 1. 打开 **HslCommunciationTools**（HslCommunication 工业联调工具），切换到 **WebSocket** 页签，设置监听地址 `ws://127.0.0.1:12345` 并启动监听（状态显示「服务器已启动」）
 
-2. 数据源管理新建「WebSocket测试数据源」→ 连接模式选 **真实模式**，地址填 `ws://127.0.0.1:12345`
+2. 数据源管理新建「WebSocket测试数据源」→ 连接模式选 **真实模式**，在下方连接配置区的地址栏填 `ws://127.0.0.1:12345`
 
 3. 属性面板选该数据源、点ID 填 `sensor.temp.001`
 
@@ -84,7 +84,7 @@ graph TB
 
 ```rust
 // Rust 侧：按点位 ID 生成正弦波 + 确定性伪噪声（约 20~80）
-fn ws_value(point_id: &str, now_ms: u64) -> f64 {
+fn sine_value(point_id: &str, now_ms: u64) -> f64 {
     let phase = (hash_u64(point_id) % 628) as f64 / 100.0;   // 0~2π，错开各点波形
     let noise = (pseudo_noise(point_id, now_ms) - 0.5) * 2.0; // ±1
     round1(50.0 + 30.0 * (now_ms as f64 / 5000.0 + phase).sin() + noise)
@@ -107,7 +107,7 @@ HslCommunciationTools 是 HslCommunication 库配套的工业联调测试工具�
 
 ## ② 数据源注册（配置层）
 
-用户在「数据源管理」对话框新建数据源（[dataSource.ts](file://C:/myf/project/allinone/roc-wes/src/stores/dataSource.ts)）。选 WebSocket 类型 + 演示模式时无需填写地址（地址框置空只读），保存时 `config.demo` 置为 `true`。
+用户在「数据源管理」对话框新建数据源（[dataSource.ts](file://C:/myf/project/allinone/roc-wes/src/stores/dataSource.ts)）。类型下拉与连接配置均由注册表驱动（[protocolConfigRegistry.ts](file://C:/myf/project/allinone/roc-wes/src/components/dataSource/protocolConfigRegistry.ts)）：选 WebSocket + 真实设备模式时渲染 `WebsocketProtocolConfig.vue` 子组件，在其地址栏填写服务地址；演示模式不显示地址栏，保存时 `config.demo` 置为 `true`。
 
 是否为演示模式由 [isDemoSource](file://C:/myf/project/allinone/roc-wes/src/platform/deviceConfig.ts) 判定：仅以 `config.demo === true` 为准（演示模式地址可为空）。两种模式保存后均落盘到 `datasources.json`：
 
@@ -119,7 +119,7 @@ HslCommunciationTools 是 HslCommunication 库配套的工业联调测试工具�
 { "id": "ds-1712345-def456", "name": "WebSocket测试数据源", "type": "websocket", "url": "ws://127.0.0.1:12345", "config": { "demo": false } }
 ```
 
-前者判定为演示模式（映射配置 `{ protocol:'websocket', isMock:true, profile:'websocket', pollIntervalMs }`）；后者为真实模式（映射配置 `{ protocol:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
+前者判定为演示模式（映射配置 `{ protocol:'websocket', isMock:true, pollIntervalMs }`，缺省正弦；若用户选了「演示波形」则额外带 `profile`）；后者为真实模式（映射配置 `{ protocol:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
 
 
 ## ③ 节点绑定（PropertyPanel）
@@ -150,7 +150,7 @@ if (binding) props.canvasRef.bindNodeData(node)   // 重建订阅
 const ds = dataSourceStore.getDataSource(binding.sourceId)
 sourceType = ds.type   // 'websocket'
 
-// 2. 统一路由：演示模式映射为 { protocol:'websocket', isMock:true, profile:'websocket', pollIntervalMs }，
+// 2. 统一路由：演示模式映射为 { protocol:'websocket', isMock:true, pollIntervalMs }（缺省正弦，选了波形才带 profile），
 //    真实模式映射为 { protocol:'websocket', url, pollIntervalMs }
 service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), 'WEBSOCKET')
 
@@ -174,7 +174,7 @@ for (const p of resolveBindingPoints(binding)) {
 
 ```ts
 // 建会话：演示模式用 DemoAdapter，真实模式用 WebSocketAdapter（作为 WS 客户端连接外部服务）
-await invoke('gateway_connect', { deviceId, config: { protocol: 'websocket', isMock: true, profile: 'websocket', pollIntervalMs: 1000 } })
+await invoke('gateway_connect', { deviceId, config: { protocol: 'websocket', isMock: true, pollIntervalMs: 1000 } })
 await invoke('gateway_connect', { deviceId, config: { protocol: 'websocket', url: 'ws://127.0.0.1:12345', pollIntervalMs: 1000 } })
 
 // 订阅：登记回调 + 通知 Rust（连接建立前的订阅会补发；真实模式下网关每 tick 差量同步，

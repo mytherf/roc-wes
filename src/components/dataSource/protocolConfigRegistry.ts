@@ -6,8 +6,9 @@
 // 对话框的类型下拉、专属参数渲染、表单默认值与保存 config 构建
 // 全部由本注册表驱动，无需再改动 DataSourceDialog.vue。
 //
-// 约定：设备/服务地址一律存数据源 url，注册项只负责
-// 「无法从地址推导」的协议专属参数（如从站地址、机架槽号、轮询间隔）。
+// 约定：设备/服务地址一律存数据源 url，由子组件内的 ProtocolAddressInput
+// 公共组件填写；注册项额外负责「无法从地址推导」的协议专属参数
+// （如从站地址、机架槽号、轮询间隔）。
 
 import type { Component } from 'vue'
 import type { DataSourceType } from '@/stores/dataSource'
@@ -15,13 +16,16 @@ import ModbusProtocolConfig from './ModbusProtocolConfig.vue'
 import S7ProtocolConfig from './S7ProtocolConfig.vue'
 import OpcProtocolConfig from './OpcProtocolConfig.vue'
 import HttpProtocolConfig from './HttpProtocolConfig.vue'
+import WebsocketProtocolConfig from './WebsocketProtocolConfig.vue'
+import MqttProtocolConfig from './MqttProtocolConfig.vue'
+import SseProtocolConfig from './SseProtocolConfig.vue'
 
 /** 协议注册项 */
 export interface ProtocolConfigEntry {
     /** 类型下拉显示名 */
     label: string
-    /** 真实设备模式渲染的专属参数子组件（无专属参数的协议不填）；
-     *  组件契约：prop `form`（父组件响应式表单，v-model 原地修改专属字段） */
+    /** 真实设备模式渲染的接入配置子组件（地址 + 协议专属参数，每协议必注册）；
+     *  组件契约：prop `form`（父组件响应式表单，v-model 原地修改 url 与专属字段） */
     component?: Component
     /** 专属表单字段的默认值（resetForm 重置 / openEdit 回填兜底共用） */
     formDefaults?: Record<string, number>
@@ -42,15 +46,15 @@ export const PROTOCOL_TYPE_ORDER: DataSourceType[] = [
 
 /** 协议专属参数注册表：type → 注册项 */
 export const PROTOCOL_CONFIG_REGISTRY: Partial<Record<DataSourceType, ProtocolConfigEntry>> = {
-    websocket: { label: 'WebSocket' },
-    mqtt: { label: 'MQTT' },
+    websocket: { label: 'WebSocket', component: WebsocketProtocolConfig },
+    mqtt: { label: 'MQTT', component: MqttProtocolConfig },
     http: {
         label: 'HTTP 轮询',
         component: HttpProtocolConfig,
         formDefaults: { interval: 2000 },
         buildConfig: (f) => ({ interval: Number(f.interval) || 2000 }),
     },
-    sse: { label: 'SSE' },
+    sse: { label: 'SSE', component: SseProtocolConfig },
     s7: {
         label: '西门子 S7',
         component: S7ProtocolConfig,

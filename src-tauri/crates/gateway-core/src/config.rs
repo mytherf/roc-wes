@@ -172,20 +172,20 @@ pub struct OpcConfig {
     pub profile: DemoProfile,
 }
 
-/// 演示波形档位：按协议生成不同特征的模拟曲线
-/// （与原 mock/generators.ts 的四种波形一一对应）
+/// 演示波形档位：内置四种波形（以波形形状命名，与协议无关；
+/// 未指定时缺省正弦）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum DemoProfile {
-    /// 正弦波 + 微噪声（WebSocket 遥测流特征）
+    /// 正弦波 + 微噪声（平滑遥测）
     #[default]
-    Websocket,
-    /// 随机游走（HTTP 轮询测量值特征）
-    Http,
-    /// 锯齿斜升（SSE 服务端推送流特征）
-    Sse,
-    /// 离散档位（MQTT 设备档位特征）
-    Mqtt,
+    Sine,
+    /// 随机游走（缓慢漂移）
+    RandomWalk,
+    /// 锯齿斜升（线性上升后归零）
+    Sawtooth,
+    /// 离散档位（方波/阶梯）
+    Steps,
 }
 
 impl DeviceConfig {
@@ -236,11 +236,11 @@ mod tests {
     #[test]
     fn parses_mock_and_real_configs() {
         let mock: DeviceConfig = serde_json::from_value(serde_json::json!({
-            "protocol": "websocket", "isMock": true, "profile": "sse", "url": ""
+            "protocol": "websocket", "isMock": true, "profile": "sawtooth", "url": ""
         }))
         .unwrap();
         assert!(mock.is_mock());
-        assert_eq!(mock.demo_profile(), DemoProfile::Sse);
+        assert_eq!(mock.demo_profile(), DemoProfile::Sawtooth);
         assert_eq!(mock.poll_interval_ms(), 1000); // 缺省默认值
 
         let real: DeviceConfig = serde_json::from_value(serde_json::json!({
@@ -248,6 +248,6 @@ mod tests {
         }))
         .unwrap();
         assert!(!real.is_mock());
-        assert_eq!(real.demo_profile(), DemoProfile::Websocket); // 缺省档位
+        assert_eq!(real.demo_profile(), DemoProfile::Sine); // 缺省档位
     }
 }

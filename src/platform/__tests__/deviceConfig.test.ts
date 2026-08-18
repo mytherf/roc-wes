@@ -3,23 +3,20 @@
  *
  * 验证目标：
  * 1. 演示模式不是独立协议：protocol 保持原协议类型 + isMock: true
- * 2. 波形：未选时 Web 协议按协议特征波形、Modbus/S7/OPC 省略 profile（Rust 默认正弦）；
+ * 2. 波形：未选时全部协议省略 profile（Rust 缺省正弦）；
  *    选了则 config.profile 优先生效（任意协议均可指定）
- * 3. 非法 profile 值回退协议特征波形；真实模式不带 isMock
+ * 3. 非法 profile 值（含旧版协议名）省略 profile；真实模式不带 isMock
  */
 import { describe, it, expect } from 'vitest'
 import { buildDeviceConfig, isDemoSource, DEMO_WAVE_OPTIONS } from '@/platform/deviceConfig'
 
 describe('buildDeviceConfig 演示波形选择', () => {
-    it('演示模式未选波形：protocol 保持原协议 + isMock，Web 协议按协议特征波形', () => {
-        expect(buildDeviceConfig('websocket', '', { demo: true }))
-            .toMatchObject({ protocol: 'websocket', isMock: true, profile: 'websocket' })
-        expect(buildDeviceConfig('http', '', { demo: true }))
-            .toMatchObject({ protocol: 'http', isMock: true, profile: 'http' })
-        expect(buildDeviceConfig('sse', '', { demo: true }))
-            .toMatchObject({ protocol: 'sse', isMock: true, profile: 'sse' })
-        expect(buildDeviceConfig('mqtt', '', { demo: true }))
-            .toMatchObject({ protocol: 'mqtt', isMock: true, profile: 'mqtt' })
+    it('演示模式未选波形：protocol 保持原协议 + isMock，全部协议省略 profile（缺省正弦）', () => {
+        for (const type of ['websocket', 'http', 'sse', 'mqtt'] as const) {
+            const cfg = buildDeviceConfig(type, '', { demo: true })
+            expect(cfg).toMatchObject({ protocol: type, isMock: true })
+            expect((cfg as any).profile).toBeUndefined()
+        }
     })
 
     it('演示模式未选波形：Modbus/S7/OPC 省略 profile（必填字段占位空值）', () => {
@@ -29,15 +26,17 @@ describe('buildDeviceConfig 演示波形选择', () => {
     })
 
     it('演示模式选了波形：config.profile 优先（含 Modbus/S7/OPC）', () => {
-        expect(buildDeviceConfig('websocket', '', { demo: true, profile: 'sse' }))
-            .toMatchObject({ protocol: 'websocket', isMock: true, profile: 'sse' })
-        expect(buildDeviceConfig('modbus', '', { demo: true, profile: 'mqtt' }))
-            .toMatchObject({ protocol: 'modbus', isMock: true, profile: 'mqtt' })
+        expect(buildDeviceConfig('websocket', '', { demo: true, profile: 'sawtooth' }))
+            .toMatchObject({ protocol: 'websocket', isMock: true, profile: 'sawtooth' })
+        expect(buildDeviceConfig('modbus', '', { demo: true, profile: 'steps' }))
+            .toMatchObject({ protocol: 'modbus', isMock: true, profile: 'steps' })
     })
 
-    it('非法 profile 值：回退协议特征波形', () => {
-        expect(buildDeviceConfig('websocket', '', { demo: true, profile: 'square' }))
-            .toMatchObject({ protocol: 'websocket', isMock: true, profile: 'websocket' })
+    it('非法 profile 值（含旧版协议名）：省略 profile（缺省正弦）', () => {
+        for (const profile of ['square', 'websocket', 'mqtt']) {
+            const cfg = buildDeviceConfig('websocket', '', { demo: true, profile })
+            expect((cfg as any).profile).toBeUndefined()
+        }
     })
 
     it('真实模式：protocol 输出且不带 isMock', () => {
@@ -55,7 +54,7 @@ describe('buildDeviceConfig 演示波形选择', () => {
 
     it('波形选项覆盖全部四档且值唯一', () => {
         const values = DEMO_WAVE_OPTIONS.map((o) => o.value)
-        expect(values).toEqual(['websocket', 'http', 'sse', 'mqtt'])
+        expect(values).toEqual(['sine', 'randomWalk', 'sawtooth', 'steps'])
     })
 })
 

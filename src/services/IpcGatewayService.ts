@@ -21,8 +21,8 @@ import { invoke } from '@tauri-apps/api/core' // Tauri IPC：调用 Rust 侧命�
 import { listen, type UnlistenFn } from '@tauri-apps/api/event' // Tauri IPC：监听 Rust 侧事件
 import type { IDataService, DataPoint, DataCallback } from './DataService'
 
-/** 演示波形档位，与 Rust `DemoProfile` 一一对应（值为 serde 小写串） */
-export type DemoProfile = 'websocket' | 'http' | 'sse' | 'mqtt'
+/** 演示波形档位，与 Rust `DemoProfile` 一一对应（值为 serde camelCase 串；以波形形状命名，与协议无关） */
+export type DemoProfile = 'sine' | 'randomWalk' | 'sawtooth' | 'steps'
 
 /** 设备配置判别联合，与 Rust gateway_core::config::DeviceConfig 一一对应。
  * protocol 为协议类型；isMock 标识演示模式（不连真实设备，

@@ -1,6 +1,6 @@
 # roc-wes 数据源手册 · 总索引
 
-本目录收录 roc-wes 编辑器 **7 种数据源类型** 的完整文档，每种类型各含两份手册：
+本目录收录 roc-wes 编辑器 **7 种数据源类型** 的完整文档，每种类型各含两份手册（WebSocket 与西门子 S7 另附基础知识手册与工作流程手册）：
 
 - **用户使用手册**：面向画面组态/运维人员，讲清「怎么配、怎么用」，含贴近真实业务的实操案例。
 - **开发手册**：面向开发者，讲清「怎么实现、怎么扩展」，含架构数据流、关键源码、调试方法。
@@ -9,16 +9,16 @@
 
 | 类型 | 标识 | 协议特征 | 接入方式（真实模式） | 内置演示 | 桌面版真实模式 |
 | --- | --- | --- | --- | --- | --- |
-| [WebSocket](websocket/WebSocket 数据源使用手册.md) | `websocket` | 全双工长连接、服务端推送 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter 正弦波） | ✅ WebSocketAdapter 直连服务 |
-| [HTTP 轮询](./http/用户使用手册.md) | `http` | 请求/响应、定时拉取 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter 随机游走） | ✅ HttpAdapter 直连接口 |
-| [SSE](./sse/用户使用手册.md) | `sse` | HTTP 单向推送、自动重连 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter 锯齿波） | ✅ SseAdapter 直连接口 |
-| [MQTT](./mqtt/用户使用手册.md) | `mqtt` | 发布/订阅、主题分发 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter 离散档位） | ✅ MqttAdapter 直连 broker |
-| [西门子 S7](./s7/用户使用手册.md) | `s7` | S7comm 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生直连 PLC（snap7-client） |
-| [OPC UA](./opc/用户使用手册.md) | `opc` | opc.tcp 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生轮询读取（opcua crate） |
-| [Modbus](./modbus/用户使用手册.md) | `modbus` | Modbus TCP 二进制 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生直连设备 |
+| [WebSocket](websocket/WebSocket 数据源使用手册.md) | `websocket` | 全双工长连接、服务端推送 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter，缺省正弦） | ✅ WebSocketAdapter 直连服务 |
+| [HTTP 轮询](./http/用户使用手册.md) | `http` | 请求/响应、定时拉取 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter，缺省正弦） | ✅ HttpAdapter 直连接口 |
+| [SSE](./sse/用户使用手册.md) | `sse` | HTTP 单向推送、自动重连 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter，缺省正弦） | ✅ SseAdapter 直连接口 |
+| [MQTT](./mqtt/用户使用手册.md) | `mqtt` | 发布/订阅、主题分发 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter，缺省正弦） | ✅ MqttAdapter 直连 broker |
+| [西门子 S7](./s7/S7 数据源使用手册.md) | `s7` | S7comm 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter，缺省正弦） | ✅ 原生直连 PLC（snap7-client） |
+| [OPC UA](./opc/用户使用手册.md) | `opc` | opc.tcp 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter，缺省正弦） | ✅ 原生轮询读取（opcua crate） |
+| [Modbus](./modbus/用户使用手册.md) | `modbus` | Modbus TCP 二进制 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter，缺省正弦） | ✅ 原生直连设备 |
 
 > 全部 7 种数据源的演示与真实模式统一由桌面端 Rust 网关经 Tauri IPC 接管（**无中间进程、无本地端口**）：Web 协议由对应适配器 crate（gateway-websocket/http/sse/mqtt）连接外部服务，Modbus/S7/OPC UA 由 gateway-modbus/s7/opcua 直接 TCP 连接设备。前端 WebView 不直连任何外部服务，旧浏览器时代的直连服务类已移除。
-> 全部 7 类协议的**演示模式**均由桌面端 Rust 网关内置 `DemoAdapter` 生成模拟数据（按协议 profile 生成特征波形），不占用任何端口。Node 版内置模拟服务器（原 mock/ 目录）与 Modbus/S7/OPC mock 桥接均已退役。
+> 全部 7 类协议的**演示模式**均由桌面端 Rust 网关内置 `DemoAdapter` 生成模拟数据（按波形档位 profile 生成正弦/随机游走/锯齿/档位四种波形，以波形形状命名、与协议无关），不占用任何端口。Node 版内置模拟服务器（原 mock/ 目录）与 Modbus/S7/OPC mock 桥接均已退役。
 
 ## 二、文档清单
 
@@ -28,7 +28,7 @@
 | HTTP 轮询 | [用户使用手册](./http/用户使用手册.md) | [开发手册](./http/开发手册.md) |
 | SSE | [用户使用手册](./sse/用户使用手册.md) | [开发手册](./sse/开发手册.md) |
 | MQTT | [用户使用手册](./mqtt/用户使用手册.md) | [开发手册](./mqtt/开发手册.md) |
-| 西门子 S7 | [用户使用手册](./s7/用户使用手册.md) | [开发手册](./s7/开发手册.md) |
+| 西门子 S7 | [用户使用手册](./s7/S7 数据源使用手册.md) | [开发手册](./s7/S7 数据源开发手册.md) |
 | OPC UA | [用户使用手册](./opc/用户使用手册.md) | [开发手册](./opc/开发手册.md) |
 | Modbus | [用户使用手册](./modbus/用户使用手册.md) | [开发手册](./modbus/开发手册.md) |
 
@@ -63,7 +63,7 @@ interface DataPoint {
 
 | 场景 | 说明 |
 | --- | --- |
-| 桌面演示模式 | 全部 7 类协议由 Rust `DemoAdapter` 生成模拟波形：默认按协议特征波形（WebSocket 正弦 / HTTP 随机游走 / SSE 锯齿 / MQTT 档位，Modbus/S7/OPC 默认正弦），也可在数据源对话框「演示波形」中任选一种；无任何端口 |
+| 桌面演示模式 | 全部 7 类协议由 Rust `DemoAdapter` 生成模拟波形：缺省正弦，也可在数据源对话框「演示波形」中任选一种（四档以波形形状命名：sine/randomWalk/sawtooth/steps）；无任何端口 |
 | 桌面真实模式 | 全部 7 类协议由 Rust 网关适配器直接连接真实服务/设备，设备/服务地址统一填数据源 `url` 字段（Modbus/S7 为 `主机[:端口]`，缺省端口 502/102；OPC UA 为端点 URL），无中间进程 |
 
 > Node 版内置模拟服务器（原 `mock/server.ts`，曾占用 8080/8081/8082/8083 端口）已移除；生产构建与开发态均不再启动任何本地 mock 端口。Modbus/S7/OPC 不再有 8084/8085/8086 演示桥接与 19100–19102 独立网关进程。
@@ -92,4 +92,4 @@ interface DataPoint {
 | 数据源管理对话框 | `src/components/DataSourceDialog.vue` + `dataSource/protocolConfigRegistry.ts`（协议专属参数注册表，每协议一个子组件，开闭原则扩展点） |
 | Rust 网关 workspace | `src-tauri/crates/{gateway-core,gateway-engine,gateway-modbus,gateway-s7,gateway-opcua,gateway-websocket,gateway-http,gateway-sse,gateway-mqtt,gateway-common,gateway-demo}` |
 | IPC 命令与适配器工厂 | `src-tauri/src/{commands.rs,factory.rs}` |
-| 内置演示波形引擎（桌面演示模式） | `src-tauri/crates/gateway-demo/src/lib.rs`（DemoAdapter 按协议 profile 生成特征波形） |
+| 内置演示波形引擎（桌面演示模式） | `src-tauri/crates/gateway-demo/src/lib.rs`（DemoAdapter 按波形档位 profile 生成正弦/随机游走/锯齿/档位波形） |

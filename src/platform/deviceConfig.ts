@@ -50,25 +50,29 @@ export function isDemoSource(sourceConfig?: Record<string, any>): boolean {
     return sourceConfig?.demo === true
 }
 
-/** 演示波形档位（与 Rust `DemoProfile` 一一对应，值为 serde 小写串） */
-export type DemoWave = 'websocket' | 'http' | 'sse' | 'mqtt'
+/** 演示波形档位（与 Rust `DemoProfile` 一一对应，值为 serde camelCase 串；以波形形状命名，与协议无关） */
+export type DemoWave = 'sine' | 'randomWalk' | 'sawtooth' | 'steps'
 
-/** 演示模式可选波形（供数据源对话框下拉；不选则按协议特征波形） */
+/** 演示模式可选波形（供数据源对话框下拉；不选则缺省正弦） */
 export const DEMO_WAVE_OPTIONS: { value: DemoWave; label: string }[] = [
-    { value: 'websocket', label: '正弦波（平滑遥测）' },
-    { value: 'http', label: '随机游走（缓慢漂移）' },
-    { value: 'sse', label: '锯齿斜升（升满归零）' },
-    { value: 'mqtt', label: '离散档位（阶梯切换）' },
+    { value: 'sine', label: '正弦波（平滑遥测）' },
+    { value: 'randomWalk', label: '随机游走（缓慢漂移）' },
+    { value: 'sawtooth', label: '锯齿斜升（升满归零）' },
+    { value: 'steps', label: '离散档位（阶梯切换）' },
 ]
-const DEMO_WAVES = new Set<string>(['websocket', 'http', 'sse', 'mqtt'])
+const DEMO_WAVES = new Set<string>(['sine', 'randomWalk', 'sawtooth', 'steps'])
+
+/** 校验波形档位值：合法波形名原样返回；其余（含旧版协议名）返回 undefined */
+export function normalizeDemoWave(v: unknown): DemoWave | undefined {
+    return typeof v === 'string' && DEMO_WAVES.has(v) ? (v as DemoWave) : undefined
+}
 
 /**
  * 依据数据源类型与配置构建 Rust DeviceConfig。
  * 演示模式不是独立协议：`protocol` 保持数据源原协议类型 + `isMock: true`，
  * 由 Rust 工厂统一路由到 DemoAdapter；
  * 波形优先取用户在数据源配置中选择的 config.profile（任意协议均可指定）；
- * 未选择时 Web 协议按协议特征波形（websocket=正弦 / http=随机游走 / sse=锯齿 / mqtt=档位），
- * 工业协议省略 profile，由 Rust 侧默认正弦波兜底。
+ * 未选择或非法时省略 profile，由 Rust 侧缺省正弦波兜底（全部协议一致）。
  * @param sourceType 数据源类型（modbus/s7/opc/...）
  * @param sourceUrl 数据源地址（真实模式下的连接地址，演示模式下可为空）
  * @param sourceConfig 数据源管理里保存的设备参数
@@ -86,13 +90,9 @@ export function buildDeviceConfig(
     // protocol 保持原协议类型，isMock 标识演示；地址/设备参数不会被读取，
     // 但各协议必填字段仍需占位空值
     if (isDemoSource(cfg)) {
-        // 波形：优先用户选择（config.profile）；未选时 Web 协议用协议特征波形，
-        // 工业协议省略 profile（Rust 默认正弦波）
-        const profile = DEMO_WAVES.has(cfg.profile)
-            ? (cfg.profile as DemoWave)
-            : DEMO_WAVES.has(sourceType)
-              ? (sourceType as DemoWave)
-              : undefined
+        // 波形：仅当用户显式选择了合法档位才下发 profile；未选/非法一律省略，
+        // 由 Rust 缺省正弦波兜底（全部协议一致）
+        const profile = normalizeDemoWave(cfg.profile)
         const mock = { isMock: true, pollIntervalMs, ...(profile ? { profile } : {}) }
         switch (sourceType) {
             case 'modbus':
@@ -108,7 +108,7 @@ export function buildDeviceConfig(
             case 'mqtt':
                 return { protocol: 'mqtt', url: '', ...mock }
             default:
-                // websocket 与未知类型兜底（Rust 默认波形也是正弦，行为一致）
+                // websocket 与未知类型兜底
                 return { protocol: 'websocket', url: '', ...mock }
         }
     }

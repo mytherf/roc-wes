@@ -70,7 +70,7 @@ export interface DataSource {
 
 ## 三、数据源注册与演示模式判定
 
-用户在「数据源管理」对话框新建数据源（`src/stores/dataSource.ts`）。选 WebSocket 类型 + 演示模式时无需填写地址（地址框置空只读），保存时 `config.demo` 置为 `true`；演示模式下还可选择「演示波形」（默认跟随协议特征波形，四档任选），选择后写入 `config.profile`。
+用户在「数据源管理」对话框新建数据源（`src/stores/dataSource.ts`）。对话框的类型下拉与连接配置均由注册表驱动（`src/components/dataSource/protocolConfigRegistry.ts`）：选 WebSocket + 真实设备模式时渲染 `dataSource/WebsocketProtocolConfig.vue` 子组件，在其地址栏填写服务地址（存数据源 `url`）；演示模式不显示地址栏，保存时 `config.demo` 置为 `true`；演示模式下还可选择「演示波形」（缺省正弦，四档任选），选择后写入 `config.profile`。
 
 是否为演示模式由 `src/platform/deviceConfig.ts` 的 `isDemoSource` 判定：仅以 `config.demo === true` 为准（演示模式地址可为空）。两种模式保存后均落盘到 `datasources.json`：
 
@@ -82,7 +82,7 @@ export interface DataSource {
 { "id": "ds-1712345-def456", "name": "车间遥测", "type": "websocket", "url": "ws://127.0.0.1:12345", "config": { "demo": false } }
 ```
 
-前者判定为演示模式（映射 Rust 网关配置 `{ protocol:'websocket', isMock:true, profile:'websocket', pollIntervalMs }`；若用户选了「演示波形」则 profile 取 `config.profile`）；后者为真实模式（`{ protocol:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
+前者判定为演示模式（映射 Rust 网关配置 `{ protocol:'websocket', isMock:true, pollIntervalMs }`，缺省正弦；若用户选了「演示波形」则额外带 `profile`）；后者为真实模式（`{ protocol:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
 
 ## 四、节点绑定提交（PropertyPanel）
 
@@ -113,7 +113,7 @@ if (binding) props.canvasRef.bindNodeData(node)
 // 所有数据源统一经 Rust 原生网关（IPC）
 const service = new IpcGatewayService(
     key,
-    buildDeviceConfig(sourceType, sourceUrl, sourceConfig), // websocket → { protocol:'websocket', url, pollIntervalMs }（演示模式另带 isMock:true 与 profile）
+    buildDeviceConfig(sourceType, sourceUrl, sourceConfig), // websocket → { protocol:'websocket', url, pollIntervalMs }（演示模式另带 isMock:true；选了波形才带 profile）
     sourceType.toUpperCase(),
 )
 ```
@@ -141,7 +141,7 @@ for (const p of resolveBindingPoints(binding)) {
 
 ```ts
 // 建会话：演示模式用 DemoAdapter，真实模式用 WebSocketAdapter（作为 WS 客户端连接外部服务）
-await invoke('gateway_connect', { deviceId, config: { protocol: 'websocket', isMock: true, profile: 'websocket', pollIntervalMs: 1000 } })
+await invoke('gateway_connect', { deviceId, config: { protocol: 'websocket', isMock: true, pollIntervalMs: 1000 } })
 await invoke('gateway_connect', { deviceId, config: { protocol: 'websocket', url: 'ws://127.0.0.1:12345', pollIntervalMs: 1000 } })
 
 // 订阅：登记回调 + 通知 Rust（连接建立前的订阅会补发；真实模式下网关每 tick 差量同步，
@@ -179,17 +179,17 @@ listen('gateway://telemetry', (e) => {
 
 ## 九、内置模拟引擎（演示模式）
 
-演示模式由桌面端 Rust 网关内置实现：`src-tauri/crates/gateway-demo/src/lib.rs` 的 `DemoAdapter`（`profile = Websocket`），不监听任何端口。
+演示模式由桌面端 Rust 网关内置实现：`src-tauri/crates/gateway-demo/src/lib.rs` 的 `DemoAdapter`（未选波形时缺省正弦），不监听任何端口。
 
-链路：前端 `useDataService` 判定演示模式 → 创建 `IpcGatewayService`（`{ protocol:'websocket', isMock:true, profile:'websocket' }`）→ `invoke('gateway_connect')` → Rust 会话任务按轮询周期调用 `DemoAdapter.read()` → 遥测经 `gateway://telemetry` 事件批量推回前端。真实模式链路完全相同，仅配置为 `{ protocol:'websocket', url, pollIntervalMs }`、适配器为 `WebSocketAdapter`。
+链路：前端 `useDataService` 判定演示模式 → 创建 `IpcGatewayService`（`{ protocol:'websocket', isMock:true }`）→ `invoke('gateway_connect')` → Rust 会话任务按轮询周期调用 `DemoAdapter.read()` → 遥测经 `gateway://telemetry` 事件批量推回前端。真实模式链路完全相同，仅配置为 `{ protocol:'websocket', url, pollIntervalMs }`、适配器为 `WebSocketAdapter`。
 
-波形 profile 由 `buildDeviceConfig` 推导：优先取用户选择的 `config.profile`（四档：websocket=正弦 / http=随机游走 / sse=锯齿 / mqtt=离散档位，任意协议均可指定）；未选择时 Web 协议按数据源类型取协议特征波形，Modbus/S7/OPC 省略（Rust 默认正弦）。
+波形 profile 由 `buildDeviceConfig` 推导：仅当用户显式选择了合法档位才下发 `config.profile`（四档以波形形状命名、与协议无关：sine=正弦波 / randomWalk=随机游走 / sawtooth=锯齿斜升 / steps=离散档位，任意协议均可指定）；未选择或非法（含旧版协议名）时一律省略，由 Rust 缺省正弦波兜底（全部协议一致）。
 
 数据生成算法——平滑正弦波 + 确定性伪噪声，范围约 20~80：
 
 ```rust
-/// WebSocket 特征：正弦主波（约 20~80）+ 微噪声，随时间连续变化
-fn ws_value(point_id: &str, now_ms: u64) -> f64 {
+/// 正弦波：主波（约 20~80）+ 微噪声，随时间连续变化
+fn sine_value(point_id: &str, now_ms: u64) -> f64 {
     let phase = (hash_u64(point_id) % 628) as f64 / 100.0;   // 0~2π，错开各点波形
     let noise = (pseudo_noise(point_id, now_ms) - 0.5) * 2.0; // ±1
     round1(50.0 + 30.0 * (now_ms as f64 / 5000.0 + phase).sin() + noise)
@@ -215,7 +215,7 @@ const { value } = useNodeData(props.node, { value: 0 })  // 模板里 {{ value }
 
 ## 十一、扩展指南
 
-- **修改模拟数据特征**：编辑 `src-tauri/crates/gateway-demo/src/lib.rs` 的 `ws_value()`（如改为方波、叠加趋势项），`cargo test -p gateway-demo` 验证后重新 `npx tauri dev`。
+- **修改模拟数据特征**：编辑 `src-tauri/crates/gateway-demo/src/lib.rs` 的 `sine_value()`（如改为方波、叠加趋势项），`cargo test -p gateway-demo` 验证后重新 `npx tauri dev`。
 - **新增推送字段**：在 `src-tauri/crates/gateway-common/src/lib.rs` 的 `parse_frame()` 中扩展解析，并同步前端 `DataPoint` 接口。
 - **支持自定义订阅协议**：若你的后端订阅帧不是 `{action,topic}`，在 `gateway-websocket/src/lib.rs` 的订阅帧构造处适配。
 - **调整重连策略**：网关引擎统一采用指数退避（2s→30s），见 `src-tauri/crates/gateway-engine`；轮询周期由数据源配置 `pollIntervalMs` 决定（下限 200ms）。
@@ -241,9 +241,12 @@ wscat -c ws://192.168.0.10:9000/telemetry
 | `src/services/IpcGatewayService.ts` | IPC 数据服务（所有数据源唯一通道） |
 | `src/composables/useDataService.ts` | 统一路由、缓存服务、节点绑定 |
 | `src/stores/dataSource.ts` | 数据源实例 CRUD 与持久化 |
+| `src/components/DataSourceDialog.vue` | 数据源管理对话框（类型下拉、保存，注册表驱动） |
+| `src/components/dataSource/protocolConfigRegistry.ts` | 协议连接配置注册表（开闭原则扩展点） |
+| `src/components/dataSource/WebsocketProtocolConfig.vue` | 真实设备模式连接配置子组件（地址栏） |
 | `src/platform/deviceConfig.ts` | `isDemoSource` 演示判定与 Rust 网关配置映射 |
 | `src/components/PropertyPanel.vue` | 「数据绑定」标签页 UI 与 `updateBinding` 提交 |
 | `src/composables/useNodeData.ts` | 节点组件响应式数据刷新 |
 | `src-tauri/crates/gateway-websocket/src/lib.rs` | WebSocket 适配器（真实模式：订阅、缓冲、重连） |
 | `src-tauri/crates/gateway-common/src/lib.rs` | Web 协议共享内核（帧解析 / 最新值缓冲） |
-| `src-tauri/crates/gateway-demo/src/lib.rs` | 内置演示波形引擎（`ws_value()` 正弦波算法） |
+| `src-tauri/crates/gateway-demo/src/lib.rs` | 内置演示波形引擎（`sine_value()` 正弦波算法） |

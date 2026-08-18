@@ -9,8 +9,8 @@
        2. 新增/编辑表单：
           - 7 种类型：WebSocket / MQTT / HTTP / SSE / S7 / OPC UA / Modbus（交互一致，
             真实设备模式均在地址字段填写设备/服务地址）
-          - 两种连接模式：演示模式（桌面端内置模拟引擎，免配置）/ 真实设备（需填地址；
-            协议专属参数由注册表驱动的子组件提供，见 components/dataSource/protocolConfigRegistry.ts）
+          - 两种连接模式：演示模式（桌面端内置模拟引擎，免配置）/ 真实设备（地址与
+            协议专属参数均由注册表驱动的子组件提供，见 components/dataSource/protocolConfigRegistry.ts）
        3. 监控详情：展开后显示连接状态、建连耗时、设备状态、
           点位实时值表格（点位 ID / 值 / 质量码 / 时间）、错误告警列表
 
@@ -171,7 +171,7 @@
               </div>
             </div>
 
-            <!-- 演示波形：默认跟随协议特征波形，可指定内置演示引擎的任意一种 -->
+            <!-- 演示波形：缺省正弦，可指定内置演示引擎的任意一种 -->
             <div v-if="form.demo" class="ds-field">
               <label class="ds-label">
                 演示波形
@@ -192,7 +192,7 @@
                 </span>
               </label>
               <select v-model="form.profile" class="ds-input">
-                <option value="">跟随协议特征波形（{{ defaultWaveLabel }}）</option>
+                <option value="">跟随默认波形（正弦波）</option>
                 <option v-for="opt in DEMO_WAVE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
               <!-- 当前生效波形的样例小图（随选择实时变化） -->
@@ -204,24 +204,15 @@
               </div>
             </div>
 
-            <!-- 协议专属参数：注册表驱动（protocolConfigRegistry），
+            <!-- 协议接入配置（地址 + 专属参数）：注册表驱动（protocolConfigRegistry），
                  扩展新协议只需新增子组件并注册，无需改动本对话框；
-                 未注册子组件的协议不渲染 -->
+                 演示模式无需地址，不渲染 -->
             <component
               v-if="!form.demo && protocolConfigComp"
               :is="protocolConfigComp"
               :form="form"
             />
 
-            <div class="ds-field">
-              <label class="ds-label">地址 <span v-if="!form.demo" class="required">*</span></label>
-              <input
-                v-model="form.url"
-                class="ds-input"
-                :readonly="form.demo"
-                :placeholder="urlPlaceholder"
-              />
-            </div>
             <div class="ds-field">
               <label class="ds-label">备注</label>
               <input
@@ -252,7 +243,7 @@
 import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useGatewayMonitor } from '@/composables/useGatewayMonitor'
 import type { MonitorState } from '@/services/GatewayMonitorService'
-import { DEMO_WAVE_OPTIONS, type DemoWave } from '@/platform/deviceConfig'
+import { DEMO_WAVE_OPTIONS, type DemoWave, normalizeDemoWave } from '@/platform/deviceConfig'
 import {
   useDataSourceStore,
   type DataSource,
@@ -341,7 +332,7 @@ const form = reactive({
   url: '',
   description: '',
   demo: true,
-  // 演示波形档位：空串 = 跟随协议特征波形；否则为 DEMO_WAVE_OPTIONS 的某个 value
+  // 演示波形档位：空串 = 跟随默认波形（正弦）；否则为 DEMO_WAVE_OPTIONS 的某个 value
   profile: '' as '' | DemoWave,
   // 协议专属参数（仅对应类型时生效；设备/服务地址一律存 url）
   ...getProtocolFormDefaults(),
@@ -362,10 +353,10 @@ function isDemoSource(ds: DataSource): boolean {
 
 /** 四档波形的帮助说明文案（气泡内图形样例旁的描述） */
 const WAVE_DESCS: Record<DemoWave, string> = {
-  websocket: '平滑正弦，约 20~80 连续变化，适合温度/速度等平滑遥测',
-  http: '随机游走，0~100 内缓慢漂移，每秒小幅步进',
-  sse: '锯齿斜升，约 10 秒 0→100 后归零重来，适合进度/计数',
-  mqtt: '离散档位，0/25/50/75/100 约每 3 秒切换，模拟设备档位',
+  sine: '平滑正弦，约 20~80 连续变化，适合温度/速度等平滑遥测',
+  randomWalk: '随机游走，0~100 内缓慢漂移，每秒小幅步进',
+  sawtooth: '锯齿斜升，约 10 秒 0→100 后归零重来，适合进度/计数',
+  steps: '离散档位，0/25/50/75/100 约每 3 秒切换，模拟设备档位',
 }
 
 /**
@@ -379,16 +370,16 @@ function wavePoints(kind: DemoWave): string {
     const t = i / N
     let v = 50 // 波形取值 0~100
     switch (kind) {
-      case 'websocket': // 正弦：两个周期，20~80
+      case 'sine': // 正弦：两个周期，20~80
         v = 50 + 30 * Math.sin(t * Math.PI * 4)
         break
-      case 'http': // 随机游走：低频正弦叠加模拟缓慢漂移
+      case 'randomWalk': // 随机游走：低频正弦叠加模拟缓慢漂移
         v = 50 + 18 * Math.sin(t * 5.1) + 9 * Math.sin(t * 13.7)
         break
-      case 'sse': // 锯齿：两个周期 0→100 后归零
+      case 'sawtooth': // 锯齿：两个周期 0→100 后归零
         v = ((t * 2) % 1) * 100
         break
-      case 'mqtt': // 档位：五级阶梯
+      case 'steps': // 档位：五级阶梯
         v = [0, 25, 50, 75, 100][Math.min(4, Math.floor(t * 5))]
         break
     }
@@ -397,21 +388,13 @@ function wavePoints(kind: DemoWave): string {
   return pts.join(' ')
 }
 
-/** 当前生效的波形（预览小图）：用户选择优先；跟随协议时非 Web 协议归为正弦 */
-const currentWave = computed<DemoWave>(() => {
-  if (form.profile) return form.profile
-  return DEMO_WAVE_OPTIONS.some((o) => o.value === form.type) ? (form.type as DemoWave) : 'websocket'
-})
-
-/** 当前类型的特征波形显示名（波形下拉「跟随协议」选项的兑底说明） */
-const defaultWaveLabel = computed(() => {
-  return DEMO_WAVE_OPTIONS.find((o) => o.value === form.type)?.label ?? '正弦波（平滑遥测）'
-})
+/** 当前生效的波形（预览小图）：用户选择优先；未选时缺省正弦 */
+const currentWave = computed<DemoWave>(() => form.profile || 'sine')
 
 /** 连接模式提示文案（随类型与模式变化） */
 const modeHint = computed(() => {
   if (form.demo) {
-    return '演示模式：由桌面端内置模拟引擎生成数据（无需真实设备，无需填写地址）；波形默认跟随协议特征，可在下方「演示波形」中更换'
+    return '演示模式：由桌面端内置模拟引擎生成数据（无需真实设备，无需填写地址）；波形缺省正弦，可在下方「演示波形」中更换'
   }
   switch (form.type) {
     case 'modbus':
@@ -437,32 +420,9 @@ function onDocPointerDownForHelp(e: Event) {
 onMounted(() => document.addEventListener('pointerdown', onDocPointerDownForHelp))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointerDownForHelp))
 
-/** 地址占位符：演示模式提示无需地址；真实设备模式按类型给出示例 */
-const urlPlaceholder = computed(() => {
-  if (form.demo) return '演示模式无需地址'
-  switch (form.type) {
-    case 'websocket':
-      return '如：ws://192.168.0.10:9000/ws'
-    case 'mqtt':
-      return '如：ws://192.168.0.10:8083'
-    case 'http':
-      return '如：http://192.168.0.10:8081/api/data'
-    case 'sse':
-      return '如：http://192.168.0.10:8082/sse'
-    case 'modbus':
-      return '如：192.168.0.10 或 192.168.0.10:502'
-    case 's7':
-      return '如：192.168.0.10 或 192.168.0.10:102'
-    case 'opc':
-      return '如：opc.tcp://192.168.0.10:4840'
-    default:
-      return ''
-  }
-})
-
 /**
  * 按连接模式同步地址：演示模式无需地址（置空，数据由 Rust DemoAdapter 生成）；
- * 真实设备模式的地址一律由用户手动填写（全部类型交互一致）。
+ * 真实设备模式的地址一律由用户在协议子组件的地址栏手动填写（全部类型交互一致）。
  */
 function syncUrl() {
   if (form.demo) {
@@ -508,8 +468,8 @@ function openEdit(ds: DataSource) {
   // 演示模式判定：仅以 config.demo 为准
   const c = ds.config || {}
   form.demo = c.demo === true
-  // 波形回填：非法值归为「跟随协议」
-  form.profile = DEMO_WAVE_OPTIONS.some((o) => o.value === c.profile) ? (c.profile as DemoWave) : ''
+  // 波形回填：仅合法波形名生效；其余（含旧版协议名）归为「跟随默认波形」
+  form.profile = normalizeDemoWave(c.profile) ?? ''
   // 协议专属参数回填（注册表默认值兜底）；存量兼容：旧数据源把设备地址存在 config.host / config.endpoint，url 为空时兜底回填
   const defaults = getProtocolFormDefaults()
   for (const [key, def] of Object.entries(defaults)) {

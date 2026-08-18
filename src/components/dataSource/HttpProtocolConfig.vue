@@ -1,10 +1,12 @@
 <!--
   HTTP 轮询协议专属参数子组件（注册表驱动，见 protocolConfigRegistry.ts）
-  服务地址统一在父组件「地址」栏填写，本组件仅提供轮询间隔。
+  真实设备模式的完整接入配置：服务地址（由 ProtocolAddressInput
+  公共组件填写）+ 轮询间隔。
   直接接收父组件的响应式 form 对象，v-model 原地修改对应字段。
 -->
 <template>
   <div class="ds-proto-cfg">
+    <ProtocolAddressInput :form="form" placeholder="如：http://192.168.0.10:8081/api/data" />
     <div class="ds-field-row">
       <div class="ds-field">
         <label class="ds-label">轮询间隔(ms)</label>
@@ -16,6 +18,8 @@
 </template>
 
 <script setup lang="ts">
+import ProtocolAddressInput from './ProtocolAddressInput.vue'
+
 defineProps<{
   /** 父组件的响应式表单对象（原地修改其字段） */
   form: any
