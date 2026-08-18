@@ -59,7 +59,7 @@ docs/
 - Modbus TCP 桌面直连（tokio-modbus）、全协议演示模式（DemoAdapter）
 - 引擎会话机制：轮询下限 200ms、失败指数退避重连（2s→30s）、状态事件去抖
 - 监控探针桌面适配（`mon:` 独立会话）、集成测试与 clippy 零警告基线
-- 代码清理：Node 网关与工业 mock 桥接退役、依赖精简、S7 slot 默认值统一
+- 代码清理：Node 网关与 Modbus/S7/OPC mock 桥接退役、依赖精简、S7 slot 默认值统一
 - 应用图标与 NSIS 打包配置、`npx tauri dev` 开发链路
 - 持久化升级：tauri-plugin-fs 全部工程数据落盘为应用配置目录 JSON 文件（原子写入），全面替代 localStorage / sessionStorage
 - 全协议 Rust 网关统一：Web 协议（WebSocket/HTTP/SSE/MQTT）适配器 crate 上线，真实模式与演示模式统一走 IPC

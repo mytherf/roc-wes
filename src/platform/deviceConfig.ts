@@ -1,6 +1,6 @@
 // ========== 设备配置转换层（数据源配置 → Rust 网关配置）==========
-// 背景：工业设备（Modbus/S7/OPC）与演示模式的连接均由 Rust 原生网关负责。
-// 前端「数据源管理」里保存的通用配置（host/port/unitId 等）格式与 Rust 的
+// 背景：全部协议（演示 / Web / 工业设备）的连接均由 Rust 原生网关负责。
+// 前端「数据源管理」里保存的通用配置（url、unitId 等）格式与 Rust 的
 // DeviceConfig 结构不同，本模块负责把两者互相翻译。
 
 /**
@@ -17,6 +17,30 @@ import type { DeviceConfig } from '@/services/IpcGatewayService' // Rust 侧设�
 const num = (v: unknown, fallback: number): number => {
     const n = typeof v === 'string' ? Number(v) : (v as number)
     return Number.isFinite(n) ? (n as number) : fallback
+}
+
+/**
+ * 解析「主机[:端口]」形式的设备地址（Modbus / S7 数据源的统一地址字段）。
+ * 未带端口时返回协议缺省端口；兼容存量数据源的 config.host / config.port 旧字段。
+ */
+function parseHostPort(
+    addr: string | undefined,
+    cfg: Record<string, any>,
+    defaultPort: number
+): { host: string; port: number } {
+    const raw = (addr ?? '').trim()
+    if (raw) {
+        const idx = raw.lastIndexOf(':')
+        if (idx > 0) {
+            const port = Number(raw.slice(idx + 1))
+            if (Number.isInteger(port) && port > 0) {
+                return { host: raw.slice(0, idx).trim(), port }
+            }
+        }
+        return { host: raw, port: defaultPort }
+    }
+    // 存量兼容：旧数据源把设备地址存在 config.host / config.port
+    return { host: String(cfg.host ?? '127.0.0.1'), port: num(cfg.port, defaultPort) }
 }
 
 /**
@@ -40,7 +64,8 @@ const DEMO_WAVES = new Set<string>(['websocket', 'http', 'sse', 'mqtt'])
 
 /**
  * 依据数据源类型与配置构建 Rust DeviceConfig。
- * 演示模式统一映射为 `{ kind:'demo', profile?, pollIntervalMs }`：
+ * 演示模式不是独立协议：`protocol` 保持数据源原协议类型 + `isMock: true`，
+ * 由 Rust 工厂统一路由到 DemoAdapter；
  * 波形优先取用户在数据源配置中选择的 config.profile（任意协议均可指定）；
  * 未选择时 Web 协议按协议特征波形（websocket=正弦 / http=随机游走 / sse=锯齿 / mqtt=档位），
  * 工业协议省略 profile，由 Rust 侧默认正弦波兜底。
@@ -57,7 +82,9 @@ export function buildDeviceConfig(
     const cfg = sourceConfig ?? {} // 配置可能为空，兜底成空对象
     const pollIntervalMs = num(cfg.pollInterval, 1000) // 轮询间隔，默认 1000ms
 
-    // 演示模式：不连接任何真实设备，由 Rust 的 DemoAdapter 定时生成模拟数据
+    // 演示模式：不连接任何真实设备，由 Rust 的 DemoAdapter 定时生成模拟数据。
+    // protocol 保持原协议类型，isMock 标识演示；地址/设备参数不会被读取，
+    // 但各协议必填字段仍需占位空值
     if (isDemoSource(cfg)) {
         // 波形：优先用户选择（config.profile）；未选时 Web 协议用协议特征波形，
         // 工业协议省略 profile（Rust 默认正弦波）
@@ -66,50 +93,69 @@ export function buildDeviceConfig(
             : DEMO_WAVES.has(sourceType)
               ? (sourceType as DemoWave)
               : undefined
-        return profile
-            ? { kind: 'demo', profile, pollIntervalMs }
-            : { kind: 'demo', pollIntervalMs }
+        const mock = { isMock: true, pollIntervalMs, ...(profile ? { profile } : {}) }
+        switch (sourceType) {
+            case 'modbus':
+                return { protocol: 'modbus', host: '', port: 502, unitId: 1, ...mock }
+            case 's7':
+                return { protocol: 's7', host: '', port: 102, rack: 0, slot: 2, ...mock }
+            case 'opc':
+                return { protocol: 'opc', endpoint: '', ...mock }
+            case 'http':
+                return { protocol: 'http', url: '', ...mock }
+            case 'sse':
+                return { protocol: 'sse', url: '', ...mock }
+            case 'mqtt':
+                return { protocol: 'mqtt', url: '', ...mock }
+            default:
+                // websocket 与未知类型兜底（Rust 默认波形也是正弦，行为一致）
+                return { protocol: 'websocket', url: '', ...mock }
+        }
     }
 
-    // 按协议类型分别构造对应的连接参数
+    // 按协议类型分别构造对应的连接参数（真实模式）
     switch (sourceType) {
-        // ---- Web 协议真实模式：Rust 原生客户端接管（前端不再直连）----
+        // ---- Web 协议：Rust 原生客户端接管（前端不再直连）----
         case 'websocket':
-            return { kind: 'websocket', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval, 1000) }
+            return { protocol: 'websocket', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval, 1000) }
         case 'http':
             // 兼容存量数据源的 interval 字段（旧前端 HttpPollingService 轮询间隔）
-            return { kind: 'http', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval ?? cfg.interval, 2000) }
+            return { protocol: 'http', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval ?? cfg.interval, 2000) }
         case 'sse':
-            return { kind: 'sse', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval, 1000) }
+            return { protocol: 'sse', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval, 1000) }
         case 'mqtt':
-            return { kind: 'mqtt', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval, 1000) }
-        // ---- 工业协议：Rust 原生 TCP 直连 ----
-        case 'modbus':
+            return { protocol: 'mqtt', url: sourceUrl ?? '', pollIntervalMs: num(cfg.pollInterval, 1000) }
+        // ---- 工业设备：Rust 原生 TCP 直连（地址统一取数据源 url，与其他协议一致）----
+        case 'modbus': {
+            const { host, port } = parseHostPort(sourceUrl, cfg, 502) // Modbus TCP 默认端口 502
             return {
-                kind: 'modbus',
-                host: String(cfg.host ?? '127.0.0.1'), // 设备 IP，默认本机
-                port: num(cfg.port, 502), // Modbus TCP 默认端口 502
+                protocol: 'modbus',
+                host,
+                port,
                 unitId: num(cfg.unitId, 1), // 从站地址（站号），默认 1
                 pollIntervalMs,
             }
-        case 's7':
+        }
+        case 's7': {
+            const { host, port } = parseHostPort(sourceUrl, cfg, 102) // S7 协议默认端口 102
             return {
-                kind: 's7',
-                host: String(cfg.host ?? '127.0.0.1'),
-                port: num(cfg.port, 102), // S7 协议默认端口 102
+                protocol: 's7',
+                host,
+                port,
                 rack: num(cfg.rack, 0), // 机架号，默认 0
                 slot: num(cfg.slot, 2), // 槽号，默认 2（CPU 通常在此）
                 pollIntervalMs,
             }
+        }
         case 'opc':
             return {
-                kind: 'opc',
-                // OPC UA 用 endpoint（端点地址）而非 host/port，默认走 4840 端口
-                endpoint: String(cfg.endpoint ?? cfg.url ?? 'opc.tcp://127.0.0.1:4840'),
+                protocol: 'opc',
+                // OPC UA 地址即端点 URL（opc.tcp://...），兼容存量 config.endpoint 旧字段
+                endpoint: (sourceUrl ?? '').trim() || String(cfg.endpoint ?? cfg.url ?? 'opc.tcp://127.0.0.1:4840'),
                 pollIntervalMs,
             }
         default:
-            // 兜底：未知工业类型按演示处理，避免误连
-            return { kind: 'demo', pollIntervalMs }
+            // 兜底：未知类型按演示处理，避免误连
+            return { protocol: 'websocket', url: '', isMock: true, pollIntervalMs }
     }
 }

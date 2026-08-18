@@ -1,6 +1,6 @@
 // ========== IPC 网关数据服务（全部数据源协议的唯一数据通道）==========
-// 所有数据源协议（WebSocket / HTTP / SSE / MQTT 真实模式、演示模式、
-// Modbus/S7/OPC UA 工业协议）均由 Rust 原生网关实现，WebView 不再直连任何服务。
+// 所有数据源协议（WebSocket / HTTP / SSE / MQTT / Modbus / S7 / OPC UA 真实模式、
+// 演示模式）均由 Rust 原生网关实现，WebView 不再直连任何服务。
 // 前端通过 Tauri 的 IPC 机制调用 Rust 命令：
 //   - invoke('gateway_connect', ...)  → 请求建立设备会话
 //   - listen('gateway://telemetry')   → 接收 Rust 推来的实时数据
@@ -21,16 +21,20 @@ import { invoke } from '@tauri-apps/api/core' // Tauri IPC：调用 Rust 侧命�
 import { listen, type UnlistenFn } from '@tauri-apps/api/event' // Tauri IPC：监听 Rust 侧事件
 import type { IDataService, DataPoint, DataCallback } from './DataService'
 
-/** 设备配置判别联合，与 Rust gateway_core::config::DeviceConfig 一一对应 */
+/** 演示波形档位，与 Rust `DemoProfile` 一一对应（值为 serde 小写串） */
+export type DemoProfile = 'websocket' | 'http' | 'sse' | 'mqtt'
+
+/** 设备配置判别联合，与 Rust gateway_core::config::DeviceConfig 一一对应。
+ * protocol 为协议类型；isMock 标识演示模式（不连真实设备，
+ * 由 Rust DemoAdapter 按 profile 生成波形，地址/设备参数可为占位空值） */
 export type DeviceConfig =
-    | { kind: 'modbus'; host: string; port: number; unitId: number; pollIntervalMs: number } // Modbus TCP 参数
-    | { kind: 's7'; host: string; port: number; rack: number; slot: number; pollIntervalMs: number } // 西门子 S7 参数
-    | { kind: 'opc'; endpoint: string; pollIntervalMs: number } // OPC UA 端点
-    | { kind: 'demo'; pollIntervalMs: number; profile?: 'websocket' | 'http' | 'sse' | 'mqtt' } // 演示模式（不连真实设备，profile 决定波形特征）
-    | { kind: 'websocket'; url: string; pollIntervalMs: number } // 真实 WebSocket 推送服务（Rust 作为 WS 客户端）
-    | { kind: 'http'; url: string; pollIntervalMs: number } // 真实 HTTP 轮询服务（按点位 GET）
-    | { kind: 'sse'; url: string; pollIntervalMs: number } // 真实 SSE 推送流（按点位建流）
-    | { kind: 'mqtt'; url: string; pollIntervalMs: number } // 真实 MQTT broker（点ID 作为主题过滤器）
+    | { protocol: 'modbus'; host: string; port: number; unitId: number; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // Modbus TCP 参数
+    | { protocol: 's7'; host: string; port: number; rack: number; slot: number; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // 西门子 S7 参数
+    | { protocol: 'opc'; endpoint: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // OPC UA 端点
+    | { protocol: 'websocket'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // WebSocket 推送服务（Rust 作为 WS 客户端）
+    | { protocol: 'http'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // HTTP 轮询服务（按点位 GET）
+    | { protocol: 'sse'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // SSE 推送流（按点位建流）
+    | { protocol: 'mqtt'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // MQTT broker（点ID 作为主题过滤器）
 
 /** gateway://status 事件载荷：设备连接状态变化 */
 interface StatusPayload {

@@ -2,7 +2,7 @@
 //! 验证「订阅帧上行 + 数据帧下行」完整往返。
 
 use futures_util::{SinkExt, StreamExt};
-use gateway_core::{DeviceAdapter, WebsocketConfig};
+use gateway_core::{DemoProfile, DeviceAdapter, WebsocketConfig};
 use gateway_websocket::WebSocketAdapter;
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
@@ -44,6 +44,8 @@ async fn ws_subscribe_and_receive_roundtrip() {
     let mut adapter = WebSocketAdapter::new(WebsocketConfig {
         url: format!("ws://{addr}"),
         poll_interval_ms: 100,
+        is_mock: false,
+        profile: DemoProfile::default(),
     });
     adapter.connect().await.unwrap();
 
@@ -80,6 +82,8 @@ async fn ws_connect_failure_returns_connect_error() {
     let mut adapter = WebSocketAdapter::new(WebsocketConfig {
         url: format!("ws://{addr}"),
         poll_interval_ms: 100,
+        is_mock: false,
+        profile: DemoProfile::default(),
     });
     assert!(adapter.connect().await.is_err());
 }

@@ -82,7 +82,7 @@ export interface DataSource {
 { "id": "ds-1712345-def456", "name": "车间遥测", "type": "websocket", "url": "ws://127.0.0.1:12345", "config": { "demo": false } }
 ```
 
-前者判定为演示模式（映射 Rust 网关配置 `{ kind:'demo', profile:'websocket', pollIntervalMs }`；若用户选了「演示波形」则 profile 取 `config.profile`）；后者为真实模式（`{ kind:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
+前者判定为演示模式（映射 Rust 网关配置 `{ protocol:'websocket', isMock:true, profile:'websocket', pollIntervalMs }`；若用户选了「演示波形」则 profile 取 `config.profile`）；后者为真实模式（`{ protocol:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
 
 ## 四、节点绑定提交（PropertyPanel）
 
@@ -107,13 +107,13 @@ if (binding) props.canvasRef.bindNodeData(node)
 
 ## 五、路由与点组订阅（useDataService）
 
-`src/composables/useDataService.ts` 统一路由并缓存服务实例（演示/真实/工业协议一律走 Rust 网关）：
+`src/composables/useDataService.ts` 统一路由并缓存服务实例（全部协议演示/真实模式一律走 Rust 网关）：
 
 ```ts
 // 所有数据源统一经 Rust 原生网关（IPC）
 const service = new IpcGatewayService(
     key,
-    buildDeviceConfig(sourceType, sourceUrl, sourceConfig), // websocket → { kind:'websocket', url, pollIntervalMs }
+    buildDeviceConfig(sourceType, sourceUrl, sourceConfig), // websocket → { protocol:'websocket', url, pollIntervalMs }（演示模式另带 isMock:true 与 profile）
     sourceType.toUpperCase(),
 )
 ```
@@ -141,8 +141,8 @@ for (const p of resolveBindingPoints(binding)) {
 
 ```ts
 // 建会话：演示模式用 DemoAdapter，真实模式用 WebSocketAdapter（作为 WS 客户端连接外部服务）
-await invoke('gateway_connect', { deviceId, config: { kind: 'demo', profile: 'websocket', pollIntervalMs: 1000 } })
-await invoke('gateway_connect', { deviceId, config: { kind: 'websocket', url: 'ws://127.0.0.1:12345', pollIntervalMs: 1000 } })
+await invoke('gateway_connect', { deviceId, config: { protocol: 'websocket', isMock: true, profile: 'websocket', pollIntervalMs: 1000 } })
+await invoke('gateway_connect', { deviceId, config: { protocol: 'websocket', url: 'ws://127.0.0.1:12345', pollIntervalMs: 1000 } })
 
 // 订阅：登记回调 + 通知 Rust（连接建立前的订阅会补发；真实模式下网关每 tick 差量同步，
 // 向服务端发 subscribe 帧）
@@ -181,9 +181,9 @@ listen('gateway://telemetry', (e) => {
 
 演示模式由桌面端 Rust 网关内置实现：`src-tauri/crates/gateway-demo/src/lib.rs` 的 `DemoAdapter`（`profile = Websocket`），不监听任何端口。
 
-链路：前端 `useDataService` 判定演示模式 → 创建 `IpcGatewayService`（`{ kind:'demo', profile:'websocket' }`）→ `invoke('gateway_connect')` → Rust 会话任务按轮询周期调用 `DemoAdapter.read()` → 遥测经 `gateway://telemetry` 事件批量推回前端。真实模式链路完全相同，仅配置为 `{ kind:'websocket', url, pollIntervalMs }`、适配器为 `WebSocketAdapter`。
+链路：前端 `useDataService` 判定演示模式 → 创建 `IpcGatewayService`（`{ protocol:'websocket', isMock:true, profile:'websocket' }`）→ `invoke('gateway_connect')` → Rust 会话任务按轮询周期调用 `DemoAdapter.read()` → 遥测经 `gateway://telemetry` 事件批量推回前端。真实模式链路完全相同，仅配置为 `{ protocol:'websocket', url, pollIntervalMs }`、适配器为 `WebSocketAdapter`。
 
-波形 profile 由 `buildDeviceConfig` 推导：优先取用户选择的 `config.profile`（四档：websocket=正弦 / http=随机游走 / sse=锯齿 / mqtt=离散档位，任意协议均可指定）；未选择时 Web 协议按数据源类型取协议特征波形，工业协议省略（Rust 默认正弦）。
+波形 profile 由 `buildDeviceConfig` 推导：优先取用户选择的 `config.profile`（四档：websocket=正弦 / http=随机游走 / sse=锯齿 / mqtt=离散档位，任意协议均可指定）；未选择时 Web 协议按数据源类型取协议特征波形，Modbus/S7/OPC 省略（Rust 默认正弦）。
 
 数据生成算法——平滑正弦波 + 确定性伪噪声，范围约 20~80：
 
@@ -222,7 +222,7 @@ const { value } = useNodeData(props.node, { value: 0 })  // 模板里 {{ value }
 
 ## 十二、调试与验证
 
-1. 演示模式：`npx tauri dev` 启动桌面应用，新建 WebSocket 演示数据源并绑定节点，观察正弦波数值每秒刷新；Rust 侧日志可见 `kind="demo"` 会话创建记录。
+1. 演示模式：`npx tauri dev` 启动桌面应用，新建 WebSocket 演示数据源并绑定节点，观察正弦波数值每秒刷新；连接成功后 `gateway://status` 事件 message 为「demo 设备已连接」（演示会话一律由 DemoAdapter 承接，配置仍保持 `protocol:'websocket'` + `isMock:true`）。
 2. 真实模式：无真实设备时可用 **HslCommunicationTools**（HslCommunication 工业联调工具）一键起 WS 服务端做集成测试：切到 WebSocket 页签 → 设置监听地址（如 `ws://127.0.0.1:12345`）并启动 → roc-wes 建真实模式数据源指向该地址 → 工具「接收」区可见网关的订阅帧；在「指令」框手动发送 `{"topic":"sensor.temp.001","value":63.4}` 即可观察节点刷新。工具不实现订阅语义（数据帧需手动发送），正好用于验证网关对任意推送格式的解析兼容性。也可用 `wscat` 独立验证服务端协议约定：
 
 ```bash

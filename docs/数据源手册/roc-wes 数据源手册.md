@@ -17,8 +17,8 @@
 | [OPC UA](./opc/用户使用手册.md) | `opc` | opc.tcp 二进制（TCP） | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生轮询读取（opcua crate） |
 | [Modbus](./modbus/用户使用手册.md) | `modbus` | Modbus TCP 二进制 | 桌面版 Rust 原生网关（IPC） | 桌面演示模式（DemoAdapter） | ✅ 原生直连设备 |
 
-> 全部 7 种数据源的演示与真实模式统一由桌面端 Rust 网关经 Tauri IPC 接管（**无中间进程、无本地端口**）：Web 协议由对应适配器 crate（gateway-websocket/http/sse/mqtt）连接外部服务，工业协议由 gateway-modbus/s7/opcua 直接 TCP 连接设备。前端 WebView 不直连任何外部服务，旧浏览器时代的直连服务类已移除。
-> 全部 7 类协议的**演示模式**均由桌面端 Rust 网关内置 `DemoAdapter` 生成模拟数据（按协议 profile 生成特征波形），不占用任何端口。Node 版内置模拟服务器（原 mock/ 目录）与工业协议 mock 桥接均已退役。
+> 全部 7 种数据源的演示与真实模式统一由桌面端 Rust 网关经 Tauri IPC 接管（**无中间进程、无本地端口**）：Web 协议由对应适配器 crate（gateway-websocket/http/sse/mqtt）连接外部服务，Modbus/S7/OPC UA 由 gateway-modbus/s7/opcua 直接 TCP 连接设备。前端 WebView 不直连任何外部服务，旧浏览器时代的直连服务类已移除。
+> 全部 7 类协议的**演示模式**均由桌面端 Rust 网关内置 `DemoAdapter` 生成模拟数据（按协议 profile 生成特征波形），不占用任何端口。Node 版内置模拟服务器（原 mock/ 目录）与 Modbus/S7/OPC mock 桥接均已退役。
 
 ## 二、文档清单
 
@@ -63,10 +63,10 @@ interface DataPoint {
 
 | 场景 | 说明 |
 | --- | --- |
-| 桌面演示模式 | 全部 7 类协议由 Rust `DemoAdapter` 生成模拟波形：默认按协议特征波形（WebSocket 正弦 / HTTP 随机游走 / SSE 锯齿 / MQTT 档位，工业协议默认正弦），也可在数据源对话框「演示波形」中任选一种；无任何端口 |
-| 桌面真实模式 | 全部 7 类协议由 Rust 网关适配器直接连接真实服务/设备（工业协议如 Modbus 默认端口 502），无中间进程 |
+| 桌面演示模式 | 全部 7 类协议由 Rust `DemoAdapter` 生成模拟波形：默认按协议特征波形（WebSocket 正弦 / HTTP 随机游走 / SSE 锯齿 / MQTT 档位，Modbus/S7/OPC 默认正弦），也可在数据源对话框「演示波形」中任选一种；无任何端口 |
+| 桌面真实模式 | 全部 7 类协议由 Rust 网关适配器直接连接真实服务/设备，设备/服务地址统一填数据源 `url` 字段（Modbus/S7 为 `主机[:端口]`，缺省端口 502/102；OPC UA 为端点 URL），无中间进程 |
 
-> Node 版内置模拟服务器（原 `mock/server.ts`，曾占用 8080/8081/8082/8083 端口）已移除；生产构建与开发态均不再启动任何本地 mock 端口。工业协议不再有 8084/8085/8086 演示桥接与 19100–19102 独立网关进程。
+> Node 版内置模拟服务器（原 `mock/server.ts`，曾占用 8080/8081/8082/8083 端口）已移除；生产构建与开发态均不再启动任何本地 mock 端口。Modbus/S7/OPC 不再有 8084/8085/8086 演示桥接与 19100–19102 独立网关进程。
 > 注：演示模式统一以数据源配置 `config.demo = true` 标识（地址可为空），不存在任何演示标识地址。
 
 ## 六、典型选型建议
@@ -89,7 +89,7 @@ interface DataPoint {
 | 类型路由与节点绑定 | `src/composables/useDataService.ts` |
 | 网关监控探针 | `src/services/GatewayMonitorService.ts`（`mon:` 独立 IPC 会话，避免与业务会话冲突） |
 | 数据源实例 Store | `src/stores/dataSource.ts` |
-| 数据源管理对话框 | `src/components/DataSourceDialog.vue` + `DataSourceDeviceConfig.vue` |
+| 数据源管理对话框 | `src/components/DataSourceDialog.vue` + `dataSource/protocolConfigRegistry.ts`（协议专属参数注册表，每协议一个子组件，开闭原则扩展点） |
 | Rust 网关 workspace | `src-tauri/crates/{gateway-core,gateway-engine,gateway-modbus,gateway-s7,gateway-opcua,gateway-websocket,gateway-http,gateway-sse,gateway-mqtt,gateway-common,gateway-demo}` |
 | IPC 命令与适配器工厂 | `src-tauri/src/{commands.rs,factory.rs}` |
 | 内置演示波形引擎（桌面演示模式） | `src-tauri/crates/gateway-demo/src/lib.rs`（DemoAdapter 按协议 profile 生成特征波形） |

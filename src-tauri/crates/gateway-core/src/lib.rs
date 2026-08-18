@@ -10,7 +10,7 @@ pub mod telemetry;
 
 pub use adapter::DeviceAdapter;
 pub use config::{
-    DemoConfig, DemoProfile, DeviceConfig, HttpConfig, ModbusConfig, MqttConfig, OpcConfig,
+    DemoProfile, DeviceConfig, HttpConfig, ModbusConfig, MqttConfig, OpcConfig,
     S7Config, SseConfig, WebsocketConfig,
 };
 pub use error::GatewayError;

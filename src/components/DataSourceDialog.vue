@@ -7,10 +7,10 @@
        1. 列表视图：展示所有数据源，支持监控/停止监控、展开查看实时数据、
           编辑、删除；可一键“监控全部”
        2. 新增/编辑表单：
-          - 7 种类型：WebSocket / MQTT / HTTP / SSE / S7 / OPC UA / Modbus
-          - 两种连接模式：演示模式（桌面端内置模拟引擎，免配置）/ 真实设备（需填参数）
-          - 工业协议（S7/OPC/Modbus）真实设备模式：填写主机/端口/机架/槽号等
-            （表单由 DataSourceDeviceConfig 子组件提供）
+          - 7 种类型：WebSocket / MQTT / HTTP / SSE / S7 / OPC UA / Modbus（交互一致，
+            真实设备模式均在地址字段填写设备/服务地址）
+          - 两种连接模式：演示模式（桌面端内置模拟引擎，免配置）/ 真实设备（需填地址；
+            协议专属参数由注册表驱动的子组件提供，见 components/dataSource/protocolConfigRegistry.ts）
        3. 监控详情：展开后显示连接状态、建连耗时、设备状态、
           点位实时值表格（点位 ID / 值 / 质量码 / 时间）、错误告警列表
 
@@ -85,7 +85,7 @@
                     <span class="ds-mon-k">建连耗时</span>
                     <span class="ds-mon-v">{{ monitor.getState(ds.id).latencyMs != null ? monitor.getState(ds.id).latencyMs + ' ms' : '—' }}</span>
                   </div>
-                  <div v-if="isIndustrialType(ds.type)" class="ds-mon-cell">
+                  <div v-if="monitor.getState(ds.id).deviceConnected !== null" class="ds-mon-cell">
                     <span class="ds-mon-k">设备状态</span>
                     <span class="ds-mon-v" :class="monitor.getState(ds.id).deviceConnected === false ? 'st-text-offline' : monitor.getState(ds.id).deviceConnected ? 'st-text-online' : ''">
                       {{ deviceLabel(monitor.getState(ds.id)) }}
@@ -147,13 +147,7 @@
             <div class="ds-field">
               <label class="ds-label">类型</label>
               <select v-model="form.type" class="ds-input">
-                <option value="websocket">WebSocket</option>
-                <option value="mqtt">MQTT</option>
-                <option value="http">HTTP 轮询</option>
-                <option value="sse">SSE</option>
-                <option value="s7">西门子 S7</option>
-                <option value="opc">OPC UA</option>
-                <option value="modbus">Modbus</option>
+                <option v-for="t in getProtocolTypes()" :key="t" :value="t">{{ getProtocolLabel(t) }}</option>
               </select>
             </div>
 
@@ -210,24 +204,21 @@
               </div>
             </div>
 
-            <!-- 工业协议设备参数（S7 / OPC UA / Modbus 的真实设备模式），抽取为子组件 -->
-            <DataSourceDeviceConfig v-if="isIndustrial && !form.demo" :form="form" />
-
-            <!-- HTTP 轮询间隔 -->
-            <div v-if="form.type === 'http'" class="ds-field-row">
-              <div class="ds-field">
-                <label class="ds-label">轮询间隔(ms)</label>
-                <input v-model.number="form.interval" type="number" class="ds-input num" />
-              </div>
-              <div class="ds-field"></div>
-            </div>
+            <!-- 协议专属参数：注册表驱动（protocolConfigRegistry），
+                 扩展新协议只需新增子组件并注册，无需改动本对话框；
+                 未注册子组件的协议不渲染 -->
+            <component
+              v-if="!form.demo && protocolConfigComp"
+              :is="protocolConfigComp"
+              :form="form"
+            />
 
             <div class="ds-field">
-              <label class="ds-label">地址 <span v-if="!form.demo && !isIndustrial" class="required">*</span></label>
+              <label class="ds-label">地址 <span v-if="!form.demo" class="required">*</span></label>
               <input
                 v-model="form.url"
                 class="ds-input"
-                :readonly="urlReadonly"
+                :readonly="form.demo"
                 :placeholder="urlPlaceholder"
               />
             </div>
@@ -259,17 +250,21 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import DataSourceDeviceConfig from './DataSourceDeviceConfig.vue'
 import { useGatewayMonitor } from '@/composables/useGatewayMonitor'
 import type { MonitorState } from '@/services/GatewayMonitorService'
 import { DEMO_WAVE_OPTIONS, type DemoWave } from '@/platform/deviceConfig'
 import {
   useDataSourceStore,
-  DATA_SOURCE_TYPE_LABELS,
-  REAL_GATEWAY_URLS,
   type DataSource,
   type DataSourceType,
 } from '@/stores/dataSource'
+import {
+  getProtocolTypes,
+  getProtocolLabel,
+  getProtocolConfigComponent,
+  getProtocolFormDefaults,
+  buildDataSourceConfig,
+} from './dataSource/protocolConfigRegistry'
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -323,7 +318,7 @@ function statusLabel(st: MonitorState): string {
   }
 }
 
-/** 设备连接状态文案（工业网关） */
+/** 设备连接状态文案（Rust 网关会话回报） */
 function deviceLabel(st: MonitorState): string {
   if (st.deviceConnected === true) return '已连接'
   if (st.deviceConnected === false) return '未连接'
@@ -339,43 +334,31 @@ function fmtTime(ts: number): string {
 const mode = ref<'list' | 'add' | 'edit'>('list')
 /** 编辑中的数据源 ID（edit 模式下有效） */
 const editingId = ref<string | null>(null)
-/** 表单数据 */
+/** 表单数据（协议专属字段由注册表 formDefaults 提供，扩展新协议无需改动本处） */
 const form = reactive({
   name: '',
   type: 'websocket' as DataSourceType,
   url: '',
   description: '',
-  // 工业协议设备参数（S7 / OPC UA / Modbus，仅对应类型时生效）
   demo: true,
   // 演示波形档位：空串 = 跟随协议特征波形；否则为 DEMO_WAVE_OPTIONS 的某个 value
   profile: '' as '' | DemoWave,
-  host: '127.0.0.1',
-  port: 502,
-  unitId: 1, // Modbus 从站地址
-  rack: 0, // S7 机架号
-  slot: 2, // S7 槽号
-  endpoint: '', // OPC UA 端点 URL
-  pollInterval: 1000,
-  interval: 2000, // HTTP 轮询间隔（ms）
+  // 协议专属参数（仅对应类型时生效；设备/服务地址一律存 url）
+  ...getProtocolFormDefaults(),
 })
 const formError = ref('')
 
+/** 当前类型的协议专属参数子组件（注册表查找；未注册时为 null 不渲染） */
+const protocolConfigComp = computed(() => getProtocolConfigComponent(form.type))
+
 function typeLabel(type: DataSourceType): string {
-  return DATA_SOURCE_TYPE_LABELS[type] ?? type
+  return getProtocolLabel(type)
 }
 
 /** 数据源是否为演示模式（仅看 config.demo，演示模式地址可为空） */
 function isDemoSource(ds: DataSource): boolean {
   return ds.config?.demo === true
 }
-
-/** 是否为需配置设备参数的工业协议类型 */
-function isIndustrialType(t: DataSourceType): boolean {
-  return t === 'modbus' || t === 's7' || t === 'opc'
-}
-
-/** 当前类型是否为工业协议（需配置设备参数） */
-const isIndustrial = computed(() => isIndustrialType(form.type))
 
 /** 四档波形的帮助说明文案（气泡内图形样例旁的描述） */
 const WAVE_DESCS: Record<DemoWave, string> = {
@@ -414,20 +397,13 @@ function wavePoints(kind: DemoWave): string {
   return pts.join(' ')
 }
 
-/** 当前生效的波形（预览小图）：用户选择优先；跟随协议时工业协议归为正弦 */
+/** 当前生效的波形（预览小图）：用户选择优先；跟随协议时非 Web 协议归为正弦 */
 const currentWave = computed<DemoWave>(() => {
   if (form.profile) return form.profile
   return DEMO_WAVE_OPTIONS.some((o) => o.value === form.type) ? (form.type as DemoWave) : 'websocket'
 })
 
-/** 各工业协议的默认设备端口 */
-function defaultPortFor(t: DataSourceType): number {
-  if (t === 's7') return 102
-  if (t === 'opc') return 4840
-  return 502 // modbus
-}
-
-/** 当前类型的特征波形显示名（波形下拉「跟随协议」选项的兜底说明） */
+/** 当前类型的特征波形显示名（波形下拉「跟随协议」选项的兑底说明） */
 const defaultWaveLabel = computed(() => {
   return DEMO_WAVE_OPTIONS.find((o) => o.value === form.type)?.label ?? '正弦波（平滑遥测）'
 })
@@ -439,11 +415,11 @@ const modeHint = computed(() => {
   }
   switch (form.type) {
     case 'modbus':
-      return '真实设备：需先启动独立网关（npm run gateway），并在下方填写设备参数；可用 npm run simulator 起仿真从站验证'
+      return '真实设备：在下方地址栏填写 Modbus TCP 设备地址（主机或 主机:端口，缺省端口 502）'
     case 's7':
-      return '真实设备：需先启动独立网关（npm run s7-gateway），并在下方填写 PLC 参数；可用 npm run s7-simulator 起仿真 PLC 验证'
+      return '真实设备：在下方地址栏填写 PLC 地址（主机或 主机:端口，缺省端口 102）'
     case 'opc':
-      return '真实设备：需先启动独立网关（npm run opc-gateway），并在下方填写端点参数；可用 npm run opc-simulator 起仿真服务端验证'
+      return '真实设备：在下方地址栏填写 OPC UA 端点 URL（如 opc.tcp://192.168.0.10:4840）'
     default:
       return '真实设备：请在下方填写真实服务地址'
   }
@@ -461,10 +437,7 @@ function onDocPointerDownForHelp(e: Event) {
 onMounted(() => document.addEventListener('pointerdown', onDocPointerDownForHelp))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointerDownForHelp))
 
-/** 地址输入框是否只读：演示模式（无需地址）或工业协议（固定网关地址）下不可手改 */
-const urlReadonly = computed(() => form.demo || isIndustrial.value)
-
-/** 地址占位符：演示模式提示无需地址；真实设备模式下非工业协议给出示例 */
+/** 地址占位符：演示模式提示无需地址；真实设备模式按类型给出示例 */
 const urlPlaceholder = computed(() => {
   if (form.demo) return '演示模式无需地址'
   switch (form.type) {
@@ -476,39 +449,33 @@ const urlPlaceholder = computed(() => {
       return '如：http://192.168.0.10:8081/api/data'
     case 'sse':
       return '如：http://192.168.0.10:8082/sse'
+    case 'modbus':
+      return '如：192.168.0.10 或 192.168.0.10:502'
+    case 's7':
+      return '如：192.168.0.10 或 192.168.0.10:102'
+    case 'opc':
+      return '如：opc.tcp://192.168.0.10:4840'
     default:
       return ''
   }
 })
 
 /**
- * 按「连接模式 + 类型」推导地址：
- * - 演示模式：无需地址（置空，数据由 Rust DemoAdapter 生成）；
- * - 工业协议真实设备：固定独立网关地址（设备地址在下方设备参数中配置）；
- * - 非工业协议真实设备：由用户手动填写。
+ * 按连接模式同步地址：演示模式无需地址（置空，数据由 Rust DemoAdapter 生成）；
+ * 真实设备模式的地址一律由用户手动填写（全部类型交互一致）。
  */
 function syncUrl() {
   if (form.demo) {
     form.url = ''
-  } else if (isIndustrialType(form.type)) {
-    form.url = REAL_GATEWAY_URLS[form.type] as string
   }
 }
 
 /** 编辑回填期间抑制 watcher 对地址的联动覆盖 */
 let suppressUrlSync = false
 
-// 切换类型：工业协议重置默认端口，并按模式同步地址
+// 切换类型 / 演示模式：按模式同步地址
 watch(
-  () => form.type,
-  (t) => {
-    if (isIndustrialType(t)) form.port = defaultPortFor(t)
-    if (!suppressUrlSync) syncUrl()
-  }
-)
-// 切换演示/真实模式：按类型同步地址
-watch(
-  () => form.demo,
+  [() => form.type, () => form.demo],
   () => {
     if (!suppressUrlSync) syncUrl()
   }
@@ -521,14 +488,8 @@ function resetForm() {
   form.description = ''
   form.demo = true
   form.profile = ''
-  form.host = '127.0.0.1'
-  form.port = 502
-  form.unitId = 1
-  form.rack = 0
-  form.slot = 2
-  form.endpoint = ''
-  form.pollInterval = 1000
-  form.interval = 2000
+  // 协议专属字段重置为注册表默认值
+  Object.assign(form, getProtocolFormDefaults())
   formError.value = ''
 }
 
@@ -549,15 +510,12 @@ function openEdit(ds: DataSource) {
   form.demo = c.demo === true
   // 波形回填：非法值归为「跟随协议」
   form.profile = DEMO_WAVE_OPTIONS.some((o) => o.value === c.profile) ? (c.profile as DemoWave) : ''
-  form.host = c.host ?? '127.0.0.1'
-  form.port = c.port ?? defaultPortFor(ds.type)
-  form.unitId = c.unitId ?? 1
-  form.rack = c.rack ?? 0
-  form.slot = c.slot ?? 2
-  form.endpoint = c.endpoint ?? ''
-  form.pollInterval = c.pollInterval ?? 1000
-  form.interval = c.interval ?? 2000
-  form.url = ds.url // 最后赋地址，保留用户保存的原始值
+  // 协议专属参数回填（注册表默认值兜底）；存量兼容：旧数据源把设备地址存在 config.host / config.endpoint，url 为空时兜底回填
+  const defaults = getProtocolFormDefaults()
+  for (const [key, def] of Object.entries(defaults)) {
+    ;(form as any)[key] = c[key] ?? def
+  }
+  form.url = ds.url || String(form.type === 'opc' ? (c.endpoint ?? '') : (c.host ?? '')) // 最后赋地址，保留用户保存的原始值
   formError.value = ''
   editingId.value = ds.id
   mode.value = 'edit'
@@ -573,51 +531,15 @@ function handleSave() {
     formError.value = '请填写数据源名称'
     return
   }
-  // 地址校验：演示模式无需地址；工业协议地址自动填充（设备参数在下方填写）；
-  // 仅非工业协议的真实设备模式必须填写真实服务地址
-  if (!form.demo && !isIndustrial.value && !url) {
+  // 地址校验：演示模式无需地址；真实设备模式全部类型一律必填（交互一致）
+  if (!form.demo && !url) {
     formError.value = '请填写数据源地址'
     return
   }
 
-  // 工业协议设备参数与校验（演示模式统一以 config.demo 标识，波形以 config.profile 保存）
-  const config: Record<string, any> = { demo: form.demo }
-  if (form.profile) config.profile = form.profile
-  if (form.type === 'modbus') {
-    if (!form.demo && !form.host.trim()) {
-      formError.value = '真实设备模式下请填写设备主机地址'
-      return
-    }
-    Object.assign(config, {
-      host: form.host.trim(),
-      port: Number(form.port) || 502,
-      unitId: Number(form.unitId) || 1,
-      pollInterval: Number(form.pollInterval) || 1000,
-    })
-  } else if (form.type === 's7') {
-    if (!form.demo && !form.host.trim()) {
-      formError.value = '真实设备模式下请填写 PLC 主机地址'
-      return
-    }
-    Object.assign(config, {
-      host: form.host.trim(),
-      port: Number(form.port) || 102,
-      rack: Number(form.rack) || 0,
-      slot: Number(form.slot) || 2,
-      pollInterval: Number(form.pollInterval) || 1000,
-    })
-  } else if (form.type === 'opc') {
-    if (!form.demo && !form.endpoint.trim()) {
-      formError.value = '真实设备模式下请填写 OPC UA 端点 URL'
-      return
-    }
-    Object.assign(config, {
-      endpoint: form.endpoint.trim(),
-      pollInterval: Number(form.pollInterval) || 1000,
-    })
-  } else if (form.type === 'http') {
-    config.interval = Number(form.interval) || 2000
-  }
+  // 数据源 config：公共字段 demo/profile + 协议专属字段，
+  // 均由注册表统一构建（见 protocolConfigRegistry）；设备/服务地址一律存 url
+  const config = buildDataSourceConfig(form.type, form)
 
   if (mode.value === 'edit' && editingId.value) {
     dataSourceStore.updateDataSource(editingId.value, {
@@ -870,16 +792,6 @@ function handleClose() {
   padding: 12px 16px;
   border-top: 1px solid var(--border-color);
 }
-/* 工业协议设备参数区块（S7 / OPC UA / Modbus） */
-.ds-proto-cfg {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px;
-  background: var(--statusbar-bg);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-}
 .ds-radio-row {
   display: flex;
   gap: 18px;
@@ -982,19 +894,7 @@ function handleClose() {
   font-size: 12px;
   color: var(--text-muted);
 }
-.ds-field-row {
-  display: flex;
-  gap: 12px;
-}
-.ds-field-row .ds-field {
-  flex: 1;
-}
-.ds-field.grow {
-  flex: 2;
-}
-.ds-input.num {
-  width: 100%;
-}
+/* 协议专属参数已迁移至 dataSource/XxxProtocolConfig 子组件（注册表驱动） */
 
 /* ===================== 网关 / 服务监控 ===================== */
 .ds-row {

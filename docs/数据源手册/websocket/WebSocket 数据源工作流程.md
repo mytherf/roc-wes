@@ -119,7 +119,7 @@ HslCommunciationTools 是 HslCommunication 库配套的工业联调测试工具�
 { "id": "ds-1712345-def456", "name": "WebSocket测试数据源", "type": "websocket", "url": "ws://127.0.0.1:12345", "config": { "demo": false } }
 ```
 
-前者判定为演示模式（映射配置 `{ kind:'demo', profile:'websocket', pollIntervalMs }`）；后者为真实模式（映射配置 `{ kind:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
+前者判定为演示模式（映射配置 `{ protocol:'websocket', isMock:true, profile:'websocket', pollIntervalMs }`）；后者为真实模式（映射配置 `{ protocol:'websocket', url, pollIntervalMs }`），均交 Rust 网关接管。
 
 
 ## ③ 节点绑定（PropertyPanel）
@@ -143,15 +143,15 @@ if (binding) props.canvasRef.bindNodeData(node)   // 重建订阅
 
 ## ④ 服务调度（useDataService，总调度）
 
-[useDataService.ts](file://C:/myf/project/allinone/roc-wes/src/composables/useDataService.ts) 是绑定逻辑的核心，所有数据源（演示/真实/工业协议）一律路由到 `IpcGatewayService`，`bindNodeData` 做三件事：
+[useDataService.ts](file://C:/myf/project/allinone/roc-wes/src/composables/useDataService.ts) 是绑定逻辑的核心，所有数据源（全部协议演示/真实模式）一律路由到 `IpcGatewayService`，`bindNodeData` 做三件事：
 
 ```ts
 // 1. 按 sourceId 从 Store 解析出数据源实例
 const ds = dataSourceStore.getDataSource(binding.sourceId)
 sourceType = ds.type   // 'websocket'
 
-// 2. 统一路由：演示模式映射为 { kind:'demo', profile:'websocket', pollIntervalMs }，
-//    真实模式映射为 { kind:'websocket', url, pollIntervalMs }
+// 2. 统一路由：演示模式映射为 { protocol:'websocket', isMock:true, profile:'websocket', pollIntervalMs }，
+//    真实模式映射为 { protocol:'websocket', url, pollIntervalMs }
 service = new IpcGatewayService(key, buildDeviceConfig(sourceType, sourceUrl, sourceConfig), 'WEBSOCKET')
 
 // 3. 按点组逐点订阅，回调里把值写入节点（每点用自己组内的转换函数）
@@ -174,8 +174,8 @@ for (const p of resolveBindingPoints(binding)) {
 
 ```ts
 // 建会话：演示模式用 DemoAdapter，真实模式用 WebSocketAdapter（作为 WS 客户端连接外部服务）
-await invoke('gateway_connect', { deviceId, config: { kind: 'demo', profile: 'websocket', pollIntervalMs: 1000 } })
-await invoke('gateway_connect', { deviceId, config: { kind: 'websocket', url: 'ws://127.0.0.1:12345', pollIntervalMs: 1000 } })
+await invoke('gateway_connect', { deviceId, config: { protocol: 'websocket', isMock: true, profile: 'websocket', pollIntervalMs: 1000 } })
+await invoke('gateway_connect', { deviceId, config: { protocol: 'websocket', url: 'ws://127.0.0.1:12345', pollIntervalMs: 1000 } })
 
 // 订阅：登记回调 + 通知 Rust（连接建立前的订阅会补发；真实模式下网关每 tick 差量同步，
 // 向服务端发 subscribe 帧，Hsl 工具「接收」区可见）

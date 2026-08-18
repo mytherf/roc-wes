@@ -1,7 +1,7 @@
 //! S7 适配器集成测试：基于 snap7-server 进程内 PLC 模拟器跑真实帧往返
 //! （TPKT/COTP/S7 握手 + 多点批量读 + 大端解码），另覆盖连接失败路径。
 
-use gateway_core::{DeviceAdapter, Quality, S7Config};
+use gateway_core::{DemoProfile, DeviceAdapter, Quality, S7Config};
 use gateway_s7::S7Adapter;
 use snap7_server::store::area;
 use snap7_server::{DataStore, S7Server, ServerConfig};
@@ -13,6 +13,8 @@ fn cfg(port: u16) -> S7Config {
         rack: 0,
         slot: 2,
         poll_interval_ms: 200,
+        is_mock: false,
+        profile: DemoProfile::default(),
     }
 }
 

@@ -42,7 +42,7 @@ function isDemoSource(ds: DataSource): boolean {
  * 各类型演示模式下的样例监控点位（统一以 sample- 前缀标识，与业务点位区分）。
  * 桌面端内置演示引擎（Rust DemoAdapter）会为任意订阅的 pointId 生成模拟值，故此处挑选具代表性的点位，
  * 让演示模式下即使没有节点绑定也能展示一组实时数据。
- * 工业协议采用真实地址格式（与 19502-19504 仿真器一致），切到真实设备/仿真器同样可用。
+ * Modbus/S7/OPC 采用真实地址格式（与 19502-19504 仿真器一致），切到真实设备/仿真器同样可用。
  */
 const DEMO_POINTS: Record<DataSourceType, string[]> = {
     websocket: ['sample-temperature', 'sample-humidity', 'sample-pressure'],

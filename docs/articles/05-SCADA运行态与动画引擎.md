@@ -314,14 +314,14 @@ npx tauri build
 
 ### 连接真实设备
 
-1. 在数据源管理对话框中新建对应协议的数据源，填入 PLC 的 IP / 端口等参数（如 Modbus 的 host / port / unitId / 轮询间隔）。
+1. 在数据源管理对话框中新建对应协议的数据源，设备/服务地址统一填在「地址」栏（Modbus/S7 写 `主机[:端口]`，OPC UA 写端点 URL），协议专属参数（如 Modbus 从站地址 unitId / 轮询间隔）单独配置。
 2. 保存后，`IpcGatewayService` 经 Tauri IPC 请求 Rust 网关建立会话，网关用 tokio 原生 TCP 直连 PLC，遥测数据批量推回前端。
 
-当前 Modbus TCP 适配器已完整落地；S7 / OPC UA 适配器在 Rust 侧预留了扩展点（`factory.rs` 加一个 match 分支即可接入）。连接失败时，数据源监控面板会实时展示错误原因。
+当前 Modbus / S7 / OPC UA 适配器均已落地（tokio-modbus / snap7-client / opcua crate），7 类协议真实模式全通。连接失败时，数据源监控面板会实时展示错误原因。
 
 ### 未来演进方向
 
-**S7 / OPC UA 适配器落地**：Rust 网关的扩展点已就位，引入 snap7 绑定与 opcua crate 后，只需在 `factory.rs` 增加 match 分支，前端与引擎层零改动。
+**写操作与多寄存器数据类型**：网关适配器当前只读、每点 1 个寄存器；32 位浮点/整数拆分读写是下一步演进方向。
 
 **串口直连（Modbus RTU）**：桌面化后具备 RS-485 串口能力，可为 gateway-core 增加 RTU 适配器，覆盖存量串口仪表。
 

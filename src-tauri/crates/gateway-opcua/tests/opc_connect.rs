@@ -1,13 +1,15 @@
 //! OPC UA 适配器集成测试：连接失败路径（本机无可用 OPC UA 服务器，
 //! 往返测试依赖真机/KEPServerEX，列入手册验收待办）。
 
-use gateway_core::{DeviceAdapter, GatewayError, OpcConfig};
+use gateway_core::{DemoProfile, DeviceAdapter, GatewayError, OpcConfig};
 use gateway_opcua::OpcuaAdapter;
 
 fn cfg(endpoint: &str) -> OpcConfig {
     OpcConfig {
         endpoint: endpoint.to_string(),
         poll_interval_ms: 200,
+        is_mock: false,
+        profile: DemoProfile::default(),
     }
 }
 

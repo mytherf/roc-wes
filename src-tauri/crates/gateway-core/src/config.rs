@@ -22,66 +22,92 @@ fn default_http_poll_interval_ms() -> u64 {
 }
 
 /// 设备配置判别联合：
-/// `{ kind: 'modbus' | 's7' | 'opc' | 'demo' | 'websocket' | 'http' | 'sse' | 'mqtt', ... }`
+/// `{ protocol: 'modbus' | 's7' | 'opc' | 'websocket' | 'http' | 'sse' | 'mqtt', ... }`
+///
+/// 演示模式不是独立协议：`protocol` 保持数据源原协议类型，
+/// 以 `isMock = true` 标识，由工厂统一路由到 DemoAdapter（波形由 profile 决定）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "protocol", rename_all = "camelCase")]
 pub enum DeviceConfig {
     Modbus(ModbusConfig),
     S7(S7Config),
     Opc(OpcConfig),
-    Demo(DemoConfig),
-    /// 真实 WebSocket 推送服务（Rust 作为 WS 客户端订阅）
+    /// WebSocket 推送服务（Rust 作为 WS 客户端订阅；isMock 时由 DemoAdapter 生成正弦波形）
     Websocket(WebsocketConfig),
-    /// 真实 HTTP 轮询服务（按点位 GET 查询）
+    /// HTTP 轮询服务（按点位 GET 查询；isMock 时由 DemoAdapter 生成随机游走波形）
     Http(HttpConfig),
-    /// 真实 SSE 推送流（按点位建立长连接）
+    /// SSE 推送流（按点位建立长连接；isMock 时由 DemoAdapter 生成锯齿波形）
     Sse(SseConfig),
-    /// 真实 MQTT broker（点ID 作为主题过滤器订阅）
+    /// MQTT broker（点ID 作为主题过滤器订阅；isMock 时由 DemoAdapter 生成离散档位波形）
     Mqtt(MqttConfig),
 }
 
-/// 真实 WebSocket 服务参数
+/// WebSocket 服务参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebsocketConfig {
-    /// 服务地址（ws:// 或 wss://）
+    /// 服务地址（ws:// 或 wss://；演示模式下可为空）
     pub url: String,
     /// 上报间隔毫秒（缓冲的最新值按此周期批量上报，默认 1000）
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
+    /// 是否演示模式（不连真实设备，由 DemoAdapter 生成波形）
+    #[serde(default)]
+    pub is_mock: bool,
+    /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
+    #[serde(default)]
+    pub profile: DemoProfile,
 }
 
-/// 真实 HTTP 轮询服务参数
+/// HTTP 轮询服务参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpConfig {
-    /// 服务地址（按点位拼接 `${url}?pointId=xxx` 发起 GET）
+    /// 服务地址（按点位拼接 `${url}?pointId=xxx` 发起 GET；演示模式下可为空）
     pub url: String,
     /// 轮询间隔毫秒（默认 2000，与旧前端 HttpPollingService 一致）
     #[serde(default = "default_http_poll_interval_ms")]
     pub poll_interval_ms: u64,
+    /// 是否演示模式（不连真实设备，由 DemoAdapter 生成波形）
+    #[serde(default)]
+    pub is_mock: bool,
+    /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
+    #[serde(default)]
+    pub profile: DemoProfile,
 }
 
-/// 真实 SSE 服务参数
+/// SSE 服务参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SseConfig {
-    /// 服务地址（按点位拼接 `${url}?pointId=xxx` 建立 SSE 长连接）
+    /// 服务地址（按点位拼接 `${url}?pointId=xxx` 建立 SSE 长连接；演示模式下可为空）
     pub url: String,
     /// 上报间隔毫秒（缓冲的最新值按此周期批量上报，默认 1000）
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
+    /// 是否演示模式（不连真实设备，由 DemoAdapter 生成波形）
+    #[serde(default)]
+    pub is_mock: bool,
+    /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
+    #[serde(default)]
+    pub profile: DemoProfile,
 }
 
-/// 真实 MQTT broker 参数
+/// MQTT broker 参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MqttConfig {
-    /// broker 地址（ws:// WebSocket 或 mqtt:// 原生 TCP）
+    /// broker 地址（ws:// WebSocket 或 mqtt:// 原生 TCP；演示模式下可为空）
     pub url: String,
     /// 上报间隔毫秒（缓冲的最新值按此周期批量上报，默认 1000）
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
+    /// 是否演示模式（不连真实设备，由 DemoAdapter 生成波形）
+    #[serde(default)]
+    pub is_mock: bool,
+    /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
+    #[serde(default)]
+    pub profile: DemoProfile,
 }
 
 /// Modbus TCP 设备参数
@@ -99,6 +125,12 @@ pub struct ModbusConfig {
     /// 轮询间隔毫秒（默认 1000，引擎侧下限 200）
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
+    /// 是否演示模式（不连真实设备，由 DemoAdapter 生成波形）
+    #[serde(default)]
+    pub is_mock: bool,
+    /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
+    #[serde(default)]
+    pub profile: DemoProfile,
 }
 
 /// 西门子 S7 设备参数（适配器实现待 S7 spike）
@@ -116,16 +148,28 @@ pub struct S7Config {
     pub slot: u8,
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
+    /// 是否演示模式（不连真实设备，由 DemoAdapter 生成波形）
+    #[serde(default)]
+    pub is_mock: bool,
+    /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
+    #[serde(default)]
+    pub profile: DemoProfile,
 }
 
 /// OPC UA 设备参数（适配器实现待引入 opcua crate）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpcConfig {
-    /// 端点 URL，如 opc.tcp://127.0.0.1:4840
+    /// 端点 URL，如 opc.tcp://127.0.0.1:4840（演示模式下可为空）
     pub endpoint: String,
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
+    /// 是否演示模式（不连真实设备，由 DemoAdapter 生成波形）
+    #[serde(default)]
+    pub is_mock: bool,
+    /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
+    #[serde(default)]
+    pub profile: DemoProfile,
 }
 
 /// 演示波形档位：按协议生成不同特征的模拟曲线
@@ -144,28 +188,66 @@ pub enum DemoProfile {
     Mqtt,
 }
 
-/// 演示模式：不连真实设备，由 DemoAdapter 生成模拟曲线
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DemoConfig {
-    #[serde(default = "default_poll_interval_ms")]
-    pub poll_interval_ms: u64,
-    /// 波形档位（缺省 websocket，兼容旧配置）
-    #[serde(default)]
-    pub profile: DemoProfile,
-}
-
 impl DeviceConfig {
     pub fn poll_interval_ms(&self) -> u64 {
         match self {
             DeviceConfig::Modbus(c) => c.poll_interval_ms,
             DeviceConfig::S7(c) => c.poll_interval_ms,
             DeviceConfig::Opc(c) => c.poll_interval_ms,
-            DeviceConfig::Demo(c) => c.poll_interval_ms,
             DeviceConfig::Websocket(c) => c.poll_interval_ms,
             DeviceConfig::Http(c) => c.poll_interval_ms,
             DeviceConfig::Sse(c) => c.poll_interval_ms,
             DeviceConfig::Mqtt(c) => c.poll_interval_ms,
         }
+    }
+
+    /// 是否演示模式（isMock = true 时工厂统一路由到 DemoAdapter）
+    pub fn is_mock(&self) -> bool {
+        match self {
+            DeviceConfig::Modbus(c) => c.is_mock,
+            DeviceConfig::S7(c) => c.is_mock,
+            DeviceConfig::Opc(c) => c.is_mock,
+            DeviceConfig::Websocket(c) => c.is_mock,
+            DeviceConfig::Http(c) => c.is_mock,
+            DeviceConfig::Sse(c) => c.is_mock,
+            DeviceConfig::Mqtt(c) => c.is_mock,
+        }
+    }
+
+    /// 演示波形档位（仅演示模式有意义）
+    pub fn demo_profile(&self) -> DemoProfile {
+        match self {
+            DeviceConfig::Modbus(c) => c.profile,
+            DeviceConfig::S7(c) => c.profile,
+            DeviceConfig::Opc(c) => c.profile,
+            DeviceConfig::Websocket(c) => c.profile,
+            DeviceConfig::Http(c) => c.profile,
+            DeviceConfig::Sse(c) => c.profile,
+            DeviceConfig::Mqtt(c) => c.profile,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 新 JSON 形态：protocol 判别 + isMock 标识演示模式（无独立 demo 协议）
+    #[test]
+    fn parses_mock_and_real_configs() {
+        let mock: DeviceConfig = serde_json::from_value(serde_json::json!({
+            "protocol": "websocket", "isMock": true, "profile": "sse", "url": ""
+        }))
+        .unwrap();
+        assert!(mock.is_mock());
+        assert_eq!(mock.demo_profile(), DemoProfile::Sse);
+        assert_eq!(mock.poll_interval_ms(), 1000); // 缺省默认值
+
+        let real: DeviceConfig = serde_json::from_value(serde_json::json!({
+            "protocol": "modbus", "host": "127.0.0.1"
+        }))
+        .unwrap();
+        assert!(!real.is_mock());
+        assert_eq!(real.demo_profile(), DemoProfile::Websocket); // 缺省档位
     }
 }

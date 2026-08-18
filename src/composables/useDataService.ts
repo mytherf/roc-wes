@@ -23,7 +23,7 @@ import { evaluateNodeEvents } from '@/services/NodeEventService'
  * 设计说明：
  * - 未绑定数据源（无 sourceId 且无旧字段 sourceUrl）的节点不订阅任何数据，保持静态值；
  *   演示/模拟数据须显式创建演示模式数据源并绑定。
- * - 全部协议（演示模式 + WebSocket/HTTP/SSE/MQTT 真实模式 + 工业协议）统一由
+ * - 全部协议（演示模式 + 全部真实模式）统一由
  *   Rust 原生网关接管，前端经 invoke + event IPC 通信，WebView 不再直连任何服务。
  * - 具名数据服务：按 `${sourceType}:${sourceUrl}` 缓存，避免同一数据源重复创建会话。
  * - unbindAllNodes 仅取消订阅、不断开连接（支持重载后重新绑定）；
@@ -42,7 +42,7 @@ export function useDataService() {
   /**
    * 根据数据源配置获取或创建数据服务实例
    * - 全部协议统一路由到 Rust 原生网关（IPC）：演示模式由 DemoAdapter 生成模拟数据，
-   *   WebSocket/HTTP/SSE/MQTT 真实模式由 Rust 原生客户端接管，工业协议由 Rust 原生 TCP 直连
+   *   真实模式由 Rust 原生客户端接管（Web 协议连接外部服务、Modbus/S7/OPC 原生 TCP 直连设备）
    * - 演示模式地址可为空；真实模式地址为空时返回 null（无法建连，节点保持静态值）
    * - sourceConfig：协议特定参数（如 HTTP 的 pollInterval / 演示标志），经 buildDeviceConfig 翻译给 Rust
    */

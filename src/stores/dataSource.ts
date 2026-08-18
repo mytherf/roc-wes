@@ -26,11 +26,11 @@ export interface DataSource {
     name: string
     /** 数据源类型 */
     type: DataSourceType
-    /** 数据源地址（如 ws://host:port/path）；演示模式下为空 */
+    /** 数据源地址（如 ws://host:port/path；Modbus/S7 为 主机[:端口]，OPC UA 为端点 URL）；演示模式下为空 */
     url: string
     /** 备注说明（可选） */
     description?: string
-    /** 协议特定的设备连接参数（可选，如 Modbus 的 host/port/unitId/pollInterval/demo） */
+    /** 协议特定参数（可选，如 Modbus 的 unitId/pollInterval、演示标志 demo 等；设备地址一律存 url） */
     config?: Record<string, any>
 }
 
@@ -43,19 +43,6 @@ export const DATA_SOURCE_TYPE_LABELS: Record<DataSourceType, string> = {
     s7: '西门子 S7',
     opc: 'OPC UA',
     modbus: 'Modbus',
-}
-
-/**
- * 独立真实设备网关地址（历史遗留的浏览器时代 WS 网关占位地址）。
- * Node 版网关（原 gateway/ 目录）已随 Tauri 迁移移除：桌面端所有协议
- *（ws/http/sse/mqtt 及工业协议）一律经 Rust 原生网关 IPC 直连设备，
- * 连接参数取数据源 url / config（host/port 等），不使用此地址；
- * 此处保留仅为兼容数据源对话框在真实模式下的表单预填。
- */
-export const REAL_GATEWAY_URLS: Partial<Record<DataSourceType, string>> = {
-    modbus: 'ws://localhost:19100/modbus',
-    s7: 'ws://localhost:19101/s7',
-    opc: 'ws://localhost:19102/opc',
 }
 
 /**

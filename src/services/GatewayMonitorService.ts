@@ -126,8 +126,8 @@ export class GatewayMonitorService {
      * 经 Rust 原生网关探测。
      *
      * buildDeviceConfig 按数据源类型映射：演示模式 → DemoAdapter（无端口），
-     * WebSocket/HTTP/SSE/MQTT 真实模式 → Rust 原生客户端接管，
-     * 工业协议 → Rust 原生 TCP 直连。
+     * 真实模式 → Rust 原生客户端接管（Web 协议连接外部服务、
+     * Modbus/S7/OPC 原生 TCP 直连设备）。
      *
      * 监控会话使用独立 deviceId（mon: 前缀），与业务链路的会话隔离，
      * 互不影响对方的订阅；重连由引擎侧指数退避自动完成，
