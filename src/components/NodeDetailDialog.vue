@@ -3,9 +3,10 @@
 
      展示节点的“体检报告”：
        1. 基本信息：节点 ID、名称、类型、标签
-       2. 运行数据：按点 ID 分组显示，每组含数据源类型/地址及节点 data 中除内部字段外的所有数据
-          （过滤 binding/pointId/floorGrids/history/animation 等内部字段，
-          函数/数组/对象等复杂值以 JSON 形式展示）
+       2. 运行数据：按点 ID 分组显示，每组仅展示该点的 value 字段
+          （timestamp/quality/rawValue 等其它属性不展示）；
+          value 支持点击手动修改，提交后写回节点数据（values[pointId].value，
+          主点同步写顶层 value），触发 change:data 刷新节点渲染
 
      运行数据实时跟随数据源刷新（监听 X6 change:data 事件，数据源推送即更新）。
      货架节点（rack-node）有专属正视图弹窗，不会走此通用弹窗。
@@ -61,11 +62,26 @@
                   <span v-if="group.remark" class="point-remark" :title="group.remark">{{ group.remark }}</span>
                 </div>
                 <div class="data-table">
-                  <div v-for="entry in group.entries" :key="entry.key" class="data-row">
-                    <span class="data-key">{{ entry.key }}</span>
-                    <span class="data-value" :class="{ 'data-complex': entry.complex }">{{ entry.display }}</span>
+                  <div class="data-row">
+                    <span class="data-key">value</span>
+                    <!-- 编辑态：聚焦输入框，Enter/失焦提交，Esc 取消 -->
+                    <input
+                      v-if="editingKey === group.key"
+                      class="data-value-input"
+                      v-model="editDraft"
+                      @vue:mounted="focusEditInput"
+                      @blur="commitEdit(group)"
+                      @keydown.enter.prevent="($event.target as HTMLInputElement)?.blur()"
+                      @keydown.esc="cancelEdit"
+                    />
+                    <!-- 展示态：点击切换为输入框手动修改 -->
+                    <span
+                      v-else
+                      class="data-value data-value-editable"
+                      title="点击可手动修改"
+                      @click="startEdit(group)"
+                    >{{ group.hasValue ? displayValue(group.value) : '-' }}</span>
                   </div>
-                  <div v-if="group.entries.length === 0" class="no-binding">暂无运行数据</div>
                 </div>
               </div>
             </template>
@@ -174,52 +190,33 @@ const nodeName = computed(() => {
   return data?.name || data?.title || data?.label || nodeTypeLabel.value
 })
 
-// ===== 运行数据展示（按点 ID 分组：多点绑定时每个点一组，组头点 ID + 数据源信息） =====
-/** 内部字段：不在运行数据中展示（名称/标签已在基本信息显示，values 已按点分组展示，unit 为节点配置属性，其余为结构/历史/动画内部字段） */
-const HIDDEN_KEYS = new Set(['name', 'title', 'label', 'binding', 'pointId', 'values', 'floorGrids', 'history', 'animation', 'unit'])
+// ===== 运行数据展示（按点 ID 分组：多点绑定时每个点一组，每组仅展示 value 且可手动修改） =====
 
-/** 主点追加顶层字段时过滤的键：与点位遥测（value/rawValue/timestamp/quality）重复，避免同一数据展示两遍 */
-const DUP_TELEMETRY_KEYS = new Set(['value', '_rawValue', '_timestamp', '_quality'])
-
-/** 时间戳格式化：毫秒时间戳 → YYYY-MM-DD HH:mm:ss（非法的数字/字符串原样返回） */
-function formatTimestamp(ts: unknown): string {
-  const raw = String(ts ?? '').trim()
-  if (raw === '') return '-'
-  const num = Number(raw)
-  if (!Number.isFinite(num)) return raw
-  const d = new Date(num)
-  if (Number.isNaN(d.getTime())) return raw
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+/** 将点位值格式化为可展示文本（函数/数组/对象等复杂值以 JSON 展示） */
+function displayValue(v: any): string {
+  if (v === null || v === undefined) return '-'
+  if (typeof v === 'function') return '[函数]'
+  if (Array.isArray(v) || typeof v === 'object') return JSON.stringify(v)
+  return String(v)
 }
 
-/** 将单个值格式化为可展示条目（函数/数组/对象等复杂值以 JSON 展示） */
-function toEntry(key: string, value: any) {
-  if (value === null || value === undefined) {
-    return { key, display: '-', complex: false }
-  }
-  if (typeof value === 'function') {
-    return { key, display: '[函数]', complex: true }
-  }
-  if (Array.isArray(value) || typeof value === 'object') {
-    return { key, display: JSON.stringify(value), complex: true }
-  }
-  // 时间戳键：毫秒值格式化为可读时间
-  if (key === 'timestamp' || key === '_timestamp') {
-    return { key, display: formatTimestamp(value), complex: false }
-  }
-  return { key, display: String(value), complex: false }
+/** 分组模型：key 为编辑态标识（绑定点用点ID，未绑定回退组用固定标识） */
+interface PointGroup {
+  key: string
+  pointId: string
+  name?: string
+  remark?: string
+  /** 是否主点（手动修改时同步写节点顶层 value） */
+  primary: boolean
+  hasValue: boolean
+  value: any
 }
 
-const groupedData = computed(() => {
+const groupedData = computed<PointGroup[]>(() => {
   // 依赖刷新信号：数据变化时重新求值，实时读取 cell.getData()
   void refreshTick.value
   const data = nodeInfo.value?.data
   if (!data) return []
-
-  const entries = Object.entries(data)
-    .filter(([key]) => !HIDDEN_KEYS.has(key))
-    .map(([key, value]) => toEntry(key, value))
 
   const binding = data.binding
   if (binding && Array.isArray(binding.points) && binding.points.length > 0) {
@@ -227,40 +224,77 @@ const groupedData = computed(() => {
     const points = binding.points
       .map((p: any) => ({ pid: p?.pointId, name: p?.name, remark: p?.remark }))
       .filter((p: any) => !!p.pid)
-    // 各点的实时值（由 useDataService 写入 data.values[pointId]；rawValue 为转换前原始值）
-    const values = (data.values || {}) as Record<string, { value?: any; rawValue?: any; timestamp?: number; quality?: string }>
-    // 每个绑定点一组：组头点 ID（+ 点名称/备注）+ 数据源信息，组内优先展示该点实时值，
-    // 主点额外追加节点顶层运行字段（value/_timestamp/_quality 等）
+    // 各点的实时值（由 useDataService 写入 data.values[pointId]）
+    const values = (data.values || {}) as Record<string, { value?: any }>
     return points.map((pt: { pid: string; name?: string; remark?: string }, idx: number) => {
       const pv = values[pt.pid]
-      const groupEntries = pv
-        ? [
-            toEntry('value', pv.value),
-            // 原始值：转换函数应用前的值；与转换后相同则不重复展示
-            ...(pv.rawValue !== undefined && pv.rawValue !== pv.value
-              ? [toEntry('rawValue', pv.rawValue)]
-              : []),
-            toEntry('timestamp', pv.timestamp),
-            toEntry('quality', pv.quality ?? 'good'),
-          ]
-        : []
-      if (idx === 0) {
-        // 主点额外追加节点顶层运行字段（过滤与点位遥测重复的 value/_timestamp/_quality）
-        groupEntries.push(...entries.filter((e) => !DUP_TELEMETRY_KEYS.has(e.key)))
-      }
       return {
+        key: pt.pid,
         pointId: pt.pid,
         name: pt.name,
         remark: pt.remark,
-        entries: groupEntries,
+        primary: idx === 0,
+        hasValue: pv !== undefined && pv.value !== undefined,
+        value: pv?.value,
       }
     })
   }
-  // 未绑定但存在运行字段时，仍展示为“未绑定点位”组
-  return entries.length > 0
-    ? [{ pointId: '', entries }]
-    : []
+  // 未绑定回退组：仅展示节点顶层 value（同样可手动修改）
+  return [{ key: '__unbound__', pointId: '', primary: true, hasValue: data.value !== undefined, value: data.value }]
 })
+
+// ===== value 手动编辑：点击进入输入框，提交后写回节点数据 =====
+/** 当前编辑中的分组 key（null = 非编辑态）与输入草稿 */
+const editingKey = ref<string | null>(null)
+const editDraft = ref('')
+
+/** 输入文本解析为目标值：纯数字 → number，true/false → boolean，其余保留字符串 */
+function parseInputValue(text: string): any {
+  const t = text.trim()
+  if (t === '') return ''
+  if (/^-?\d+(\.\d+)?$/.test(t)) return Number(t)
+  if (t === 'true') return true
+  if (t === 'false') return false
+  return text
+}
+
+function startEdit(group: PointGroup) {
+  editingKey.value = group.key
+  editDraft.value = group.hasValue ? String(group.value) : ''
+}
+
+function cancelEdit() {
+  editingKey.value = null
+}
+
+/** 提交：写回 data.values[pointId].value（主点/未绑定组同步写顶层 value），
+ *  与 useDataService 推送写入路径一致（setData 深合并），触发 change:data 刷新 */
+function commitEdit(group: PointGroup) {
+  if (editingKey.value !== group.key) return
+  editingKey.value = null
+  const cell = props.graph?.getCellById(props.nodeId)
+  if (!cell) return
+  const newVal = parseInputValue(editDraft.value)
+  if (!group.pointId) {
+    // 未绑定回退组：只写节点顶层 value
+    cell.setData({ value: newVal })
+    return
+  }
+  const data = cell.getData() || {}
+  const prev = ((data.values || {}) as Record<string, any>)[group.pointId] || {}
+  const patch: any = {
+    values: {
+      [group.pointId]: { ...prev, value: newVal, timestamp: Date.now(), quality: 'good' },
+    },
+  }
+  if (group.primary) patch.value = newVal
+  cell.setData(patch)
+}
+
+/** 编辑输入框挂载后自动聚焦 */
+function focusEditInput(el: unknown) {
+  (el as HTMLInputElement | null)?.focus()
+}
 </script>
 
 <style scoped>
@@ -400,13 +434,27 @@ const groupedData = computed(() => {
   color: var(--text-primary);
   word-break: break-all;
 }
-.data-value.data-complex {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-muted);
-  max-height: 60px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* value 手动编辑：展示态虚线下划线提示可点击，悬停高亮 */
+.data-value-editable {
+  cursor: pointer;
+  border-bottom: 1px dashed var(--border-light);
+}
+.data-value-editable:hover {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+/* value 编辑输入框：与展示值等宽对位，主题色描边突出编辑态 */
+.data-value-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 1px 6px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  outline: none;
 }
 /* 点 ID 分组 */
 .point-group + .point-group { margin-top: 10px; }

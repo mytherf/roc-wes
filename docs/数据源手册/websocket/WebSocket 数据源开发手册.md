@@ -88,7 +88,7 @@ export interface DataSource {
 
 ## 四、节点绑定提交（PropertyPanel）
 
-属性面板「数据绑定」页选择数据源 + 填写点ID（可选点名称/备注，可「＋ 添加点组」追加附加点，或「⇪ 导入点位（批量）」粘贴文本/选择 txt/csv 文件批量导入，每行 `点ID，点名称，备注`）后，`updateBinding` 把配置写入节点并触发订阅（两种模式完全一致）：
+属性面板「数据绑定」页选择数据源 + 填写点ID（可选点名称/备注，可「＋ 添加点组」追加附加点，或「⇪ 导入点位（批量）」从 CSV / Excel（xlsx/xls）/ txt 文件批量导入，可先「下载模板」（带表头的 CSV，Excel 可直接打开）填写后再导入；导入方式可选追加（缺省，重复跳过）或覆盖现有点组；粘贴文本每行 `点ID，点名称，备注`）后，`updateBinding` 把配置写入节点并触发订阅（两种模式完全一致）：
 
 ```ts
 // 有主点即提交绑定，sourceId 允许后补（无 sourceId 的绑定运行期不订阅，节点保持静态值）
@@ -248,7 +248,7 @@ wscat -c ws://192.168.0.10:9000/telemetry
 | `src/components/dataSource/WebsocketProtocolConfig.vue` | 真实设备模式连接配置子组件（地址栏） |
 | `src/platform/deviceConfig.ts` | `isDemoSource` 演示判定与 Rust 网关配置映射 |
 | `src/components/PropertyPanel.vue` | 「数据绑定」标签页 UI 与 `updateBinding` 提交（含导入点位对话框） |
-| `src/utils/pointImport.ts` | 点位导入文本解析（分隔符自动探测：含 Tab 按 Tab，否则逗号） |
+| `src/utils/pointImport.ts` | 点位导入解析（粘贴文本分隔符自动探测：含 Tab 按 Tab 否则逗号；Excel/CSV 行数据转 Tab 分隔草稿，首行表头自动跳过） |
 | `src/composables/useNodeData.ts` | 节点组件响应式数据刷新 |
 | `src-tauri/crates/gateway-websocket/src/lib.rs` | WebSocket 适配器（真实模式：订阅、缓冲、重连） |
 | `src-tauri/crates/gateway-common/src/lib.rs` | Web 协议共享内核（帧解析 / 最新值缓冲） |

@@ -5,7 +5,7 @@
  * 含逗号的 S7 地址）、注释/空行跳过、文本内去重、备注含分隔符不拆分等边界。
  */
 import { describe, it, expect } from 'vitest'
-import { parsePointImportText } from '@/utils/pointImport'
+import { parsePointImportText, isImportHeaderRow, rowsToImportDraft } from '@/utils/pointImport'
 
 describe('parsePointImportText（逗号模式）', () => {
     it('仅点ID：逐行解析', () => {
@@ -87,6 +87,48 @@ describe('parsePointImportText（Tab 模式：含 Tab 时整文按 Tab 切分）
         const r = parsePointImportText('a,b\t名称，含逗号')
         expect(r.points).toEqual([
             { pointId: 'a,b', name: '名称，含逗号' },
+        ])
+    })
+})
+
+describe('rowsToImportDraft（Excel/CSV 行数据 → Tab 分隔草稿）', () => {
+    it('表头行（首列「点ID」）自动跳过，其余行转 Tab 分隔', () => {
+        const draft = rowsToImportDraft([
+            ['点ID', '点名称', '备注'],
+            ['sensor.temp.001', '温度1号', '锅炉房东侧'],
+            ['sensor.humi.001', '湿度1号'],
+        ])
+        expect(draft).toBe('sensor.temp.001\t温度1号\t锅炉房东侧\nsensor.humi.001\t湿度1号')
+    })
+
+    it('表头大小写/空白不敏感（pointId 也跳过）', () => {
+        expect(isImportHeaderRow([' Point ID ', '名称'])).toBe(true)
+        expect(isImportHeaderRow(['pointId'])).toBe(true)
+        expect(isImportHeaderRow(['sensor.temp.001'])).toBe(false)
+    })
+
+    it('无表头时不跳过首行；空行与尾部空列省略', () => {
+        const draft = rowsToImportDraft([
+            ['p-1', '名称', '', ''],
+            [],
+            ['p-2'],
+        ])
+        expect(draft).toBe('p-1\t名称\np-2')
+    })
+
+    it('数字单元格转文本；超过三列忽略', () => {
+        const draft = rowsToImportDraft([[42, '名称', '备注', '多余列']])
+        expect(draft).toBe('42\t名称\t备注')
+    })
+
+    it('往返：含逗号的 S7 地址经草稿解析后完整还原', () => {
+        const draft = rowsToImportDraft([
+            ['点ID', '点名称', '备注'],
+            ['DB1,REAL0', '堆垛机1号温度', 'DB 块 1'],
+        ])
+        const r = parsePointImportText(draft)
+        expect(r.points).toEqual([
+            { pointId: 'DB1,REAL0', name: '堆垛机1号温度', remark: 'DB 块 1' },
         ])
     })
 })

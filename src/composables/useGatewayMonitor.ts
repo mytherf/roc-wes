@@ -3,19 +3,15 @@
 //
 // 用途：统一管理各个数据源的监控探针（GatewayMonitorService）生命周期：
 //   1. 为每个数据源启动一个探针，周期性地向设备/服务发送请求，测量连通性、延迟
-//   2. 自动收集画布上绑定到该数据源的所有节点点位，作为监控对象
+//   2. 自动收集画布上绑定到该数据源的所有节点点位，作为监控对象（演示与真实设备模式一致，
+//      均只监控节点实际绑定的点位，不注入内置样例点）
 //   3. 把监控结果（在线/离线/延迟/错误/点位值）放入响应式 states，供界面直接显示
 //   4. 组件卸载时自动停止全部探针，避免后台残留连接
-//
-// 关键概念：
-//   - 演示模式（config.demo = true）：自动注入一组样例点位，
-//     即使没有节点绑定也能展示实时跳动数据，方便预览效果
-//   - 真实设备模式：只监控节点实际绑定的点位
 
 import { reactive, onUnmounted } from 'vue'
 import { GatewayMonitorService, type MonitorState } from '@/services/GatewayMonitorService'
 import { useEditorStore } from '@/stores/editor'
-import type { DataSource, DataSourceType } from '@/stores/dataSource'
+import type { DataSource } from '@/stores/dataSource'
 
 /** 空闲（未监控）的初始快照 */
 function idleState(): MonitorState {
@@ -28,35 +24,6 @@ function idleState(): MonitorState {
         errors: [],
         updatedAt: Date.now(),
     }
-}
-
-/**
- * 是否为演示模式：仅以 config.demo 为准，
- * 与 platform/deviceConfig.ts 的 isDemoSource 判定保持一致。
- */
-function isDemoSource(ds: DataSource): boolean {
-    return ds.config?.demo === true
-}
-
-/**
- * 各类型演示模式下的样例监控点位（统一以 sample- 前缀标识，与业务点位区分）。
- * 桌面端内置演示引擎（Rust DemoAdapter）会为任意订阅的 pointId 生成模拟值，故此处挑选具代表性的点位，
- * 让演示模式下即使没有节点绑定也能展示一组实时数据。
- * Modbus/S7/OPC 采用真实地址格式（与 19502-19504 仿真器一致），切到真实设备/仿真器同样可用。
- */
-const DEMO_POINTS: Record<DataSourceType, string[]> = {
-    websocket: ['sample-temperature', 'sample-humidity', 'sample-pressure'],
-    http: ['sample-temperature', 'sample-throughput'],
-    sse: ['sample-counter', 'sample-level'],
-    mqtt: ['factory/line1/temperature', 'factory/line1/status'],
-    s7: ['DB1,REAL0', 'DB1,REAL4', 'DB1,INT0'],
-    opc: ['ns=2;s=Ramp', 'ns=2;s=Sine', 'ns=2;s=Counter'],
-    modbus: ['holding:100', 'holding:101', 'input:200', 'coil:0'],
-}
-
-/** 取某类型演示模式的样例点位 */
-function demoPointsFor(type: DataSourceType): string[] {
-    return DEMO_POINTS[type] ?? []
 }
 
 /**
@@ -95,15 +62,11 @@ export function useGatewayMonitor() {
     }
 
     /**
-     * 解析最终监控点位集合：
-     * - 演示模式：并入该类型的演示样点（内置演示引擎会推送模拟值），再叠加节点已绑定点位（去重）；
-     *   保证演示模式下即使无节点绑定也能展示一组实时模拟数据。
-     * - 真实设备模式：仅监控节点实际绑定的点位（不注入模拟点）。
+     * 解析最终监控点位集合：演示与真实设备模式一致，
+     * 均只监控节点实际绑定的点位（演示模式不再注入内置样例点，无绑定即无监控点）。
      */
     function resolvePoints(ds: DataSource): string[] {
-        const bound = collectPoints(ds)
-        if (!isDemoSource(ds)) return bound
-        return [...new Set([...demoPointsFor(ds.type), ...bound])]
+        return collectPoints(ds)
     }
 
     /** 取某数据源的监控快照（未监控时返回空闲态） */

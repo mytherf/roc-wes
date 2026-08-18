@@ -124,7 +124,7 @@ HslCommunciationTools 是 HslCommunication 库配套的工业联调测试工具�
 
 ## ③ 节点绑定（PropertyPanel）
 
-属性面板「数据绑定」页选择该数据源 + 填写点ID（如 `sensor.temp.001`，可「＋ 添加点组」继续加附加点，或「⇪ 导入点位」批量导入）后，`updateBinding` 把配置写入节点并触发订阅（两种模式完全一致）：
+属性面板「数据绑定」页选择该数据源 + 填写点ID（如 `sensor.temp.001`，可「＋ 添加点组」继续加附加点，或「⇪ 导入点位」从 CSV / Excel（xlsx/xls）/ txt 文件批量导入）后，`updateBinding` 把配置写入节点并触发订阅（两种模式完全一致）：
 
 ```ts
 // 有主点即提交绑定，sourceId 允许后补（无 sourceId 的绑定运行期不订阅，节点保持静态值）

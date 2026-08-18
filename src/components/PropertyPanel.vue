@@ -565,7 +565,7 @@
 
     <!-- 点位导入对话框：批量粘贴或从 txt/csv 文件导入点组（点ID + 点名称 + 备注）；
          草稿模式——确定才合并进点组列表，取消/遮罩点击/Esc 丢弃；
-         与现有点ID 重复的点位导入时自动跳过（汇总行提示） -->
+         导入方式二选一：追加（保留现有点位，重复跳过）或覆盖（清空现有点组） -->
     <Teleport to="body">
       <div v-if="importDialog" class="transform-dialog-mask" @click.self="cancelImportDialog">
         <div class="transform-dialog import-dialog" role="dialog" aria-modal="true" aria-label="导入点位">
@@ -575,21 +575,32 @@
           </div>
           <div class="import-dialog-toolbar">
             <button type="button" class="transform-dialog-btn" @click="pickImportFile">从文件导入…</button>
-            <span class="import-hint">每行一个点位：点ID，点名称，备注（后两项可省略）；S7 地址含逗号，请用 Tab 分隔</span>
+            <button type="button" class="transform-dialog-btn" title="下载带格式说明的示例模板，填写后可再导入" @click="downloadImportTemplate">下载模板</button>
+            <span class="import-hint">支持 CSV / Excel（xlsx/xls）/ txt 文件导入；粘贴文本每行一个点位：点ID，点名称，备注（后两项可省略）</span>
           </div>
           <textarea
             v-model="importDialog.draft"
             class="transform-editor import-dialog-editor"
             placeholder="sensor.temp.001，温度1号&#10;sensor.humi.001，湿度1号&#10;# 井号开头为注释行"
           ></textarea>
+          <!-- 导入方式：追加（缺省，安全）或覆盖现有点组 -->
+          <div class="import-mode-row">
+            <span class="import-mode-label">导入方式：</span>
+            <label class="import-mode-option" title="保留现有点位，与现有点ID 重复的导入点自动跳过">
+              <input type="radio" v-model="importDialog.overwrite" :value="false" />追加
+            </label>
+            <label class="import-mode-option" title="清空现有点组，以导入内容为准（首个导入点为主点）">
+              <input type="radio" v-model="importDialog.overwrite" :value="true" />覆盖现有点组
+            </label>
+          </div>
           <div class="import-dialog-summary">
-            <span v-if="importPreview.valid > 0">解析 {{ importPreview.valid }} 个点位<span v-if="importPreview.conflict">，与现有点ID 重复跳过 {{ importPreview.conflict }}</span><span v-if="importPreview.duplicate">，文本内重复跳过 {{ importPreview.duplicate }}</span><span v-if="importPreview.skipped">，空行/注释跳过 {{ importPreview.skipped }}</span></span>
+            <span v-if="importPreview.valid > 0">解析 {{ importPreview.valid }} 个点位<span v-if="importDialog.overwrite">，将覆盖现有 {{ importPreview.existingCount }} 个点组</span><span v-else-if="importPreview.conflict">，与现有点ID 重复跳过 {{ importPreview.conflict }}</span><span v-if="importPreview.duplicate">，文本内重复跳过 {{ importPreview.duplicate }}</span><span v-if="importPreview.skipped">，空行/注释跳过 {{ importPreview.skipped }}</span></span>
             <span v-else class="import-empty-hint">尚未解析出有效点位</span>
             <span v-if="importError" class="import-error">{{ importError }}</span>
           </div>
           <div class="transform-dialog-foot">
             <button type="button" class="transform-dialog-btn" @click="cancelImportDialog">取消</button>
-            <button type="button" class="transform-dialog-btn primary" :disabled="importPreview.valid === 0" @click="confirmImportDialog">{{ importPreview.valid > 0 ? `导入 ${importPreview.valid} 个点位` : '导入' }}</button>
+            <button type="button" class="transform-dialog-btn primary" :disabled="importPreview.valid === 0" @click="confirmImportDialog">{{ importPreview.valid > 0 ? `${importDialog.overwrite ? '覆盖导入' : '导入'} ${importPreview.valid} 个点位` : '导入' }}</button>
           </div>
         </div>
       </div>
@@ -599,7 +610,7 @@
     <input
       ref="importFileInputRef"
       type="file"
-      accept=".txt,.csv,text/plain,text/csv"
+      accept=".csv,.xlsx,.xls,.txt,text/csv"
       style="display: none"
       @change="onImportFileChange"
     />
@@ -631,7 +642,7 @@ import {
   DATA_SOURCE_TYPE_LABELS,
   type DataSourceType,
 } from '@/stores/dataSource'
-import { parsePointImportText } from '@/utils/pointImport'
+import { parsePointImportText, rowsToImportDraft } from '@/utils/pointImport'
 
 // ===================== 依赖注入 =====================
 const editorStore = useEditorStore()
@@ -810,8 +821,8 @@ onBeforeUnmount(() => {
 })
 
 // ===================== 点位导入对话框（批量粘贴/文件 → 合并进点组列表） =====================
-/** 导入对话框状态（null = 未打开；draft 为待解析文本草稿，确定才合并进点组） */
-const importDialog = ref<{ draft: string } | null>(null)
+/** 导入对话框状态（null = 未打开；draft 为待解析文本草稿，overwrite 为是否覆盖现有点组，确定才写入点组） */
+const importDialog = ref<{ draft: string; overwrite: boolean } | null>(null)
 /** 文件读取失败提示（展示在对话框汇总行） */
 const importError = ref('')
 // 非 Tauri 环境降级的隐藏 file input
@@ -823,10 +834,10 @@ watch([transformDialog, importDialog], ([t, i]) => {
   else document.removeEventListener('keydown', onDialogKeydown)
 })
 
-/** 打开导入对话框（草稿清空，重新录入） */
+/** 打开导入对话框（草稿清空，缺省追加模式，重新录入） */
 function openImportDialog() {
   importError.value = ''
-  importDialog.value = { draft: '' }
+  importDialog.value = { draft: '', overwrite: false }
 }
 /** 取消/关闭导入对话框：丢弃草稿，不合并 */
 function cancelImportDialog() {
@@ -834,46 +845,97 @@ function cancelImportDialog() {
   importError.value = ''
 }
 
-/** 导入预览：解析草稿 + 统计与现有点组的冲突（冲突点导入时跳过） */
+/** 导入预览：解析草稿 + 统计与现有点组的关系（追加模式统计冲突跳过；覆盖模式统计将被替换的点组数） */
 const importPreview = computed(() => {
   const dlg = importDialog.value
-  if (!dlg) return { valid: 0, conflict: 0, duplicate: 0, skipped: 0 }
+  if (!dlg) return { valid: 0, conflict: 0, duplicate: 0, skipped: 0, existingCount: 0 }
   const { points, skippedLines, duplicateLines } = parsePointImportText(dlg.draft)
   const existing = new Set(bindingGroups.value.map((g) => g.pointId.trim()).filter(Boolean))
+  const existingCount = existing.size
+  if (dlg.overwrite) {
+    // 覆盖模式：全部解析点有效，无冲突概念
+    return { valid: points.length, conflict: 0, duplicate: duplicateLines, skipped: skippedLines, existingCount }
+  }
   const fresh = points.filter((p) => !existing.has(p.pointId))
-  return { valid: fresh.length, conflict: points.length - fresh.length, duplicate: duplicateLines, skipped: skippedLines }
+  return { valid: fresh.length, conflict: points.length - fresh.length, duplicate: duplicateLines, skipped: skippedLines, existingCount }
 })
 
 /**
- * 确定：解析草稿并合并进点组列表后立即提交绑定。
- * - 主点组为空时首个导入点占用主点组（保持 points[0] 主点语义），其余追加；
- * - 与现有点ID 重复的导入点自动跳过（importPreview 已提示）
+ * 确定：解析草稿并按所选方式写入点组列表后立即提交绑定。
+ * - 追加（缺省）：与现有点ID 重复的导入点跳过；主点组为空时首个导入点占用主点组，其余追加；
+ * - 覆盖：点组列表整体替换为导入内容（首个导入点即主点，原转换函数等一并清除）
  */
 function confirmImportDialog() {
   const dlg = importDialog.value
   if (!dlg) return
   const { points } = parsePointImportText(dlg.draft)
-  const existing = new Set(bindingGroups.value.map((g) => g.pointId.trim()).filter(Boolean))
-  const drafts = points
-    .filter((p) => !existing.has(p.pointId))
-    .map((p) => ({ pointId: p.pointId, name: p.name ?? '', transformSource: '', remark: p.remark ?? '' }))
+  const toDraft = (p: { pointId: string; name?: string; remark?: string }) => ({
+    pointId: p.pointId, name: p.name ?? '', transformSource: '', remark: p.remark ?? '',
+  })
+  const drafts = dlg.overwrite
+    ? points.map(toDraft)
+    : (() => {
+        const existing = new Set(bindingGroups.value.map((g) => g.pointId.trim()).filter(Boolean))
+        return points.filter((p) => !existing.has(p.pointId)).map(toDraft)
+      })()
   if (drafts.length === 0) {
     cancelImportDialog()
     return
   }
-  if (!bindingGroups.value[0]?.pointId.trim()) {
-    bindingGroups.value[0] = drafts.shift()!
+  if (dlg.overwrite) {
+    bindingGroups.value = drafts
+  } else {
+    if (!bindingGroups.value[0]?.pointId.trim()) {
+      bindingGroups.value[0] = drafts.shift()!
+    }
+    bindingGroups.value.push(...drafts)
   }
-  bindingGroups.value.push(...drafts)
   updateBinding()
   importDialog.value = null
   importError.value = ''
 }
 
+/** 是否 txt 文件（按文本读取；csv/xlsx/xls 走 xlsx 库解析字节流） */
+function isTxtPath(name: string): boolean {
+  return name.toLowerCase().endsWith('.txt')
+}
+
+/**
+ * CSV 字节流解码为文本：优先 UTF-8（含 BOM 自动剔除）；
+ * 解码出现替换符（U+FFFD）时回退 GBK——中文环境下 Excel「另存为 CSV」
+ * 默认 ANSI/GBK 编码，强制 UTF-8 会乱码。
+ */
+function decodeCsvBytes(bytes: Uint8Array): string {
+  const utf8 = new TextDecoder('utf-8').decode(bytes)
+  if (!utf8.includes('\uFFFD')) return utf8
+  try {
+    return new TextDecoder('gbk').decode(bytes)
+  } catch {
+    return utf8 // 环境不支持 gbk 时兜底返回 UTF-8 结果
+  }
+}
+
+/**
+ * 解析 csv/xlsx/xls 字节流为 Tab 分隔草稿文本：xlsx 库统一处理
+ * CSV 引号转义与 Excel 二进制格式，行数据经 rowsToImportDraft
+ * 转草稿（首行表头自动跳过；含逗号的 S7 地址无需引号包裹）。
+ */
+async function parseImportFileBytes(bytes: Uint8Array, isCsv: boolean): Promise<string> {
+  const XLSX = await import('xlsx')
+  // CSV 先自动探测编码（UTF-8 / GBK）再按文本解析；xlsx/xls 按二进制数组解析
+  const wb = isCsv
+    ? XLSX.read(decodeCsvBytes(bytes), { type: 'string' })
+    : XLSX.read(bytes, { type: 'array' })
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  if (!ws) return ''
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  return rowsToImportDraft(rows)
+}
+
 /**
  * 从文件导入：Tauri 下弹原生「打开文件」对话框（tauri-plugin-dialog）选路径，
- * 再经 Rust 命令 read_text_file 读取（不受 fs capability scope 限制，
- * 与 export_project_file 对称）；非 Tauri 环境降级为隐藏 file input。
+ * txt 经 read_text_file 读文本，csv/xlsx/xls 经 read_file_bytes 读字节流后
+ * 由 xlsx 库解析（均不受 fs capability scope 限制）；非 Tauri 环境降级为隐藏 file input。
  */
 async function pickImportFile() {
   importError.value = ''
@@ -884,10 +946,16 @@ async function pickImportFile() {
       const path = await open({
         title: '选择点位清单文件',
         multiple: false,
-        filters: [{ name: '文本文件（txt/csv）', extensions: ['txt', 'csv'] }],
+        filters: [{ name: '点位清单（csv/xlsx/xls/txt）', extensions: ['csv', 'xlsx', 'xls', 'txt'] }],
       })
       if (!path || typeof path !== 'string') return // 用户取消（或选了目录）
-      const content = await invoke<string>('read_text_file', { path })
+      let content: string
+      if (isTxtPath(path)) {
+        content = await invoke<string>('read_text_file', { path })
+      } else {
+        const bytes = await invoke<number[]>('read_file_bytes', { path })
+        content = await parseImportFileBytes(new Uint8Array(bytes), path.toLowerCase().endsWith('.csv'))
+      }
       if (importDialog.value) importDialog.value.draft = content
     } else {
       importFileInputRef.value?.click()
@@ -898,17 +966,72 @@ async function pickImportFile() {
   }
 }
 
-/** 非 Tauri 降级：file input 选中后用 FileReader 读文本填充草稿 */
+/** 非 Tauri 降级：file input 选中后读文件填充草稿（txt 读文本，csv/xlsx/xls 读字节流经 xlsx 解析） */
 function onImportFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
   if (!file) return
-  const reader = new FileReader()
-  reader.onload = () => {
-    if (importDialog.value) importDialog.value.draft = String(reader.result ?? '')
+  if (isTxtPath(file.name)) {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (importDialog.value) importDialog.value.draft = String(reader.result ?? '')
+    }
+    reader.readAsText(file)
+    return
   }
-  reader.readAsText(file)
+  const reader = new FileReader()
+  reader.onload = async () => {
+    try {
+      const bytes = new Uint8Array(reader.result as ArrayBuffer)
+      const draft = await parseImportFileBytes(bytes, file.name.toLowerCase().endsWith('.csv'))
+      if (importDialog.value) importDialog.value.draft = draft
+    } catch (err) {
+      console.error('[PropertyPanel] 解析导入文件失败:', err)
+      importError.value = `文件解析失败：${err}`
+    }
+  }
+  reader.readAsArrayBuffer(file)
+}
+
+/** 点位导入模板（CSV 格式，Excel 可直接打开）：首行表头（导入时自动跳过）+ 示例点位；
+ * 带 UTF-8 BOM，避免 Excel 打开中文乱码 */
+const IMPORT_TEMPLATE_TEXT = `\uFEFF点ID,点名称,备注
+sensor.temp.001,温度1号,锅炉房东侧
+sensor.humi.001,湿度1号,
+`
+
+/**
+ * 下载导入模板（CSV）：Tauri 下弹原生「另存为」对话框（tauri-plugin-dialog）选路径，
+ * 再经 Rust 命令 export_project_file 落盘（WebView2 不处理 a.download 下载事件）；
+ * 非 Tauri 环境降级为 Blob 下载。
+ */
+async function downloadImportTemplate() {
+  importError.value = ''
+  try {
+    if ((window as any).__TAURI_INTERNALS__) {
+      const { save } = await import('@tauri-apps/plugin-dialog')
+      const { invoke } = await import('@tauri-apps/api/core')
+      const path = await save({
+        title: '保存点位导入模板',
+        defaultPath: '点位导入模板.csv',
+        filters: [{ name: 'CSV 文件', extensions: ['csv'] }],
+      })
+      if (!path) return // 用户取消
+      await invoke('export_project_file', { targetPath: path, defaultName: '点位导入模板.csv', content: IMPORT_TEMPLATE_TEXT })
+    } else {
+      const blob = new Blob([IMPORT_TEMPLATE_TEXT], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = '点位导入模板.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  } catch (e) {
+    console.error('[PropertyPanel] 下载导入模板失败:', e)
+    importError.value = `模板下载失败：${e}`
+  }
 }
 
 /** 主点 ID 是否已填写（驱动绑定状态提示） */
@@ -2189,6 +2312,29 @@ onBeforeUnmount(() => {
 }
 .import-error {
   color: var(--color-danger, #ff4d4f);
+}
+/* 导入方式单选行（追加/覆盖） */
+.import-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.import-mode-label {
+  color: var(--text-muted);
+}
+.import-mode-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.import-mode-option input[type='radio'] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
 }
 
 /* ===================== 画布属性区块样式 ===================== */

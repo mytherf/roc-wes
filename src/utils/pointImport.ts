@@ -12,6 +12,10 @@
  * 分隔符自动探测：文本中含 Tab 时按 Tab 切分（S7 地址如 `DB1,REAL0`
  * 本身含逗号，批量导入此类点位应使用 Tab 分隔）；否则按逗号（中/英文）。
  * 空行与以 # 开头的注释行跳过。
+ *
+ * Excel/CSV 文件导入：由 xlsx 库解析为行数据后经 rowsToImportDraft
+ * 转为 Tab 分隔草稿文本（含逗号字段无需引号包裹，天然安全），
+ * 首行为表头（首列「点ID」）时自动跳过。
  */
 
 /** 解析出的单个导入点位 */
@@ -92,4 +96,36 @@ export function parsePointImportText(text: string): ParseImportResult {
     }
 
     return { points, skippedLines, duplicateLines }
+}
+
+/** 单元格转字符串：数字/布尔等非空值转文本，null/undefined/空白转空串 */
+function cellToString(cell: unknown): string {
+    if (cell === null || cell === undefined) return ''
+    return String(cell).trim()
+}
+
+/** 是否表头行：首列为「点ID」（大小写/空白不敏感，兼容 pointId） */
+export function isImportHeaderRow(cells: unknown[]): boolean {
+    const first = cellToString(cells[0]).toLowerCase().replace(/\s+/g, '')
+    return first === '点id' || first === 'pointid'
+}
+
+/**
+ * 把 Excel/CSV 解析出的行数据转为 Tab 分隔的草稿文本（填入导入对话框）。
+ * - 首行为表头时跳过；整行为空跳过；最多取前三列（点ID/点名称/备注），
+ *   超出的列忽略
+ * - 用 Tab 连接：含逗号的 S7 地址无需引号包裹即可安全还原
+ */
+export function rowsToImportDraft(rows: unknown[][]): string {
+    const lines: string[] = []
+    rows.forEach((row, idx) => {
+        if (!Array.isArray(row)) return
+        if (idx === 0 && isImportHeaderRow(row)) return
+        const cells = row.slice(0, 3).map(cellToString)
+        if (cells.every((c) => !c)) return
+        // 尾部空列省略（与手输草稿的「可省略」语义一致）
+        while (cells.length > 1 && cells[cells.length - 1] === '') cells.pop()
+        lines.push(cells.join('\t'))
+    })
+    return lines.join('\n')
 }

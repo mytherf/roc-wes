@@ -131,3 +131,12 @@ pub fn export_project_file(
 pub fn read_text_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("读取文件 {:?} 失败: {e}", path))
 }
+
+/// 读取任意路径的二进制文件内容（如 Excel .xlsx/.xls）。
+///
+/// 用于「导入点位」选择 Excel 文件：前端经 tauri-plugin-dialog 选路径后，
+/// 把字节流传回前端由 xlsx 库解析（与 read_text_file 对称，不受 fs capability scope 限制）。
+#[tauri::command]
+pub fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
+    std::fs::read(&path).map_err(|e| format!("读取文件 {:?} 失败: {e}", path))
+}

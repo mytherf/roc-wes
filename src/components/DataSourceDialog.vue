@@ -99,14 +99,11 @@
                 <div v-if="monitor.getState(ds.id).deviceMessage" class="ds-mon-devmsg">
                   {{ monitor.getState(ds.id).deviceMessage }}
                 </div>
-                <div v-if="isDemoSource(ds)" class="ds-mon-demo-note">
-                  演示模式：下列为内置模拟引擎生成的样例点位(sample-*)与实时模拟数据
-                </div>
 
                 <!-- 数据点实时值 -->
                 <div class="ds-mon-title">数据点实时值</div>
                 <div v-if="Object.keys(monitor.getState(ds.id).points).length === 0" class="ds-mon-empty">
-                  {{ isDemoSource(ds) ? '等待内置演示引擎推送…' : '暂无数据（未绑定节点点位或服务未推送）' }}
+                  暂无数据（未绑定节点点位或服务未推送）
                 </div>
                 <table v-else class="ds-mon-table">
                   <thead>
@@ -938,15 +935,6 @@ function handleClose() {
   color: var(--text-secondary);
   background: var(--panel-bg);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-}
-.ds-mon-demo-note {
-  margin-bottom: 8px;
-  padding: 5px 10px;
-  font-size: 12px;
-  color: var(--color-primary);
-  background: var(--color-primary-light);
-  border: 1px solid var(--color-primary-ring);
   border-radius: var(--radius-sm);
 }
 .ds-mon-title {
