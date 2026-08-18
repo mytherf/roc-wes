@@ -57,6 +57,8 @@
               <div v-for="group in groupedData" :key="group.pointId" class="point-group">
                 <div class="point-header">
                   <span class="point-id mono">{{ group.pointId || '未绑定点位' }}</span>
+                  <span v-if="group.name" class="point-name" :title="group.pointId">{{ group.name }}</span>
+                  <span v-if="group.remark" class="point-remark" :title="group.remark">{{ group.remark }}</span>
                 </div>
                 <div class="data-table">
                   <div v-for="entry in group.entries" :key="entry.key" class="data-row">
@@ -221,16 +223,16 @@ const groupedData = computed(() => {
 
   const binding = data.binding
   if (binding && Array.isArray(binding.points) && binding.points.length > 0) {
-    // 绑定点列表：取 points 点组的全部点 ID
+    // 绑定点列表：取 points 点组的全部点 ID、点名称与备注（名称/备注用于组头展示）
     const points = binding.points
-      .map((p: any) => p?.pointId)
-      .filter((pid: any) => !!pid)
+      .map((p: any) => ({ pid: p?.pointId, name: p?.name, remark: p?.remark }))
+      .filter((p: any) => !!p.pid)
     // 各点的实时值（由 useDataService 写入 data.values[pointId]；rawValue 为转换前原始值）
     const values = (data.values || {}) as Record<string, { value?: any; rawValue?: any; timestamp?: number; quality?: string }>
-    // 每个绑定点一组：组头点 ID + 数据源信息，组内优先展示该点实时值，
+    // 每个绑定点一组：组头点 ID（+ 点名称/备注）+ 数据源信息，组内优先展示该点实时值，
     // 主点额外追加节点顶层运行字段（value/_timestamp/_quality 等）
-    return points.map((pid: string, idx: number) => {
-      const pv = values[pid]
+    return points.map((pt: { pid: string; name?: string; remark?: string }, idx: number) => {
+      const pv = values[pt.pid]
       const groupEntries = pv
         ? [
             toEntry('value', pv.value),
@@ -247,7 +249,9 @@ const groupedData = computed(() => {
         groupEntries.push(...entries.filter((e) => !DUP_TELEMETRY_KEYS.has(e.key)))
       }
       return {
-        pointId: pid,
+        pointId: pt.pid,
+        name: pt.name,
+        remark: pt.remark,
         entries: groupEntries,
       }
     })
@@ -418,6 +422,12 @@ const groupedData = computed(() => {
 .point-id {
   font-weight: 600;
   color: var(--color-primary);
+}
+.point-name {
+  color: var(--text-secondary);
+}
+.point-remark {
+  color: var(--text-muted);
 }
 .no-binding {
   font-size: 13px;

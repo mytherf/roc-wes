@@ -241,7 +241,7 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, s
     const binding = data?.binding
     if (binding) {
       for (const entry of binding.points ?? []) {
-        // 点组 = 点ID + 转换函数
+        // 点组 = 点ID + 点名称 + 转换函数 + 备注
         const pid = entry?.pointId
         if (pid) generator.release(pid)
       }

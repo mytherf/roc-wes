@@ -369,12 +369,12 @@
                 <span class="field-help-wrap">
                   <button type="button" class="field-help-btn" :aria-expanded="fieldHelpOpen === 'point'" title="点ID 说明" @click="toggleFieldHelp('point')">?</button>
                   <div v-if="fieldHelpOpen === 'point'" class="field-help-pop" role="note">
-                    点ID 与转换函数为一组，按组添加/删除。主点组（第一个）固定不可删，驱动节点画面；附加点组实时值见节点详情。
+                    点ID、点名称、转换函数与备注为一组，按组添加/删除。主点组（第一个）固定不可删，驱动节点画面；附加点组实时值见节点详情。
                   </div>
                 </span>
               </label>
             </div>
-            <!-- 绑定点组列表：每组 = 点ID + 转换函数；主点组（第一个）固定不可删 -->
+            <!-- 绑定点组列表：每组 = 点ID + 点名称 + 转换函数 + 备注；主点组（第一个）固定不可删 -->
             <div v-for="(g, idx) in bindingGroups" :key="idx" class="binding-group-card">
               <div class="binding-group-head">
                 <span class="binding-group-tag" :class="{ primary: idx === 0 }">{{ idx === 0 ? '主点' : `附加点 ${idx}` }}</span>
@@ -387,6 +387,15 @@
                   v-model="g.pointId"
                   @input="updateBinding"
                   :placeholder="idx === 0 ? '例如: sensor.temp.001' : '例如: sensor.humi.001'"
+                />
+              </div>
+              <!-- 点名称行：标签 + 输入框（可选，人类可读标识，不参与订阅） -->
+              <div class="binding-group-row">
+                <label class="binding-row-label">点名称</label>
+                <input
+                  v-model="g.name"
+                  @input="updateBinding"
+                  placeholder="(可选) 例如: 堆垛机1号温度"
                 />
               </div>
               <!-- 转换函数行：标签 + 输入框（可选）+ 弹出编辑按钮（打开大编辑对话框） -->
@@ -404,8 +413,19 @@
                   @click="openTransformDialog(idx)"
                 >⤢</button>
               </div>
+              <!-- 备注行：标签 + 输入框（可选，纯说明性文字，不参与订阅与运行逻辑） -->
+              <div class="binding-group-row">
+                <label class="binding-row-label">备注</label>
+                <input
+                  v-model="g.remark"
+                  @input="updateBinding"
+                  placeholder="(可选) 例如: DB1 温度传感器，每 5s 校准"
+                />
+              </div>
             </div>
-            <button type="button" class="add-extra-point-btn" @click="addPointGroup">＋ 添加点组（点ID + 转换函数）</button>
+            <button type="button" class="add-extra-point-btn" @click="addPointGroup">＋ 添加点组（点ID + 点名称 + 转换函数 + 备注）</button>
+            <!-- 导入点位：批量粘贴或从 txt/csv 文件导入点组（对话框内确认后合并） -->
+            <button type="button" class="add-extra-point-btn import-points-btn" title="批量导入点组（粘贴文本或选择 txt/csv 文件）" @click="openImportDialog">⇪ 导入点位（批量）</button>
             <div class="binding-status">
               <span v-if="hasPrimaryPoint && !bindingSourceId" class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
               <span v-else-if="hasPrimaryPoint" class="status-active">✅ 已启用数据绑定</span>
@@ -439,13 +459,14 @@
                     </div>
                   </span>
                 </label>
-                <!-- 点ID 下拉选择：field 统一为绑定点ID，选项来自当前节点的绑定点组（可能多个） -->
+                <!-- 点ID 下拉选择：field 统一为绑定点ID，选项来自当前节点的绑定点组（可能多个；填了点名称时以「点ID（名称）」展示） -->
                 <select v-model="rule.field">
                   <option
                     v-for="g in watchFieldOptions"
-                    :key="g"
-                    :value="g"
-                  >{{ g }}</option>
+                    :key="g.pointId"
+                    :value="g.pointId"
+                    :title="g.pointId"
+                  >{{ g.label }}</option>
                 </select>
               </div>
               <div class="field">
@@ -541,6 +562,47 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 点位导入对话框：批量粘贴或从 txt/csv 文件导入点组（点ID + 点名称 + 备注）；
+         草稿模式——确定才合并进点组列表，取消/遮罩点击/Esc 丢弃；
+         与现有点ID 重复的点位导入时自动跳过（汇总行提示） -->
+    <Teleport to="body">
+      <div v-if="importDialog" class="transform-dialog-mask" @click.self="cancelImportDialog">
+        <div class="transform-dialog import-dialog" role="dialog" aria-modal="true" aria-label="导入点位">
+          <div class="transform-dialog-head">
+            <h4>导入点位</h4>
+            <button type="button" class="transform-dialog-close" title="关闭（不导入）" @click="cancelImportDialog">×</button>
+          </div>
+          <div class="import-dialog-toolbar">
+            <button type="button" class="transform-dialog-btn" @click="pickImportFile">从文件导入…</button>
+            <span class="import-hint">每行一个点位：点ID，点名称，备注（后两项可省略）；S7 地址含逗号，请用 Tab 分隔</span>
+          </div>
+          <textarea
+            v-model="importDialog.draft"
+            class="transform-editor import-dialog-editor"
+            placeholder="sensor.temp.001，温度1号&#10;sensor.humi.001，湿度1号&#10;# 井号开头为注释行"
+          ></textarea>
+          <div class="import-dialog-summary">
+            <span v-if="importPreview.valid > 0">解析 {{ importPreview.valid }} 个点位<span v-if="importPreview.conflict">，与现有点ID 重复跳过 {{ importPreview.conflict }}</span><span v-if="importPreview.duplicate">，文本内重复跳过 {{ importPreview.duplicate }}</span><span v-if="importPreview.skipped">，空行/注释跳过 {{ importPreview.skipped }}</span></span>
+            <span v-else class="import-empty-hint">尚未解析出有效点位</span>
+            <span v-if="importError" class="import-error">{{ importError }}</span>
+          </div>
+          <div class="transform-dialog-foot">
+            <button type="button" class="transform-dialog-btn" @click="cancelImportDialog">取消</button>
+            <button type="button" class="transform-dialog-btn primary" :disabled="importPreview.valid === 0" @click="confirmImportDialog">{{ importPreview.valid > 0 ? `导入 ${importPreview.valid} 个点位` : '导入' }}</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 非 Tauri 环境降级：隐藏 file input（「从文件导入」在浏览器环境触发） -->
+    <input
+      ref="importFileInputRef"
+      type="file"
+      accept=".txt,.csv,text/plain,text/csv"
+      style="display: none"
+      @change="onImportFileChange"
+    />
   </div>
 </template>
 
@@ -569,6 +631,7 @@ import {
   DATA_SOURCE_TYPE_LABELS,
   type DataSourceType,
 } from '@/stores/dataSource'
+import { parsePointImportText } from '@/utils/pointImport'
 
 // ===================== 依赖注入 =====================
 const editorStore = useEditorStore()
@@ -703,13 +766,15 @@ const activeTab = ref<PanelTab>('basic')
 // 数据源实例 ID（空字符串 = 未选择；必须选择数据源管理中维护的实例）
 const bindingSourceId = ref('')
 
-/** 绑定点组草稿：点 ID 与转换函数为一组（bindingGroups[0] 为主点组，固定不可删） */
+/** 绑定点组草稿：点 ID、点名称、转换函数与备注为一组（bindingGroups[0] 为主点组，固定不可删） */
 interface BindingGroupDraft {
   pointId: string
+  name: string
   transformSource: string
+  remark: string
 }
 // 点组列表（按组添加/删除；数据写入 data.values[pointId]，主点额外驱动 data.value）
-const bindingGroups = ref<BindingGroupDraft[]>([{ pointId: '', transformSource: '' }])
+const bindingGroups = ref<BindingGroupDraft[]>([{ pointId: '', name: '', transformSource: '', remark: '' }])
 
 /** 转换函数编辑对话框状态（null = 未打开；draft 为编辑草稿，确定才写回点组） */
 const transformDialog = ref<{ groupIdx: number; draft: string } | null>(null)
@@ -732,25 +797,126 @@ function confirmTransformDialog() {
   }
   transformDialog.value = null
 }
-/** 对话框打开期间 Esc 关闭（不保存） */
-function onTransformDialogKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') cancelTransformDialog()
+/** 任一编辑对话框（转换函数/导入点位）打开期间 Esc 关闭（不保存）；
+ * importDialog 定义见下方「点位导入对话框」区块 */
+function onDialogKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (transformDialog.value) cancelTransformDialog()
+  else if (importDialog.value) cancelImportDialog()
 }
-watch(transformDialog, (dlg) => {
-  if (dlg) document.addEventListener('keydown', onTransformDialogKeydown)
-  else document.removeEventListener('keydown', onTransformDialogKeydown)
-})
 onBeforeUnmount(() => {
   // 兜底清理对话框 Esc 监听，避免残留 document 监听器
-  document.removeEventListener('keydown', onTransformDialogKeydown)
+  document.removeEventListener('keydown', onDialogKeydown)
 })
+
+// ===================== 点位导入对话框（批量粘贴/文件 → 合并进点组列表） =====================
+/** 导入对话框状态（null = 未打开；draft 为待解析文本草稿，确定才合并进点组） */
+const importDialog = ref<{ draft: string } | null>(null)
+/** 文件读取失败提示（展示在对话框汇总行） */
+const importError = ref('')
+// 非 Tauri 环境降级的隐藏 file input
+const importFileInputRef = ref<HTMLInputElement | null>(null)
+
+// 任一对话框打开期间挂 Esc 关闭监听（watch 需在 importDialog 声明之后）
+watch([transformDialog, importDialog], ([t, i]) => {
+  if (t || i) document.addEventListener('keydown', onDialogKeydown)
+  else document.removeEventListener('keydown', onDialogKeydown)
+})
+
+/** 打开导入对话框（草稿清空，重新录入） */
+function openImportDialog() {
+  importError.value = ''
+  importDialog.value = { draft: '' }
+}
+/** 取消/关闭导入对话框：丢弃草稿，不合并 */
+function cancelImportDialog() {
+  importDialog.value = null
+  importError.value = ''
+}
+
+/** 导入预览：解析草稿 + 统计与现有点组的冲突（冲突点导入时跳过） */
+const importPreview = computed(() => {
+  const dlg = importDialog.value
+  if (!dlg) return { valid: 0, conflict: 0, duplicate: 0, skipped: 0 }
+  const { points, skippedLines, duplicateLines } = parsePointImportText(dlg.draft)
+  const existing = new Set(bindingGroups.value.map((g) => g.pointId.trim()).filter(Boolean))
+  const fresh = points.filter((p) => !existing.has(p.pointId))
+  return { valid: fresh.length, conflict: points.length - fresh.length, duplicate: duplicateLines, skipped: skippedLines }
+})
+
+/**
+ * 确定：解析草稿并合并进点组列表后立即提交绑定。
+ * - 主点组为空时首个导入点占用主点组（保持 points[0] 主点语义），其余追加；
+ * - 与现有点ID 重复的导入点自动跳过（importPreview 已提示）
+ */
+function confirmImportDialog() {
+  const dlg = importDialog.value
+  if (!dlg) return
+  const { points } = parsePointImportText(dlg.draft)
+  const existing = new Set(bindingGroups.value.map((g) => g.pointId.trim()).filter(Boolean))
+  const drafts = points
+    .filter((p) => !existing.has(p.pointId))
+    .map((p) => ({ pointId: p.pointId, name: p.name ?? '', transformSource: '', remark: p.remark ?? '' }))
+  if (drafts.length === 0) {
+    cancelImportDialog()
+    return
+  }
+  if (!bindingGroups.value[0]?.pointId.trim()) {
+    bindingGroups.value[0] = drafts.shift()!
+  }
+  bindingGroups.value.push(...drafts)
+  updateBinding()
+  importDialog.value = null
+  importError.value = ''
+}
+
+/**
+ * 从文件导入：Tauri 下弹原生「打开文件」对话框（tauri-plugin-dialog）选路径，
+ * 再经 Rust 命令 read_text_file 读取（不受 fs capability scope 限制，
+ * 与 export_project_file 对称）；非 Tauri 环境降级为隐藏 file input。
+ */
+async function pickImportFile() {
+  importError.value = ''
+  try {
+    if ((window as any).__TAURI_INTERNALS__) {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const { invoke } = await import('@tauri-apps/api/core')
+      const path = await open({
+        title: '选择点位清单文件',
+        multiple: false,
+        filters: [{ name: '文本文件（txt/csv）', extensions: ['txt', 'csv'] }],
+      })
+      if (!path || typeof path !== 'string') return // 用户取消（或选了目录）
+      const content = await invoke<string>('read_text_file', { path })
+      if (importDialog.value) importDialog.value.draft = content
+    } else {
+      importFileInputRef.value?.click()
+    }
+  } catch (e) {
+    console.error('[PropertyPanel] 读取导入文件失败:', e)
+    importError.value = `文件读取失败：${e}`
+  }
+}
+
+/** 非 Tauri 降级：file input 选中后用 FileReader 读文本填充草稿 */
+function onImportFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    if (importDialog.value) importDialog.value.draft = String(reader.result ?? '')
+  }
+  reader.readAsText(file)
+}
 
 /** 主点 ID 是否已填写（驱动绑定状态提示） */
 const hasPrimaryPoint = computed(() => !!bindingGroups.value[0]?.pointId.trim())
 
-/** 添加一个空的点组（点ID + 转换函数） */
+/** 添加一个空的点组（点ID + 点名称 + 转换函数 + 备注） */
 function addPointGroup() {
-  bindingGroups.value.push({ pointId: '', transformSource: '' })
+  bindingGroups.value.push({ pointId: '', name: '', transformSource: '', remark: '' })
 }
 
 /** 删除指定附加点组（主点组 idx=0 不允许删除）并立即同步绑定 */
@@ -781,24 +947,26 @@ const { eventsDraft, addEventRule, removeEventRule } = useNodeEvents(getGraph, a
 
 /**
  * 监听字段下拉选项：field 统一为绑定点ID，
- * 选项 = 当前节点绑定点组中非空且去重的点ID（保留录入顺序）。
+ * 选项 = 当前节点绑定点组中非空且去重的点ID（保留录入顺序）；
+ * 填了点名称时展示为「点ID（名称）」，便于区分。
  */
 const watchFieldOptions = computed(() => {
-  const ids: string[] = []
+  const opts: { pointId: string; label: string }[] = []
   const seen = new Set<string>()
   for (const g of bindingGroups.value) {
     const pid = g.pointId.trim()
     if (pid && !seen.has(pid)) {
       seen.add(pid)
-      ids.push(pid)
+      const nm = g.name.trim()
+      opts.push({ pointId: pid, label: nm ? `${pid}（${nm}）` : pid })
     }
   }
-  return ids
+  return opts
 })
 
 /** 添加事件规则：默认监听第一个绑定点（field 统一为点ID，不再有空值语义） */
 function handleAddEventRule() {
-  addEventRule(watchFieldOptions.value[0] ?? '')
+  addEventRule(watchFieldOptions.value[0]?.pointId ?? '')
 }
 
 // ===================== 位置与尺寸独立管理（绕过 store 响应式链） =====================
@@ -818,11 +986,12 @@ watch(
     () => element.value?.data?.id,
     (newId) => {
       const newElement = element.value
-      // 切换选中节点时关闭转换函数编辑对话框，避免草稿写回错误的节点
+      // 切换选中节点时关闭编辑对话框（转换函数/导入点位），避免草稿写回错误的节点
       transformDialog.value = null
+      importDialog.value = null
       if (!newId || !newElement || newElement.type !== 'node') {
         bindingSourceId.value = ''
-        bindingGroups.value = [{ pointId: '', transformSource: '' }]
+        bindingGroups.value = [{ pointId: '', name: '', transformSource: '', remark: '' }]
         return
       }
       const data = newElement.data
@@ -843,14 +1012,16 @@ watch(
       }
 
       bindingSourceId.value = binding.sourceId || ''
-      // 点组回填：每组 = 点ID + 转换函数；无点组时给一个空主点草稿
+      // 点组回填：每组 = 点ID + 点名称 + 转换函数 + 备注；无点组时给一个空主点草稿
       if (Array.isArray(binding.points) && binding.points.length > 0) {
         bindingGroups.value = binding.points.map((p: any) => ({
           pointId: p?.pointId ?? '',
+          name: p?.name ?? '',
           transformSource: p?.transformSource ?? '',
+          remark: p?.remark ?? '',
         }))
       } else {
-        bindingGroups.value = [{ pointId: '', transformSource: '' }]
+        bindingGroups.value = [{ pointId: '', name: '', transformSource: '', remark: '' }]
       }
     },
     { immediate: true }
@@ -883,14 +1054,14 @@ function updateBinding() {
   }
 
   const nodeId = element.value.data.id
-  // 有效点组：点ID 非空且去重（保留首个）；转换函数随组携带
+  // 有效点组：点ID 非空且去重（保留首个）；点名称、转换函数与备注随组携带
   const validGroups: BindingGroupDraft[] = []
   const seen = new Set<string>()
   for (const g of bindingGroups.value) {
     const pid = g.pointId.trim()
     if (!pid || seen.has(pid)) continue
     seen.add(pid)
-    validGroups.push({ pointId: pid, transformSource: g.transformSource.trim() })
+    validGroups.push({ pointId: pid, name: g.name.trim(), transformSource: g.transformSource.trim(), remark: g.remark.trim() })
   }
   const primary = validGroups[0]
 
@@ -907,7 +1078,9 @@ function updateBinding() {
     binding = {
       points: validGroups.map((g) => ({
         pointId: g.pointId,
+        name: g.name || undefined,
         transformSource: g.transformSource || undefined,
+        remark: g.remark || undefined,
       })),
       sourceId: bindingSourceId.value || undefined,
     }
@@ -1773,7 +1946,7 @@ onBeforeUnmount(() => {
   color: var(--text-primary);
 }
 
-/* ===================== 绑定点组（点ID + 转换函数为一组，按组增删） ===================== */
+/* ===================== 绑定点组（点ID + 点名称 + 转换函数 + 备注为一组，按组增删） ===================== */
 .binding-group-card {
   display: flex;
   flex-direction: column;
@@ -1923,6 +2096,10 @@ onBeforeUnmount(() => {
   opacity: 0.9;
   color: #fff;
 }
+.transform-dialog-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 /* 转换函数多行编辑区：等宽字体便于阅读代码，可纵向拖拽调整高度，
    悬停/聚焦状态与普通输入框一致 */
 .transform-editor {
@@ -1984,6 +2161,34 @@ onBeforeUnmount(() => {
   color: var(--color-primary);
   border-color: var(--color-primary);
   background: var(--color-primary-light);
+}
+/* 导入点位对话框：复用转换函数对话框骨架，略宽以容纳批量文本 */
+.import-dialog {
+  width: min(640px, calc(100vw - 48px));
+}
+.import-dialog-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.import-hint {
+  flex: 1;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.import-dialog-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.import-empty-hint {
+  color: var(--text-muted);
+}
+.import-error {
+  color: var(--color-danger, #ff4d4f);
 }
 
 /* ===================== 画布属性区块样式 ===================== */

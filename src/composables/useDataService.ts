@@ -65,14 +65,16 @@ export function useDataService() {
     return `${sourceType}:${sourceUrl ?? ''}:${cfg}`
   }
 
-  /** 归一化后的绑定点：点 ID + 该点专属转换函数源码 */
+  /** 归一化后的绑定点：点 ID + 点名称 + 该点专属转换函数源码 + 备注 */
   interface ResolvedBindingPoint {
     pointId: string
+    name?: string
     transformSource?: string
+    remark?: string
   }
 
   /**
-   * 归一化绑定点组列表：取 points（点 ID + 转换函数成组，去重去空）。
+   * 归一化绑定点组列表：取 points（点 ID + 点名称 + 转换函数 + 备注成组，去重去空）。
    * 返回列表首项即主点组（节点渲染值由它驱动）
    */
   function resolveBindingPoints(binding: DataBindingConfig): ResolvedBindingPoint[] {
@@ -82,7 +84,12 @@ export function useDataService() {
       const pid = (entry?.pointId ?? '').trim()
       if (!pid || seen.has(pid)) return
       seen.add(pid)
-      result.push({ pointId: pid, transformSource: entry.transformSource?.trim() || undefined })
+      result.push({
+        pointId: pid,
+        name: entry.name?.trim() || undefined,
+        transformSource: entry.transformSource?.trim() || undefined,
+        remark: entry.remark?.trim() || undefined,
+      })
     })
     return result
   }
@@ -101,7 +108,7 @@ export function useDataService() {
   }
 
   /**
-   * 为节点绑定数据源（支持多点组：每组 = 点 ID + 转换函数；points[0] 为主点组）
+   * 为节点绑定数据源（支持多点组：每组 = 点 ID + 点名称 + 转换函数 + 备注；points[0] 为主点组）
    * - 主点更新写入 node.data.value（并附带 _timestamp / _quality），驱动节点渲染
    * - 所有点（含主点）同步写入 node.data.values[pointId]，供详情/扩展使用
    *   （rawValue 为转换函数应用前的原始值，供详情弹窗对照展示）

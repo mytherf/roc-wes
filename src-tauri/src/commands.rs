@@ -121,3 +121,13 @@ pub fn export_project_file(
     std::fs::write(&path, content).map_err(|e| format!("写入文件 {:?} 失败: {e}", path))?;
     Ok(path.to_string_lossy().to_string())
 }
+
+/// 读取任意路径的文本文件内容（UTF-8）。
+///
+/// 用于「导入点位」：前端先用原生「打开文件」对话框（tauri-plugin-dialog）
+/// 让用户选择文件，再把完整路径传入。自定义命令不受 fs capability scope
+/// 限制，可读取应用配置目录之外的任意位置（与 export_project_file 对称）。
+#[tauri::command]
+pub fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| format!("读取文件 {:?} 失败: {e}", path))
+}

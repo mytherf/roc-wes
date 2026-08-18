@@ -43,8 +43,12 @@ export interface IDataService {
 export interface BindingPointEntry {
     /** 点 ID（用于订阅） */
     pointId: string
+    /** 点名称（可选，人类可读标识，不参与订阅） */
+    name?: string
     /** 该点专属的转换函数源码（可选） */
     transformSource?: string
+    /** 备注（可选，纯说明性文字，不参与订阅与运行逻辑） */
+    remark?: string
 }
 
 /**
