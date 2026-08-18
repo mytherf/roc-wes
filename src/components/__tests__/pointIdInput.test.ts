@@ -102,7 +102,7 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         const canvasRef = makeFakeCanvas(cell)
         const wrapper = mount(PropertyPanel, { props: { canvasRef } })
 
-        // 找到主点ID输入框（主点组第一个 input）
+        // 找到主点ID输入框（每卡片输入框顺序：[点ID, 点名称, 转换函数, 备注]，首个即点ID）
         const input = wrapper.find('.binding-group-card input')
         expect(input.exists()).toBe(true)
 
@@ -279,20 +279,24 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         const canvasRef = makeFakeCanvas(cell)
         const wrapper = mount(PropertyPanel, { props: { canvasRef } })
 
-        // 选数据源 → 录入主点 + 附加点
+        // 选数据源 → 录入主点（点ID + 点名称 + 备注）+ 附加点
         const select = wrapper.findAll('select').find((s) =>
             s.findAll('option').some((o) => o.text().includes('未选择数据源'))
         )!
         await select.setValue(ds.id)
         await wrapper.find('.binding-group-card input').setValue('p-main')
+        // 点名称/备注行（每卡片输入框顺序：[点ID, 点名称, 转换函数, 备注]）
+        const inputsBeforeAdd = wrapper.findAll('.binding-group-card input')
+        await inputsBeforeAdd[1].setValue('主点温度')
+        await inputsBeforeAdd[3].setValue('DB1 温度传感器')
         await wrapper.find('.add-extra-point-btn').trigger('click')
         const inputs = wrapper.findAll('.binding-group-card input')
-        // 输入框顺序：[主点ID, 主点转换, 附加点ID, 附加点转换]
-        await inputs[2].setValue('p-aux')
+        // 输入框顺序：[主点ID, 主点名称, 主点转换, 主点备注, 附加点ID, 附加点名称, 附加点转换, 附加点备注]
+        await inputs[4].setValue('p-aux')
 
         let storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
         expect(storeNode?.data?.binding?.points).toEqual([
-            { pointId: 'p-main' },
+            { pointId: 'p-main', name: '主点温度', remark: 'DB1 温度传感器' },
             { pointId: 'p-aux' },
         ])
 
@@ -300,17 +304,17 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         await select.setValue('')
         storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
         expect(storeNode?.data?.binding?.points).toEqual([
-            { pointId: 'p-main' },
+            { pointId: 'p-main', name: '主点温度', remark: 'DB1 温度传感器' },
             { pointId: 'p-aux' },
         ])
         expect(storeNode?.data?.binding?.sourceId).toBeUndefined()
 
-        // 重新选择数据源：sourceId 恢复，点组原样保留
+        // 重新选择数据源：sourceId 恢复，点组原样保留（含点名称与备注）
         await select.setValue(ds.id)
         storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
         expect(storeNode?.data?.binding).toMatchObject({
             sourceId: ds.id,
-            points: [{ pointId: 'p-main' }, { pointId: 'p-aux' }],
+            points: [{ pointId: 'p-main', name: '主点温度', remark: 'DB1 温度传感器' }, { pointId: 'p-aux' }],
         })
         wrapper.unmount()
     })

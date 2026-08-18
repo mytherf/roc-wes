@@ -45,7 +45,9 @@ export interface IDataService {
 ```ts
 export interface BindingPointEntry {
     pointId: string                  // 用于订阅的数据点 ID
+    name?: string                    // 点名称（可选，人类可读标识，不参与订阅）
     transformSource?: string         // 该点专属转换函数源码（可选）
+    remark?: string                  // 备注（可选，纯说明性文字）
 }
 
 export interface DataBindingConfig {
@@ -86,13 +88,13 @@ export interface DataSource {
 
 ## 四、节点绑定提交（PropertyPanel）
 
-属性面板「数据绑定」页选择数据源 + 填写点ID（可「＋ 添加点组」追加附加点）后，`updateBinding` 把配置写入节点并触发订阅（两种模式完全一致）：
+属性面板「数据绑定」页选择数据源 + 填写点ID（可选点名称/备注，可「＋ 添加点组」追加附加点，或「⇪ 导入点位（批量）」粘贴文本/选择 txt/csv 文件批量导入，每行 `点ID，点名称，备注`）后，`updateBinding` 把配置写入节点并触发订阅（两种模式完全一致）：
 
 ```ts
 // 有主点即提交绑定，sourceId 允许后补（无 sourceId 的绑定运行期不订阅，节点保持静态值）
 if (primary) {
   binding = {
-    points: validGroups,                         // 全部点组：点ID + 转换函数成组，首组为主点
+    points: validGroups,                         // 全部点组：点ID + 点名称 + 转换函数 + 备注成组，首组为主点
     sourceId: bindingSourceId.value || undefined,
   }
 }
@@ -245,7 +247,8 @@ wscat -c ws://192.168.0.10:9000/telemetry
 | `src/components/dataSource/protocolConfigRegistry.ts` | 协议连接配置注册表（开闭原则扩展点） |
 | `src/components/dataSource/WebsocketProtocolConfig.vue` | 真实设备模式连接配置子组件（地址栏） |
 | `src/platform/deviceConfig.ts` | `isDemoSource` 演示判定与 Rust 网关配置映射 |
-| `src/components/PropertyPanel.vue` | 「数据绑定」标签页 UI 与 `updateBinding` 提交 |
+| `src/components/PropertyPanel.vue` | 「数据绑定」标签页 UI 与 `updateBinding` 提交（含导入点位对话框） |
+| `src/utils/pointImport.ts` | 点位导入文本解析（分隔符自动探测：含 Tab 按 Tab，否则逗号） |
 | `src/composables/useNodeData.ts` | 节点组件响应式数据刷新 |
 | `src-tauri/crates/gateway-websocket/src/lib.rs` | WebSocket 适配器（真实模式：订阅、缓冲、重连） |
 | `src-tauri/crates/gateway-common/src/lib.rs` | Web 协议共享内核（帧解析 / 最新值缓冲） |

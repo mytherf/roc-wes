@@ -64,6 +64,7 @@ pub fn run() {
             commands::gateway_unsubscribe,
             commands::gateway_disconnect,
             commands::export_project_file,
+            commands::read_text_file,
         ])
         .build(tauri::generate_context!())
         .expect("构建 RocWes 桌面应用失败")

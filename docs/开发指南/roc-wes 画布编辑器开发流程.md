@@ -179,7 +179,9 @@ watch(() => element.value?.data?.id, ...)   // 刻意不深监听 element
 ```
 
 切换选中节点时回填草稿：`bindingSourceId`（数据源实例）+ `bindingGroups`
-（点组列表：点 ID + 转换函数成组，首组为主点固定不可删）。
+（点组列表：点 ID + 点名称 + 转换函数 + 备注成组，首组为主点固定不可删；
+另支持「⇪ 导入点位（批量）」粘贴文本/选择 txt/csv 文件导入，解析见 `src/utils/pointImport.ts`，
+分隔符自动探测：含 Tab 按 Tab，否则逗号——兼容含逗号的 S7 地址）。
 Store 中无 binding 时兜底从 X6 节点实例直读，确保信息不丢。
 
 > 为什么只监听 ID 而非深度监听：`updateBinding` 会把 binding 写回 Store，
