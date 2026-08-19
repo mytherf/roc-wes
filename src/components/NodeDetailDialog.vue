@@ -3,8 +3,8 @@
 
      展示节点的“体检报告”：
        1. 基本信息：节点 ID、名称、类型、标签
-       2. 运行数据：按点 ID 分组显示，每组仅展示该点的 value 字段
-          （timestamp/quality/rawValue 等其它属性不展示）；
+       2. 运行数据：S7 DB 式点ID 按 DB 块分 tab 展示，每点两行卡片
+          （第一行：点ID/点名称/value，第二行：点描述）；
           value 支持点击手动修改，提交后写回节点数据（values[pointId].value，
           画面点同步写顶层 value），触发 change:data 刷新节点渲染
 
@@ -51,23 +51,35 @@
             </div>
           </div>
 
-          <!-- 运行数据（按点 ID 分组） -->
+          <!-- 运行数据：S7 DB 式点ID 按 DB 块分 tab；每点两行卡片
+               第一行：点ID · 点名称 · value（点击手动编辑），第二行：点描述 -->
           <div class="detail-section">
             <div class="section-title">运行数据</div>
             <template v-if="groupedData.length > 0">
-              <div v-for="group in groupedData" :key="group.pointId" class="point-group">
-                <div class="point-header">
-                  <span class="point-id mono">{{ group.pointId || '未绑定点位' }}</span>
-                  <span v-if="group.name" class="point-name" :title="group.pointId">{{ group.name }}</span>
-                  <span v-if="group.remark" class="point-remark" :title="group.remark">{{ group.remark }}</span>
-                </div>
-                <div class="data-table">
-                  <div class="data-row">
-                    <span class="data-key">value</span>
+              <!-- DB 块 tab：仅存在 DB 式点ID 时启用（非 S7 场景保持平铺无 tab） -->
+              <div v-if="detailDbTabs.length" class="detail-tab-bar">
+                <button
+                  v-for="tab in detailDbTabs"
+                  :key="tab.key"
+                  type="button"
+                  class="detail-tab"
+                  :class="{ active: activeDetailTabResolved === tab.key }"
+                  @click="selectDetailTab(tab.key)"
+                >
+                  {{ tab.label }} <span class="detail-tab-count">{{ tab.count }}</span>
+                  <span v-if="tab.hasDisplay" class="detail-tab-display" title="画面点在此组">画面</span>
+                </button>
+              </div>
+              <div class="data-table">
+                <div v-for="group in visibleDetailGroups" :key="group.key" class="point-item">
+                  <!-- 第一行：点ID · 点名称 · value -->
+                  <div class="point-row">
+                    <span class="point-id mono">{{ group.pointId || '未绑定点位' }}</span>
+                    <span v-if="group.name" class="point-name" :title="group.name">{{ group.name }}</span>
                     <!-- 编辑态：聚焦输入框，Enter/失焦提交，Esc 取消 -->
                     <input
                       v-if="editingKey === group.key"
-                      class="data-value-input"
+                      class="data-value-input point-value-input"
                       v-model="editDraft"
                       @vue:mounted="focusEditInput"
                       @blur="commitEdit(group)"
@@ -77,11 +89,13 @@
                     <!-- 展示态：点击切换为输入框手动修改 -->
                     <span
                       v-else
-                      class="data-value data-value-editable"
+                      class="data-value point-value data-value-editable"
                       title="点击可手动修改"
                       @click="startEdit(group)"
                     >{{ group.hasValue ? displayValue(group.value) : '-' }}</span>
                   </div>
+                  <!-- 第二行：点描述（无描述时省略该行） -->
+                  <div v-if="group.remark" class="point-desc" :title="group.remark">{{ group.remark }}</div>
                 </div>
               </div>
             </template>
@@ -100,6 +114,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { nodeTemplates } from '@/components/nodes/nodeTemplates'
+import { extractDbPrefix } from '@/utils/s7Address'
 
 /**
  * NodeDetailDialog - 节点详情弹窗
@@ -172,6 +187,9 @@ watch(
   () => {
     detachListener()
     attachListener()
+    // 切换节点时重置 tab 选中态与编辑态
+    activeDetailTab.value = ''
+    editingKey.value = null
   }
 )
 onBeforeUnmount(detachListener)
@@ -246,6 +264,63 @@ const groupedData = computed<PointGroup[]>(() => {
   return [{ key: '__unbound__', pointId: '', primary: true, hasValue: data.value !== undefined, value: data.value }]
 })
 
+// ===== 运行数据 DB 块 tab 分组（纯展示层，与属性面板约定一致） =====
+
+// 非 DB 点位 tab key / 标签（置尾）
+const DETAIL_OTHER_TAB_KEY = '__other__'
+const DETAIL_OTHER_TAB_LABEL = '其他点位'
+
+// 当前选中的 DB tab（空时回退首个 tab）
+const activeDetailTab = ref('')
+
+// 绑定点 tab 分组：extractDbPrefix 提取 DB{n}；M/I/Q 等归「其他点位」置尾；
+// 无任何 DB 前缀点位（websocket 等非 S7 场景）时返回空数组，不启用 tab
+const detailDbTabs = computed(() => {
+  const groups = groupedData.value.filter((g) => g.key !== '__unbound__')
+  if (groups.length === 0) return []
+  let hasDb = false
+  const buckets = new Map<string, PointGroup[]>()
+  for (const g of groups) {
+    const db = extractDbPrefix(g.pointId)
+    if (db) hasDb = true
+    const key = db ?? DETAIL_OTHER_TAB_KEY
+    if (!buckets.has(key)) buckets.set(key, [])
+    buckets.get(key)!.push(g)
+  }
+  if (!hasDb) return []
+  const tabs = Array.from(buckets.entries()).map(([key, list]) => ({
+    key,
+    label: key === DETAIL_OTHER_TAB_KEY ? DETAIL_OTHER_TAB_LABEL : key,
+    count: list.length,
+    hasDisplay: list.some((g) => g.primary),
+    groups: list,
+  }))
+  tabs.sort((a, b) => {
+    if (a.key === DETAIL_OTHER_TAB_KEY) return 1
+    if (b.key === DETAIL_OTHER_TAB_KEY) return -1
+    return 0
+  })
+  return tabs
+})
+
+// 生效选中 tab：显式指定有效则用它，否则回退首个 tab
+const activeDetailTabResolved = computed(() => {
+  const tabs = detailDbTabs.value
+  if (tabs.length === 0) return ''
+  return tabs.some((t) => t.key === activeDetailTab.value) ? activeDetailTab.value : tabs[0].key
+})
+
+// 当前可见点位组：启用 tab 时取选中 tab 的分组，否则平铺全部
+const visibleDetailGroups = computed(() => {
+  const tabs = detailDbTabs.value
+  if (tabs.length === 0) return groupedData.value
+  return tabs.find((t) => t.key === activeDetailTabResolved.value)!.groups
+})
+
+function selectDetailTab(key: string) {
+  activeDetailTab.value = key
+}
+
 // ===== value 手动编辑：点击进入输入框，提交后写回节点数据 =====
 /** 当前编辑中的分组 key（null = 非编辑态）与输入草稿 */
 const editingKey = ref<string | null>(null)
@@ -294,9 +369,13 @@ function commitEdit(group: PointGroup) {
   cell.setData(patch)
 }
 
-/** 编辑输入框挂载后自动聚焦 */
-function focusEditInput(el: unknown) {
-  (el as HTMLInputElement | null)?.focus()
+/** 编辑输入框挂载后自动聚焦并全选（注意：@vue:mounted 事件的载荷是 VNode，
+ *  真实 DOM 元素在 vnode.el 上，直接对 vnode 调 focus() 会静默无效） */
+function focusEditInput(vnode: unknown) {
+  const el = (vnode as { el?: HTMLElement } | null)?.el ?? (vnode as HTMLElement | null)
+  const input = el as HTMLInputElement | null
+  input?.focus()
+  input?.select()
 }
 </script>
 
@@ -417,24 +496,80 @@ function focusEditInput(el: unknown) {
   border-radius: var(--radius-md);
   overflow: hidden;
 }
-.data-row {
+.data-value {
+  flex: 1;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+/* DB 块 tab 条：样式与属性面板 db-tab 系列对齐 */
+.detail-tab-bar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.detail-tab {
+  border: 1px solid var(--border-light);
+  background: var(--panel-bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.detail-tab:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.detail-tab.active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  font-weight: 600;
+}
+.detail-tab-count {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.detail-tab.active .detail-tab-count { color: var(--color-primary); }
+.detail-tab-display {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  padding: 0 4px;
+  line-height: 14px;
+  border-radius: var(--radius-sm);
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+}
+/* 点位卡片：第一行 点ID/点名称/value，第二行 点描述 */
+.point-item {
   padding: 6px 10px;
   font-size: 12px;
   border-bottom: 1px solid var(--border-light);
 }
-.data-row:last-child { border-bottom: none; }
-.data-row:nth-child(odd) { background: var(--statusbar-bg); }
-.data-key {
-  width: 100px;
-  flex-shrink: 0;
-  color: var(--text-secondary);
-  font-weight: 500;
+.point-item:last-child { border-bottom: none; }
+.point-item:nth-child(odd) { background: var(--statusbar-bg); }
+.point-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.data-value {
-  flex: 1;
-  color: var(--text-primary);
+.point-value {
+  margin-left: auto;
+  flex: none;
+  max-width: 45%;
+  text-align: right;
+}
+.point-value-input {
+  margin-left: auto;
+  flex: none;
+  width: 45%;
+}
+.point-desc {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
   word-break: break-all;
 }
 /* value 手动编辑：展示态虚线下划线提示可点击，悬停高亮 */
@@ -459,26 +594,15 @@ function focusEditInput(el: unknown) {
   color: var(--text-primary);
   outline: none;
 }
-/* 点 ID 分组 */
-.point-group + .point-group { margin-top: 10px; }
-.point-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 6px;
-}
 .point-id {
   font-weight: 600;
   color: var(--color-primary);
 }
 .point-name {
   color: var(--text-secondary);
-}
-.point-remark {
-  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .no-binding {
   font-size: 13px;
