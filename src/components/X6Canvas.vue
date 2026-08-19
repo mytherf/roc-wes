@@ -683,6 +683,7 @@ defineExpose({
   dnd: dndRef,
   bindNodeData: dataService.bindNodeData,
   unbindNodeData: dataService.unbindNodeData,
+  writeNodePoint: dataService.writeNodePoint,
   updateNodePosition,
   updateNodeSize,
   // 路线相关

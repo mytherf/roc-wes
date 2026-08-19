@@ -258,6 +258,22 @@ export function useDataService() {
   }
 
   /**
+   * 向节点已绑定的数据源写入单个点位值（复用同一服务实例与会话，绝不新建）。
+   * 未绑定/服务不支持写入时抛出带语义的错误，由调用方展示。
+   */
+  async function writeNodePoint(nodeId: string, pointId: string, value: unknown): Promise<void> {
+    const key = nodeServiceKeys.get(nodeId)
+    const service = key ? dataServiceMap.get(key) : undefined
+    if (!service) {
+      throw new Error('该节点未绑定数据源，无法写入设备')
+    }
+    if (!service.writePoint) {
+      throw new Error('该数据源不支持写入')
+    }
+    await service.writePoint(pointId, value)
+  }
+
+  /**
    * 销毁：取消所有订阅并断开全部数据服务（组件卸载时调用）
    */
   function dispose() {
@@ -275,6 +291,7 @@ export function useDataService() {
     unbindNodeData,
     bindAllNodes,
     unbindAllNodes,
+    writeNodePoint,
     dispose,
   }
 }

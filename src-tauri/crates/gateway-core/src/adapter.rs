@@ -19,6 +19,16 @@ pub trait DeviceAdapter: Send {
     /// 读取一轮订阅点位，返回完整遥测（适配器负责时间戳与质量标记）。
     async fn read(&mut self, point_ids: &[String]) -> Result<Vec<Telemetry>, GatewayError>;
 
+    /// 向设备写入单个点位值（如 S7 DB 标量/位、Modbus 保持寄存器/线圈）。
+    /// 缺省返回 Unsupported：不支持写的协议（HTTP/SSE/WS/MQTT/OPC UA 等）无需实现。
+    /// 写入失败不应触发会话重连（与读失败语义区分）。
+    async fn write(&mut self, point_id: &str, _value: serde_json::Value) -> Result<(), GatewayError> {
+        Err(GatewayError::Unsupported(format!(
+            "{} 协议暂不支持写入点位 {point_id}",
+            self.kind()
+        )))
+    }
+
     /// 协议标识（日志 / 状态展示用），如 "modbus" / "demo"。
     fn kind(&self) -> &'static str;
 }

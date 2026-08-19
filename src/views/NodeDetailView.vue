@@ -33,6 +33,7 @@
       :node-id="nodeId"
       :graph="graph"
       :embedded="true"
+      :write-value="writeDetailPoint"
       @close="closeWindow"
     />
 
@@ -112,6 +113,10 @@ onMounted(async () => {
     }
   )
 })
+
+/** 详情弹窗写设备回调：复用本窗口 useDataService 中节点已绑定的服务会话 */
+const writeDetailPoint = (pointId: string, value: unknown) =>
+  dataService.writeNodePoint(nodeId.value, pointId, value)
 
 /** 关闭窗口（详情头部 × 按钮触发） */
 async function closeWindow() {

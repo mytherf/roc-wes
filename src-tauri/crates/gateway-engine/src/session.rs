@@ -4,7 +4,7 @@ use crate::EventSink;
 use gateway_core::{DeviceAdapter, StatusEvent, TelemetryBatch};
 use std::collections::HashSet;
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, Duration, MissedTickBehavior};
 use tracing::{debug, warn};
@@ -20,6 +20,12 @@ const BACKOFF_MAX_MS: u64 = 30_000;
 pub enum SessionCmd {
     Subscribe(String),
     Unsubscribe(String),
+    /// 写入点位值：经 resp 回传结果（适配器由会话任务独占，写入必须在本任务内执行）
+    Write {
+        point_id: String,
+        value: serde_json::Value,
+        resp: oneshot::Sender<Result<(), String>>,
+    },
     Shutdown,
 }
 
@@ -77,11 +83,14 @@ pub fn spawn_session(
                                 message: err.to_string(),
                             });
                         }
-                        // 退避等待期间仍响应控制指令（订阅 / 退出）
+                        // 退避等待期间仍响应控制指令（订阅 / 退出；写入直接报未连接）
                         tokio::select! {
                             Some(cmd) = rx.recv() => match cmd {
                                 SessionCmd::Subscribe(p) => { points.insert(p); }
                                 SessionCmd::Unsubscribe(p) => { points.remove(&p); }
+                                SessionCmd::Write { resp, .. } => {
+                                    let _ = resp.send(Err("设备未连接，无法写入".into()));
+                                }
                                 SessionCmd::Shutdown => break,
                             },
                             _ = tokio::time::sleep(Duration::from_millis(backoff_ms)) => {
@@ -102,6 +111,19 @@ pub fn spawn_session(
                     }
                     SessionCmd::Unsubscribe(p) => {
                         points.remove(&p);
+                    }
+                    SessionCmd::Write { point_id, value, resp } => {
+                        // 写入失败仅回报错误，不触发重连（与轮询读失败语义区分）
+                        let result = adapter
+                            .write(&point_id, value)
+                            .await
+                            .map_err(|e| e.to_string());
+                        if result.is_ok() {
+                            debug!(device = %device_id, point = %point_id, "点位写入成功");
+                        } else {
+                            warn!(device = %device_id, point = %point_id, error = ?result, "点位写入失败");
+                        }
+                        let _ = resp.send(result);
                     }
                     SessionCmd::Shutdown => break,
                 },

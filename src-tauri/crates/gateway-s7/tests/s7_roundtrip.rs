@@ -92,6 +92,69 @@ async fn invalid_points_are_skipped_without_breaking_batch() {
 }
 
 #[tokio::test]
+async fn write_roundtrips_against_simulator() {
+    let (store, addr) = start_simulator().await;
+
+    // 预置 DB1（16B 全 0）与 Merker 区，保证写前地址存在
+    store.write_bytes(1, 0, &vec![0u8; 16]);
+    store.write_area(area::MARKERS, 0, 16, &[0u8; 16]);
+
+    let mut adapter = S7Adapter::new(cfg(addr.port()));
+    adapter.connect().await.expect("连接模拟 PLC 失败");
+
+    // DB 标量写入：REAL/INT 写后读回一致
+    adapter
+        .write("DB1,REAL0", serde_json::json!(2.5))
+        .await
+        .expect("REAL 写入失败");
+    adapter
+        .write("DB1,INT4", serde_json::json!(-7))
+        .await
+        .expect("INT 写入失败");
+
+    // 位点读-改-写：置 X6.0，不影响同字节其他位
+    adapter
+        .write("DB1,X6.0", serde_json::json!(true))
+        .await
+        .expect("位写入失败");
+
+    // M 区字节写入
+    adapter
+        .write("MB10", serde_json::json!(99))
+        .await
+        .expect("MB 写入失败");
+
+    let batch = adapter
+        .read(&[
+            "DB1,REAL0".to_string(),
+            "DB1,INT4".to_string(),
+            "DB1,X6.0".to_string(),
+            "DB1,X6.3".to_string(),
+            "MB10".to_string(),
+        ])
+        .await
+        .expect("写后读回失败");
+
+    assert_eq!(batch[0].value, serde_json::json!(2.5));
+    assert_eq!(batch[1].value, serde_json::json!(-7));
+    assert_eq!(batch[2].value, serde_json::json!(true), "置位应生效");
+    assert_eq!(batch[3].value, serde_json::json!(false), "同字节其他位不应被误改");
+    assert_eq!(batch[4].value, serde_json::json!(99));
+
+    adapter.disconnect().await.expect("断开失败");
+}
+
+#[tokio::test]
+async fn write_before_connect_fails_with_not_connected() {
+    let mut adapter = S7Adapter::new(cfg(102));
+    let err = adapter
+        .write("DB1,REAL0", serde_json::json!(1.0))
+        .await
+        .expect_err("未连接写入应失败");
+    assert!(matches!(err, gateway_core::GatewayError::NotConnected));
+}
+
+#[tokio::test]
 async fn connect_failure_returns_connect_error() {
     // 先绑定再释放，得到一个确定无监听的端口
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

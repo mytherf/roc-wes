@@ -21,6 +21,8 @@ pub struct DemoAdapter {
     profile: DemoProfile,
     /// 随机游走状态：点位 → 上一轮值（游走类波形需要历史状态）
     walk_state: HashMap<String, f64>,
+    /// 手动写入覆盖值：点位 → 最近一次 write 的值（写入值保持，直到再次写入覆盖）
+    overrides: HashMap<String, serde_json::Value>,
 }
 
 impl DemoAdapter {
@@ -29,6 +31,7 @@ impl DemoAdapter {
             connected: false,
             profile,
             walk_state: HashMap::new(),
+            overrides: HashMap::new(),
         }
     }
 }
@@ -65,14 +68,31 @@ impl DeviceAdapter for DemoAdapter {
             .collect())
     }
 
+    async fn write(&mut self, point_id: &str, value: serde_json::Value) -> Result<(), GatewayError> {
+        if !self.connected {
+            return Err(GatewayError::NotConnected);
+        }
+        // 演示模式无真实设备：存入覆盖表，后续读取优先返回写入值
+        self.overrides.insert(point_id.to_string(), value);
+        Ok(())
+    }
+
     fn kind(&self) -> &'static str {
         "demo"
     }
 }
 
 impl DemoAdapter {
-    /// 按档位为单个点位生成遥测值
+    /// 按档位为单个点位生成遥测值（手动写入过的点位优先返回覆盖值）
     fn simulate_point(&mut self, point_id: &str, now_ms: u64) -> Telemetry {
+        if let Some(value) = self.overrides.get(point_id) {
+            return Telemetry {
+                point_id: point_id.to_string(),
+                value: value.clone(),
+                timestamp: now_ms,
+                quality: Quality::Good,
+            };
+        }
         let value = match self.profile {
             DemoProfile::Sine => serde_json::json!(sine_value(point_id, now_ms)),
             DemoProfile::RandomWalk => {
@@ -202,5 +222,27 @@ mod tests {
         let batch = adapter.read(&["a".to_string(), "b".to_string()]).await.unwrap();
         assert_eq!(batch.len(), 2);
         assert!(batch.iter().all(|t| t.quality == Quality::Good));
+    }
+
+    #[tokio::test]
+    async fn write_overrides_simulated_value_until_next_write() {
+        let mut adapter = DemoAdapter::new(DemoProfile::Sine);
+        adapter.connect().await.unwrap();
+
+        adapter
+            .write("a", serde_json::json!(123.5))
+            .await
+            .unwrap();
+        let batch = adapter.read(&["a".to_string()]).await.unwrap();
+        assert_eq!(batch[0].value, serde_json::json!(123.5), "写入值应覆盖波形值");
+
+        // 再次写入覆盖；未写入的点位仍走波形
+        adapter.write("a", serde_json::json!(true)).await.unwrap();
+        let batch = adapter
+            .read(&["a".to_string(), "b".to_string()])
+            .await
+            .unwrap();
+        assert_eq!(batch[0].value, serde_json::json!(true));
+        assert_ne!(batch[1].value, serde_json::json!(true));
     }
 }

@@ -5,6 +5,7 @@
 //! - gateway_subscribe   ≈ {action:'subscribe'}
 //! - gateway_unsubscribe ≈ {action:'unsubscribe'}
 //! - gateway_disconnect  ≈ WS close
+//! - gateway_write       ≈ {action:'write'}（S7/Modbus/演示支持，其余协议返回不支持）
 //!
 //! 参数命名为 camelCase（Tauri 自动映射到 Rust snake_case）。
 
@@ -59,6 +60,21 @@ pub async fn gateway_disconnect(state: State<'_, AppState>, device_id: String) -
     state
         .engine
         .disconnect(&device_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 向设备写入单个点位值（同步等待写入结果，失败返回中文错误信息）
+#[tauri::command]
+pub async fn gateway_write(
+    state: State<'_, AppState>,
+    device_id: String,
+    point_id: String,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    state
+        .engine
+        .write(&device_id, point_id, value)
         .await
         .map_err(|e| e.to_string())
 }

@@ -18,6 +18,8 @@ pub enum GatewayError {
     Connect(String),
     #[error("读取失败：{0}")]
     Read(String),
+    #[error("写入失败：{0}")]
+    Write(String),
     #[error("{0}")]
     Other(String),
 }

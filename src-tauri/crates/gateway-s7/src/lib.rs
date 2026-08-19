@@ -8,6 +8,9 @@
 //!
 //! 读取策略：每轮点位构造 MultiReadItem 列表一次批量读（库内自动 PDU 分批）；
 //! 批量失败时逐点降级读取以隔离单点故障，单点失败不影响其他点。
+//!
+//! 写入：标量按类型编码为大端字节经 write_area 写入；位点（DB/M 位）采用
+//! 读-改-写（S7 无位级写指令）。写入失败仅报错，不触发会话重连。
 
 use async_trait::async_trait;
 use gateway_core::{DeviceAdapter, GatewayError, Quality, S7Config, Telemetry};
@@ -224,6 +227,84 @@ fn now_millis() -> u64 {
         .unwrap_or(0)
 }
 
+/// JSON 值转布尔（接受 true/false 或数值 0/1）
+fn value_to_bool(value: &serde_json::Value, point_id: &str) -> Result<bool, GatewayError> {
+    match value {
+        serde_json::Value::Bool(b) => Ok(*b),
+        serde_json::Value::Number(n) => match n.as_i64() {
+            Some(0) => Ok(false),
+            Some(1) => Ok(true),
+            _ => Err(GatewayError::InvalidPoint(format!(
+                "{point_id}：位点仅接受 true/false 或 0/1"
+            ))),
+        },
+        _ => Err(GatewayError::InvalidPoint(format!(
+            "{point_id}：位点仅接受 true/false 或 0/1"
+        ))),
+    }
+}
+
+/// JSON 值转浮点（数值型；布尔按 0/1 处理，其余类型拒绝）
+fn value_to_f64(value: &serde_json::Value, point_id: &str) -> Result<f64, GatewayError> {
+    match value {
+        serde_json::Value::Number(n) => n.as_f64().ok_or_else(|| {
+            GatewayError::InvalidPoint(format!("{point_id}：数值超出可表示范围"))
+        }),
+        serde_json::Value::Bool(b) => Ok(if *b { 1.0 } else { 0.0 }),
+        _ => Err(GatewayError::InvalidPoint(format!(
+            "{point_id}：仅支持写入数值（或位点的 true/false）"
+        ))),
+    }
+}
+
+/// 标量值编码为 big-endian 字节（与 decode 对称）
+fn encode(ty: Ty, value: &serde_json::Value, point_id: &str) -> Result<Vec<u8>, GatewayError> {
+    let num = || value_to_f64(value, point_id);
+    let range_err = |ty_name: &str| {
+        GatewayError::InvalidPoint(format!("{point_id}：值超出 {ty_name} 可表示范围"))
+    };
+    Ok(match ty {
+        Ty::Real => (num()? as f32).to_be_bytes().to_vec(),
+        Ty::Lreal => num()?.to_be_bytes().to_vec(),
+        Ty::Int => {
+            let v = num()?;
+            if !(i16::MIN as f64..=i16::MAX as f64).contains(&v) {
+                return Err(range_err("INT"));
+            }
+            (v as i16).to_be_bytes().to_vec()
+        }
+        Ty::Word => {
+            let v = num()?;
+            if !(u16::MIN as f64..=u16::MAX as f64).contains(&v) {
+                return Err(range_err("WORD"));
+            }
+            (v as u16).to_be_bytes().to_vec()
+        }
+        Ty::Dint => {
+            let v = num()?;
+            if !(i32::MIN as f64..=i32::MAX as f64).contains(&v) {
+                return Err(range_err("DINT"));
+            }
+            (v as i32).to_be_bytes().to_vec()
+        }
+        Ty::Dword => {
+            let v = num()?;
+            if !(u32::MIN as f64..=u32::MAX as f64).contains(&v) {
+                return Err(range_err("DWORD"));
+            }
+            (v as u32).to_be_bytes().to_vec()
+        }
+        Ty::Byte => {
+            let v = num()?;
+            if !(u8::MIN as f64..=u8::MAX as f64).contains(&v) {
+                return Err(range_err("BYTE"));
+            }
+            vec![v as u8]
+        }
+        Ty::Bool => unreachable!("位点不走标量编码路径"),
+    })
+}
+
 /// 西门子 S7 设备适配器。
 ///
 /// 每个实例独占一个 PLC 连接，由单个会话轮询任务持有（非线程共享）。
@@ -261,6 +342,32 @@ impl S7Adapter {
                 .map_err(|e| GatewayError::Read(format!("Q 区读取失败: {e}"))),
         }?;
         Ok(res.to_vec())
+    }
+
+    /// 单点字节写入（按数据区分派到 db/mb/eb/ib 写接口）
+    async fn write_bytes(
+        client: &S7Client<TcpTransport>,
+        point: &S7Point,
+        bytes: &[u8],
+    ) -> Result<(), GatewayError> {
+        match point.area {
+            Area::Db => client
+                .db_write(point.db, point.offset as u32, bytes)
+                .await
+                .map_err(|e| GatewayError::Write(format!("DB{} 写入失败: {e}", point.db))),
+            Area::Merker => client
+                .mb_write(point.offset as u32, bytes)
+                .await
+                .map_err(|e| GatewayError::Write(format!("M 区写入失败: {e}"))),
+            Area::Input => client
+                .eb_write(point.offset as u32, bytes)
+                .await
+                .map_err(|e| GatewayError::Write(format!("I 区写入失败: {e}"))),
+            Area::Output => client
+                .ib_write(point.offset as u32, bytes)
+                .await
+                .map_err(|e| GatewayError::Write(format!("Q 区写入失败: {e}"))),
+        }
     }
 }
 
@@ -380,6 +487,30 @@ impl DeviceAdapter for S7Adapter {
         Ok(point_ids.iter().filter_map(|id| samples.remove(id)).collect())
     }
 
+    async fn write(&mut self, point_id: &str, value: serde_json::Value) -> Result<(), GatewayError> {
+        let client = self.client.as_ref().ok_or(GatewayError::NotConnected)?;
+        let point = parse_point(point_id)?;
+
+        // 位点：读-改-写（S7 无位级写指令，读出整字节 → 置/清位 → 写回）
+        if let Some(bit) = point.bit {
+            let on = value_to_bool(&value, point_id)?;
+            let bytes = Self::read_one(client, &point).await.map_err(|e| {
+                GatewayError::Write(format!("{point_id} 位写前读字节失败: {e}"))
+            })?;
+            let mut byte = bytes[0];
+            if on {
+                byte |= 1 << bit;
+            } else {
+                byte &= !(1 << bit);
+            }
+            return Self::write_bytes(client, &point, &[byte]).await;
+        }
+
+        // 标量：按类型编码为大端字节写入
+        let bytes = encode(point.ty, &value, point_id)?;
+        Self::write_bytes(client, &point, &bytes).await
+    }
+
     fn kind(&self) -> &'static str {
         "s7"
     }
@@ -455,5 +586,34 @@ mod tests {
         assert_eq!(decode(Ty::Bool, Some(3), &[0b0000_1000]).unwrap(), serde_json::json!(true));
         assert_eq!(decode(Ty::Bool, Some(0), &[0b0000_1000]).unwrap(), serde_json::json!(false));
         assert!(decode(Ty::Real, None, &[0, 0]).is_err()); // 字节不足
+    }
+
+    #[test]
+    fn encode_roundtrips_with_decode() {
+        // 编码 → 解码往返一致（与 decode 对称性）
+        let cases: Vec<(Ty, serde_json::Value)> = vec![
+            (Ty::Real, serde_json::json!(1.5)),
+            (Ty::Lreal, serde_json::json!(2.25)),
+            (Ty::Int, serde_json::json!(-2)),
+            (Ty::Word, serde_json::json!(258)),
+            (Ty::Dint, serde_json::json!(-4)),
+            (Ty::Dword, serde_json::json!(256)),
+            (Ty::Byte, serde_json::json!(171)),
+        ];
+        for (ty, v) in cases {
+            let bytes = encode(ty, &v, "T").expect("编码失败");
+            assert_eq!(decode(ty, None, &bytes).unwrap(), v, "往返不一致: {ty:?}");
+        }
+    }
+
+    #[test]
+    fn encode_rejects_invalid_values() {
+        assert!(encode(Ty::Byte, &serde_json::json!(256), "T").is_err()); // 超 u8
+        assert!(encode(Ty::Int, &serde_json::json!(40000), "T").is_err()); // 超 i16
+        assert!(encode(Ty::Word, &serde_json::json!(-1), "T").is_err()); // 负数写无符号
+        assert!(encode(Ty::Real, &serde_json::json!("abc"), "T").is_err()); // 字符串
+        assert!(value_to_bool(&serde_json::json!(2), "T").is_err()); // 位点非 0/1
+        assert_eq!(value_to_bool(&serde_json::json!(1), "T").unwrap(), true);
+        assert_eq!(value_to_bool(&serde_json::json!(false), "T").unwrap(), false);
     }
 }

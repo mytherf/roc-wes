@@ -11,7 +11,7 @@
  *
  * 所有协议均由 Rust 核心（gateway-engine + DeviceAdapter）原生实现，
  * 前端通过 Tauri IPC 访问：
- *   - 命令：gateway_connect / gateway_subscribe / gateway_unsubscribe / gateway_disconnect
+ *   - 命令：gateway_connect / gateway_subscribe / gateway_unsubscribe / gateway_disconnect / gateway_write
  *   - 事件：gateway://status、gateway://telemetry（camelCase 载荷，与 Rust serde 对齐）
  *
  * 本类实现 IDataService 接口，对上层（useDataService / 节点绑定）完全透明。
@@ -162,6 +162,12 @@ export class IpcGatewayService implements IDataService {
 
     isConnected(): boolean {
         return this.connected
+    }
+
+    /** 向设备写入单个点位值（同步等待结果；不支持写入的协议由 Rust 侧报错）
+     * 必须复用节点已绑定的本服务实例（同 deviceId 新建会话会报 AlreadyExists） */
+    async writePoint(pointId: string, value: unknown): Promise<void> {
+        await invoke('gateway_write', { deviceId: this.deviceId, pointId, value })
     }
 
     // 断开：清空状态、注销监听、通知 Rust 销毁会话

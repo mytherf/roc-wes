@@ -54,6 +54,7 @@
       v-if="detailNodeId && graphInstance"
       :node-id="detailNodeId"
       :graph="graphInstance"
+      :write-value="writeDetailPoint"
       @close="detailNodeId = null"
     />
   </div>
@@ -108,6 +109,16 @@ const onCanvasReady = (payload: { graph: any; dnd: any }) => {
 const onNodeDblClick = (payload: { nodeId: string; shape: string }) => {
   if (payload.shape === 'rack-node') return
   detailNodeId.value = payload.nodeId
+}
+
+/**
+ * 详情弹窗写设备回调：经 X6Canvas 持有的 useDataService 实例写入，
+ * 复用节点已绑定数据源的服务会话（绝不新建会话）
+ */
+const writeDetailPoint = async (pointId: string, value: unknown) => {
+  const canvas = canvasRef.value
+  if (!canvas || !detailNodeId.value) throw new Error('画布未就绪，无法写入设备')
+  await canvas.writeNodePoint(detailNodeId.value, pointId, value)
 }
 </script>
 

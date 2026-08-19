@@ -33,6 +33,8 @@ export interface IDataService {
     unsubscribe(pointId: string): void
     /** 连接状态：是否已与数据源建立连接 */
     isConnected(): boolean
+    /** 向数据源写入单个点位值（可选能力：不支持写入的数据源可不实现，调用方需先判断） */
+    writePoint?(pointId: string, value: unknown): Promise<void>
     /** 断开连接：释放所有资源 */
     disconnect(): void
 }

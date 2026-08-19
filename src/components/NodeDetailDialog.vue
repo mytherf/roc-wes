@@ -55,6 +55,8 @@
                第一行：点ID · 点名称 · value（点击手动编辑），第二行：点描述 -->
           <div class="detail-section">
             <div class="section-title">运行数据</div>
+            <!-- 写设备失败提示（约 2.5s 自动隐藏；本地值保持不变） -->
+            <div v-if="writeError" class="write-error" role="alert">{{ writeError }}</div>
             <template v-if="groupedData.length > 0">
               <!-- DB 块 tab：仅存在 DB 式点ID 时启用（非 S7 场景保持平铺无 tab） -->
               <div v-if="detailDbTabs.length" class="detail-tab-bar">
@@ -129,6 +131,9 @@ const props = defineProps<{
   graph: any
   /** 内嵌模式：true 时无遮罩直接填充容器（用于独立详情窗口），false 时弹窗形态 */
   embedded?: boolean
+  /** 写设备回调（调用方注入）：存在且点 ID 非空时，提交先写设备，
+   *  成功后才更新本地显示；失败则弹窗内联提示且本地值不变 */
+  writeValue?: (pointId: string, value: unknown) => Promise<void>
 }>()
 
 defineEmits<{
@@ -192,7 +197,10 @@ watch(
     editingKey.value = null
   }
 )
-onBeforeUnmount(detachListener)
+onBeforeUnmount(() => {
+  detachListener()
+  if (writeErrorTimer) clearTimeout(writeErrorTimer)
+})
 
 // ===== 节点类型标签与图标（从 nodeTemplates 注册表查找） =====
 const template = computed(() =>
@@ -346,17 +354,27 @@ function cancelEdit() {
 }
 
 /** 提交：写回 data.values[pointId].value（画面点/未绑定组同步写顶层 value），
- *  与 useDataService 推送写入路径一致（setData 深合并），触发 change:data 刷新 */
-function commitEdit(group: PointGroup) {
+ *  与 useDataService 推送写入路径一致（setData 深合并），触发 change:data 刷新。
+ *  存在 writeValue 且点 ID 非空时先写设备：成功再更新本地，失败本地值不变并内联提示 */
+async function commitEdit(group: PointGroup) {
   if (editingKey.value !== group.key) return
   editingKey.value = null
   const cell = props.graph?.getCellById(props.nodeId)
   if (!cell) return
   const newVal = parseInputValue(editDraft.value)
   if (!group.pointId) {
-    // 未绑定回退组：只写节点顶层 value
+    // 未绑定回退组：只写节点顶层 value（纯本地写入，不触达设备）
     cell.setData({ value: newVal })
     return
+  }
+  if (props.writeValue) {
+    try {
+      await props.writeValue(group.pointId, newVal)
+    } catch (err) {
+      // 写入失败：本地显示值不变，弹窗内联错误提示
+      showWriteError(err)
+      return
+    }
   }
   const data = cell.getData() || {}
   const prev = ((data.values || {}) as Record<string, any>)[group.pointId] || {}
@@ -376,6 +394,18 @@ function focusEditInput(vnode: unknown) {
   const input = el as HTMLInputElement | null
   input?.focus()
   input?.select()
+}
+
+// ===== 写设备失败内联提示（约 2.5s 自动隐藏） =====
+const writeError = ref('')
+let writeErrorTimer: ReturnType<typeof setTimeout> | null = null
+
+function showWriteError(err: unknown) {
+  writeError.value = err instanceof Error ? err.message : String(err)
+  if (writeErrorTimer) clearTimeout(writeErrorTimer)
+  writeErrorTimer = setTimeout(() => {
+    writeError.value = ''
+  }, 2500)
 }
 </script>
 
@@ -495,6 +525,17 @@ function focusEditInput(vnode: unknown) {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   overflow: hidden;
+}
+/* 写设备失败内联错误条 */
+.write-error {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius-sm);
+  word-break: break-all;
 }
 .data-value {
   flex: 1;

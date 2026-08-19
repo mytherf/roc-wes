@@ -12,7 +12,12 @@ use gateway_core::{DeviceAdapter, GatewayError, StatusEvent, TelemetryBatch};
 use session::{spawn_session, SessionCmd, SessionHandle};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use tokio::sync::oneshot;
+use tokio::time::{timeout, Duration};
 use tracing::info;
+
+/// 写入等待会话任务回报的超时（会话被轮询占用时写入需排队）
+const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// 事件输出端口（六边形架构"被驱动适配器"）。
 /// Tauri 壳提供基于 AppHandle.emit 的实现；单测可注入内存实现。
@@ -67,6 +72,36 @@ impl GatewayEngine {
     /// 取消订阅数据点
     pub fn unsubscribe(&self, device_id: &str, point_id: String) -> Result<(), GatewayError> {
         self.send(device_id, SessionCmd::Unsubscribe(point_id))
+    }
+
+    /// 向设备写入单个点位值：指令经会话通道下发，等待会话任务回报结果（带超时）。
+    /// 适配器由会话轮询任务独占，写入与轮询读在同一任务内串行执行，无需额外锁。
+    pub async fn write(
+        &self,
+        device_id: &str,
+        point_id: String,
+        value: serde_json::Value,
+    ) -> Result<(), GatewayError> {
+        let tx = self
+            .sessions
+            .lock()
+            .unwrap()
+            .get(device_id)
+            .map(|h| h.tx.clone())
+            .ok_or_else(|| GatewayError::NoSuchSession(device_id.to_string()))?;
+        let (resp_tx, resp_rx) = oneshot::channel();
+        tx.send(SessionCmd::Write {
+            point_id,
+            value,
+            resp: resp_tx,
+        })
+        .await
+        .map_err(|e| GatewayError::Write(format!("会话指令发送失败: {e}")))?;
+        match timeout(WRITE_TIMEOUT, resp_rx).await {
+            Ok(Ok(result)) => result.map_err(GatewayError::Write),
+            Ok(Err(_)) => Err(GatewayError::Write("会话任务已退出".into())),
+            Err(_) => Err(GatewayError::Write("写入等待超时".into())),
+        }
     }
 
     fn send(&self, device_id: &str, cmd: SessionCmd) -> Result<(), GatewayError> {

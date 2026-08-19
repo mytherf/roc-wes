@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_modbus::client::tcp::connect_slave;
-use tokio_modbus::client::{Context, Reader};
+use tokio_modbus::client::{Context, Reader, Writer};
 use tokio_modbus::Slave;
 use tracing::warn;
 
@@ -100,13 +100,53 @@ fn merge_ranges(points: &mut [(u16, String)], max_qty: u16) -> Vec<MergedRange> 
 }
 
 fn words_to_values(res: tokio_modbus::Result<Vec<u16>>) -> Result<Vec<serde_json::Value>, GatewayError> {
-    let words = res.map_err(|e| GatewayError::Read(e.to_string()))?;
+    // tokio-modbus 0.13 的 Result 为双层嵌套：外层传输错误 + 内层设备异常，需逐层展开
+    let words = res
+        .map_err(|e| GatewayError::Read(e.to_string()))?
+        .map_err(|e| GatewayError::Read(format!("设备异常: {e}")))?;
     Ok(words.into_iter().map(serde_json::Value::from).collect())
 }
 
 fn coils_to_values(res: tokio_modbus::Result<Vec<bool>>) -> Result<Vec<serde_json::Value>, GatewayError> {
-    let coils = res.map_err(|e| GatewayError::Read(e.to_string()))?;
+    let coils = res
+        .map_err(|e| GatewayError::Read(e.to_string()))?
+        .map_err(|e| GatewayError::Read(format!("设备异常: {e}")))?;
     Ok(coils.into_iter().map(serde_json::Value::from).collect())
+}
+
+/// 将 JSON 值转为 u16（保持寄存器写入值，范围校验）
+fn value_to_u16(value: &serde_json::Value, point_id: &str) -> Result<u16, GatewayError> {
+    let n = match value {
+        serde_json::Value::Number(n) => n.as_f64(),
+        serde_json::Value::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+        _ => None,
+    }
+    .ok_or_else(|| {
+        GatewayError::InvalidPoint(format!("{point_id}：保持寄存器仅支持写入数值（0~65535）"))
+    })?;
+    if !(u16::MIN as f64..=u16::MAX as f64).contains(&n) {
+        return Err(GatewayError::InvalidPoint(format!(
+            "{point_id}：值超出寄存器可表示范围（0~65535）"
+        )));
+    }
+    Ok(n as u16)
+}
+
+/// 将 JSON 值转为布尔（线圈写入值，接受 true/false 或 0/1）
+fn value_to_bool(value: &serde_json::Value, point_id: &str) -> Result<bool, GatewayError> {
+    match value {
+        serde_json::Value::Bool(b) => Ok(*b),
+        serde_json::Value::Number(n) => match n.as_i64() {
+            Some(0) => Ok(false),
+            Some(1) => Ok(true),
+            _ => Err(GatewayError::InvalidPoint(format!(
+                "{point_id}：线圈仅接受 true/false 或 0/1"
+            ))),
+        },
+        _ => Err(GatewayError::InvalidPoint(format!(
+            "{point_id}：线圈仅接受 true/false 或 0/1"
+        ))),
+    }
 }
 
 fn now_millis() -> u64 {
@@ -191,6 +231,34 @@ impl DeviceAdapter for ModbusAdapter {
         Ok(point_ids.iter().filter_map(|id| samples.remove(id)).collect())
     }
 
+    async fn write(&mut self, point_id: &str, value: serde_json::Value) -> Result<(), GatewayError> {
+        let ctx = self.ctx.as_mut().ok_or(GatewayError::NotConnected)?;
+        let (area, addr) = parse_point(point_id)?;
+        match area {
+            Area::Holding => {
+                let word = value_to_u16(&value, point_id)?;
+                ctx.write_single_register(addr, word)
+                    .await
+                    .map_err(|e| GatewayError::Write(format!("holding:{addr} 写入失败: {e}")))?
+                    .map_err(|e| GatewayError::Write(format!("holding:{addr} 设备异常: {e}")))?;
+            }
+            Area::Coil => {
+                let on = value_to_bool(&value, point_id)?;
+                ctx.write_single_coil(addr, on)
+                    .await
+                    .map_err(|e| GatewayError::Write(format!("coil:{addr} 写入失败: {e}")))?
+                    .map_err(|e| GatewayError::Write(format!("coil:{addr} 设备异常: {e}")))?;
+            }
+            Area::Input | Area::Discrete => {
+                return Err(GatewayError::Unsupported(format!(
+                    "{} 区为只读区，无法写入点位 {point_id}",
+                    area.label()
+                )));
+            }
+        }
+        Ok(())
+    }
+
     fn kind(&self) -> &'static str {
         "modbus"
     }
@@ -228,6 +296,36 @@ mod tests {
         assert_eq!(ranges.len(), 2);
         assert_eq!((ranges[0].0, ranges[0].1), (1, 3)); // 1..=3 合并
         assert_eq!((ranges[1].0, ranges[1].1), (10, 1));
+    }
+
+    #[test]
+    fn decode_read_results_to_scalar_values() {
+        // 双层 Result 均展开：寄存器/线圈值逐个转为标量 JSON 值
+        let res: tokio_modbus::Result<Vec<u16>> = Ok(Ok(vec![1, 2, 3]));
+        let vals = words_to_values(res).unwrap();
+        assert_eq!(vals, vec![serde_json::json!(1), serde_json::json!(2), serde_json::json!(3)]);
+
+        let res: tokio_modbus::Result<Vec<bool>> = Ok(Ok(vec![true, false]));
+        let vals = coils_to_values(res).unwrap();
+        assert_eq!(vals, vec![serde_json::json!(true), serde_json::json!(false)]);
+
+        // 内层设备异常 → Read 错误
+        let res: tokio_modbus::Result<Vec<u16>> = Ok(Err(tokio_modbus::Exception::IllegalFunction));
+        assert!(matches!(words_to_values(res), Err(GatewayError::Read(_))));
+    }
+
+    #[test]
+    fn convert_values_for_write() {
+        assert_eq!(
+            value_to_u16(&serde_json::json!(65535), "holding:0").unwrap(),
+            65535
+        );
+        assert!(value_to_u16(&serde_json::json!(65536), "holding:0").is_err());
+        assert!(value_to_u16(&serde_json::json!(-1), "holding:0").is_err());
+        assert!(value_to_u16(&serde_json::json!("abc"), "holding:0").is_err());
+        assert!(value_to_bool(&serde_json::json!(true), "coil:0").unwrap());
+        assert!(!value_to_bool(&serde_json::json!(0), "coil:0").unwrap());
+        assert!(value_to_bool(&serde_json::json!(2), "coil:0").is_err());
     }
 
     #[test]
