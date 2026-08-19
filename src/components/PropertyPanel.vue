@@ -374,26 +374,57 @@
                 </span>
               </label>
             </div>
-            <!-- 绑定点组列表：每组 = 点ID + 点名称 + 转换函数 + 备注；主点组（第一个）固定不可删 -->
-            <div v-for="(g, idx) in bindingGroups" :key="idx" class="binding-group-card">
+            <!-- 绑定点组列表：每组 = 点ID + 点名称 + 转换函数 + 备注；主点组（第一个）固定不可删；
+                 S7 数据源：点ID 一律经地址生成助手产生（只读展示、点击回填编辑），点组按 DB 块分 tab 展示 -->
+            <div v-if="isS7Source" class="db-tab-bar">
+              <button
+                v-for="tab in dbTabs"
+                :key="tab.key"
+                type="button"
+                class="db-tab"
+                :class="{ active: tab.key === currentDbTabKey }"
+                :title="`${tab.label}：${tab.items.length} 个点位`"
+                @click="activeDbTab = tab.key"
+              >
+                <span>{{ tab.label }}</span>
+                <span class="db-tab-count">{{ tab.items.length }}</span>
+                <span v-if="tab.hasPrimary" class="db-tab-primary" title="主点在此组">主</span>
+              </button>
+            </div>
+            <div v-for="it in visibleBindingItems" :key="it.idx" class="binding-group-card">
               <div class="binding-group-head">
-                <span class="binding-group-tag" :class="{ primary: idx === 0 }">{{ idx === 0 ? '主点' : `附加点 ${idx}` }}</span>
-                <button v-if="idx > 0" type="button" class="extra-point-remove" title="删除该点组" @click="removePointGroup(idx)">×</button>
+                <span class="binding-group-tag" :class="{ primary: it.idx === 0 }">{{ it.idx === 0 ? '主点' : `附加点 ${it.idx}` }}</span>
+                <button v-if="it.idx > 0" type="button" class="extra-point-remove" title="删除该点组" @click="removePointGroup(it.idx)">×</button>
               </div>
-              <!-- 点ID 行：标签 + 输入框 -->
+              <!-- 点ID 行：非 S7 自由输入；S7 只读展示，点击或 ⌗ 按钮打开地址生成助手（回填编辑） -->
               <div class="binding-group-row">
                 <label class="binding-row-label">点ID</label>
                 <input
-                  v-model="g.pointId"
+                  v-if="!isS7Source"
+                  v-model="it.g.pointId"
                   @input="updateBinding"
-                  :placeholder="idx === 0 ? '例如: sensor.temp.001' : '例如: sensor.humi.001'"
+                  :placeholder="it.idx === 0 ? '例如: sensor.temp.001' : '例如: sensor.humi.001'"
                 />
+                <div
+                  v-else
+                  class="s7-pointid-view"
+                  :class="{ empty: !it.g.pointId.trim() }"
+                  title="S7 地址仅能通过生成助手填写，点击编辑"
+                  @click="openS7GenDialog(it.idx)"
+                >{{ it.g.pointId.trim() || '点击通过地址生成助手生成' }}</div>
+                <button
+                  v-if="isS7Source"
+                  type="button"
+                  class="transform-expand-btn"
+                  title="S7 地址生成助手（数据区 + 类型 + 偏移）"
+                  @click="openS7GenDialog(it.idx)"
+                >⌗</button>
               </div>
               <!-- 点名称行：标签 + 输入框（可选，人类可读标识，不参与订阅） -->
               <div class="binding-group-row">
                 <label class="binding-row-label">点名称</label>
                 <input
-                  v-model="g.name"
+                  v-model="it.g.name"
                   @input="updateBinding"
                   placeholder="(可选) 例如: 堆垛机1号温度"
                 />
@@ -402,7 +433,7 @@
               <div class="binding-group-row">
                 <label class="binding-row-label">转换函数</label>
                 <input
-                  v-model="g.transformSource"
+                  v-model="it.g.transformSource"
                   @input="updateBinding"
                   placeholder="(可选) (raw) => Math.round(raw)"
                 />
@@ -410,14 +441,14 @@
                   type="button"
                   class="transform-expand-btn"
                   title="弹出大编辑框（查看/编辑长函数）"
-                  @click="openTransformDialog(idx)"
+                  @click="openTransformDialog(it.idx)"
                 >⤢</button>
               </div>
               <!-- 备注行：标签 + 输入框（可选，纯说明性文字，不参与订阅与运行逻辑） -->
               <div class="binding-group-row">
                 <label class="binding-row-label">备注</label>
                 <input
-                  v-model="g.remark"
+                  v-model="it.g.remark"
                   @input="updateBinding"
                   placeholder="(可选) 例如: DB1 温度传感器，每 5s 校准"
                 />
@@ -594,13 +625,67 @@
             </label>
           </div>
           <div class="import-dialog-summary">
-            <span v-if="importPreview.valid > 0">解析 {{ importPreview.valid }} 个点位<span v-if="importDialog.overwrite">，将覆盖现有 {{ importPreview.existingCount }} 个点组</span><span v-else-if="importPreview.conflict">，与现有点ID 重复跳过 {{ importPreview.conflict }}</span><span v-if="importPreview.duplicate">，文本内重复跳过 {{ importPreview.duplicate }}</span><span v-if="importPreview.skipped">，空行/注释跳过 {{ importPreview.skipped }}</span></span>
+            <span v-if="importPreview.valid > 0">解析 {{ importPreview.valid }} 个点位<span v-if="importDialog.overwrite">，将覆盖现有 {{ importPreview.existingCount }} 个点组</span><span v-else-if="importPreview.conflict">，与现有点ID 重复跳过 {{ importPreview.conflict }}</span><span v-if="importPreview.invalid">，非法 S7 地址跳过 {{ importPreview.invalid }}</span><span v-if="importPreview.duplicate">，文本内重复跳过 {{ importPreview.duplicate }}</span><span v-if="importPreview.skipped">，空行/注释跳过 {{ importPreview.skipped }}</span></span>
             <span v-else class="import-empty-hint">尚未解析出有效点位</span>
             <span v-if="importError" class="import-error">{{ importError }}</span>
           </div>
           <div class="transform-dialog-foot">
             <button type="button" class="transform-dialog-btn" @click="cancelImportDialog">取消</button>
             <button type="button" class="transform-dialog-btn primary" :disabled="importPreview.valid === 0" @click="confirmImportDialog">{{ importPreview.valid > 0 ? `${importDialog.overwrite ? '覆盖导入' : '导入'} ${importPreview.valid} 个点位` : '导入' }}</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- S7 地址生成助手对话框：点组卡片点ID 行 ⌗ 按钮打开（仅 S7 数据源）；
+         草稿模式——确定才写回点组 pointId，取消/遮罩点击/Esc 丢弃 -->
+    <Teleport to="body">
+      <div v-if="s7GenDialog" class="transform-dialog-mask" @click.self="cancelS7GenDialog">
+        <div class="transform-dialog s7-gen-dialog" role="dialog" aria-modal="true" aria-label="S7 地址生成助手">
+          <div class="transform-dialog-head">
+            <h4>
+              S7 地址生成助手
+              <span class="binding-group-tag" :class="{ primary: s7GenDialog.groupIdx === 0 }">
+                {{ s7GenDialog.groupIdx === 0 ? '主点' : `附加点 ${s7GenDialog.groupIdx}` }}
+              </span>
+            </h4>
+            <button type="button" class="transform-dialog-close" title="关闭（不写入）" @click="cancelS7GenDialog">×</button>
+          </div>
+          <div class="s7-gen-form">
+            <div class="s7-gen-row">
+              <label class="s7-gen-field">数据区
+                <select :value="s7GenDialog.area" class="s7-gen-input" @change="setS7GenArea(($event.target as HTMLSelectElement).value as S7Area)">
+                  <option v-for="a in S7_AREAS" :key="a" :value="a">{{ a }}</option>
+                </select>
+              </label>
+              <!-- DB 块号仅 DB 区需要；M/I/Q 区地址不含块号 -->
+              <label v-if="s7GenDialog.area === 'DB'" class="s7-gen-field">DB 块号
+                <input v-model.number="s7GenDialog.db" type="number" min="1" class="s7-gen-input" />
+              </label>
+              <label class="s7-gen-field">数据类型
+                <select v-model="s7GenDialog.type" class="s7-gen-input">
+                  <option v-for="t in (s7GenDialog.area === 'DB' ? S7_GEN_TYPES : S7_IO_TYPES)" :key="t" :value="t">{{ t }}</option>
+                </select>
+              </label>
+            </div>
+            <div class="s7-gen-row">
+              <label class="s7-gen-field">字节偏移
+                <input v-model.number="s7GenDialog.offset" type="number" min="0" class="s7-gen-input" />
+              </label>
+              <!-- 位号仅 BOOL（DB 位地址 DB{n},X{字节}.{位}；M/I/Q 位地址 {区}{字节}.{位}）时可见 -->
+              <label v-if="s7GenDialog.type === 'BOOL'" class="s7-gen-field">位号
+                <select v-model.number="s7GenDialog.bit" class="s7-gen-input">
+                  <option v-for="b in 8" :key="b - 1" :value="b - 1">{{ b - 1 }}</option>
+                </select>
+              </label>
+            </div>
+            <div class="s7-gen-preview">
+              预览：<span class="s7-gen-addr">{{ s7GenPreview || '参数不完整' }}</span>
+            </div>
+          </div>
+          <div class="transform-dialog-foot">
+            <button type="button" class="transform-dialog-btn" @click="cancelS7GenDialog">取消</button>
+            <button type="button" class="transform-dialog-btn primary" :disabled="!s7GenPreview" @click="confirmS7GenDialog">写入点ID</button>
           </div>
         </div>
       </div>
@@ -643,6 +728,17 @@ import {
   type DataSourceType,
 } from '@/stores/dataSource'
 import { parsePointImportText, rowsToImportDraft } from '@/utils/pointImport'
+import {
+  buildS7Address,
+  parseS7Address,
+  isValidS7Address,
+  extractDbPrefix,
+  S7_AREAS,
+  S7_GEN_TYPES,
+  S7_IO_TYPES,
+  type S7Area,
+  type S7GenType,
+} from '@/utils/s7Address'
 
 // ===================== 依赖注入 =====================
 const editorStore = useEditorStore()
@@ -808,12 +904,61 @@ function confirmTransformDialog() {
   }
   transformDialog.value = null
 }
-/** 任一编辑对话框（转换函数/导入点位）打开期间 Esc 关闭（不保存）；
+
+// ===================== S7 地址生成助手对话框（S7 源点ID 唯一录入入口：点ID 行点击/⌗ 按钮打开） =====================
+/** 生成对话框状态（null = 未打开；草稿模式，确定才写回点组 pointId；area 支持 DB/M/I/Q 四区） */
+const s7GenDialog = ref<{
+  groupIdx: number
+  area: S7Area
+  db: number
+  type: S7GenType
+  offset: number
+  bit: number
+} | null>(null)
+/** 打开生成对话框：现有点ID 可反解析时回填各字段（编辑），否则缺省 DB1/REAL/偏移0/位0 */
+function openS7GenDialog(idx: number) {
+  const parsed = parseS7Address(bindingGroups.value[idx]?.pointId ?? '')
+  s7GenDialog.value = parsed
+    ? { groupIdx: idx, area: parsed.area, db: parsed.db || 1, type: parsed.type, offset: parsed.offset, bit: parsed.bit ?? 0 }
+    : { groupIdx: idx, area: 'DB', db: 1, type: 'REAL', offset: 0, bit: 0 }
+}
+/** 切换数据区：M/I/Q 区不支持的类型自动回退 BYTE（避免预览永空） */
+function setS7GenArea(area: S7Area) {
+  const dlg = s7GenDialog.value
+  if (!dlg) return
+  dlg.area = area
+  if (area !== 'DB' && !(S7_IO_TYPES as readonly string[]).includes(dlg.type)) dlg.type = 'BYTE'
+}
+/** 取消/关闭：丢弃草稿，不写回 */
+function cancelS7GenDialog() {
+  s7GenDialog.value = null
+}
+/** 实时预览：按表单参数拼接合法地址，非法时为空串（确定按钮禁用） */
+const s7GenPreview = computed(() => {
+  const dlg = s7GenDialog.value
+  if (!dlg) return ''
+  return buildS7Address({ area: dlg.area, db: dlg.db, type: dlg.type, offset: dlg.offset, bit: dlg.type === 'BOOL' ? dlg.bit : undefined })
+})
+/** 确定：预览地址写入对应点组 pointId 并立即提交绑定 */
+function confirmS7GenDialog() {
+  const dlg = s7GenDialog.value
+  if (!dlg) return
+  const addr = s7GenPreview.value
+  const g = bindingGroups.value[dlg.groupIdx]
+  if (addr && g) {
+    g.pointId = addr
+    updateBinding()
+  }
+  s7GenDialog.value = null
+}
+
+/** 任一编辑对话框（转换函数/导入点位/地址生成）打开期间 Esc 关闭（不保存）；
  * importDialog 定义见下方「点位导入对话框」区块 */
 function onDialogKeydown(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
   if (transformDialog.value) cancelTransformDialog()
   else if (importDialog.value) cancelImportDialog()
+  else if (s7GenDialog.value) cancelS7GenDialog()
 }
 onBeforeUnmount(() => {
   // 兜底清理对话框 Esc 监听，避免残留 document 监听器
@@ -828,9 +973,9 @@ const importError = ref('')
 // 非 Tauri 环境降级的隐藏 file input
 const importFileInputRef = ref<HTMLInputElement | null>(null)
 
-// 任一对话框打开期间挂 Esc 关闭监听（watch 需在 importDialog 声明之后）
-watch([transformDialog, importDialog], ([t, i]) => {
-  if (t || i) document.addEventListener('keydown', onDialogKeydown)
+// 任一对话框打开期间挂 Esc 关闭监听（watch 需在 importDialog/s7GenDialog 声明之后）
+watch([transformDialog, importDialog, s7GenDialog], ([t, i, s]) => {
+  if (t || i || s) document.addEventListener('keydown', onDialogKeydown)
   else document.removeEventListener('keydown', onDialogKeydown)
 })
 
@@ -845,30 +990,35 @@ function cancelImportDialog() {
   importError.value = ''
 }
 
-/** 导入预览：解析草稿 + 统计与现有点组的关系（追加模式统计冲突跳过；覆盖模式统计将被替换的点组数） */
+/** 导入预览：解析草稿 + 统计与现有点组的关系（S7 源先严格校验地址；追加模式统计冲突跳过；覆盖模式统计将被替换的点组数） */
 const importPreview = computed(() => {
   const dlg = importDialog.value
-  if (!dlg) return { valid: 0, conflict: 0, duplicate: 0, skipped: 0, existingCount: 0 }
-  const { points, skippedLines, duplicateLines } = parsePointImportText(dlg.draft)
+  if (!dlg) return { valid: 0, conflict: 0, duplicate: 0, skipped: 0, invalid: 0, existingCount: 0 }
+  const { points: rawPoints, skippedLines, duplicateLines } = parsePointImportText(dlg.draft)
+  // S7 源点ID 一律经助手产生，导入同样严格校验：非法地址（含数组点）跳过并计数
+  const points = isS7Source.value ? rawPoints.filter((p) => isValidS7Address(p.pointId)) : rawPoints
+  const invalid = rawPoints.length - points.length
   const existing = new Set(bindingGroups.value.map((g) => g.pointId.trim()).filter(Boolean))
   const existingCount = existing.size
   if (dlg.overwrite) {
     // 覆盖模式：全部解析点有效，无冲突概念
-    return { valid: points.length, conflict: 0, duplicate: duplicateLines, skipped: skippedLines, existingCount }
+    return { valid: points.length, conflict: 0, duplicate: duplicateLines, skipped: skippedLines, invalid, existingCount }
   }
   const fresh = points.filter((p) => !existing.has(p.pointId))
-  return { valid: fresh.length, conflict: points.length - fresh.length, duplicate: duplicateLines, skipped: skippedLines, existingCount }
+  return { valid: fresh.length, conflict: points.length - fresh.length, duplicate: duplicateLines, skipped: skippedLines, invalid, existingCount }
 })
 
 /**
  * 确定：解析草稿并按所选方式写入点组列表后立即提交绑定。
+ * - S7 源：非法地址行先过滤（与预览计数一致）；
  * - 追加（缺省）：与现有点ID 重复的导入点跳过；主点组为空时首个导入点占用主点组，其余追加；
  * - 覆盖：点组列表整体替换为导入内容（首个导入点即主点，原转换函数等一并清除）
  */
 function confirmImportDialog() {
   const dlg = importDialog.value
   if (!dlg) return
-  const { points } = parsePointImportText(dlg.draft)
+  const { points: rawPoints } = parsePointImportText(dlg.draft)
+  const points = isS7Source.value ? rawPoints.filter((p) => isValidS7Address(p.pointId)) : rawPoints
   const toDraft = (p: { pointId: string; name?: string; remark?: string }) => ({
     pointId: p.pointId, name: p.name ?? '', transformSource: '', remark: p.remark ?? '',
   })
@@ -1037,9 +1187,10 @@ async function downloadImportTemplate() {
 /** 主点 ID 是否已填写（驱动绑定状态提示） */
 const hasPrimaryPoint = computed(() => !!bindingGroups.value[0]?.pointId.trim())
 
-/** 添加一个空的点组（点ID + 点名称 + 转换函数 + 备注） */
+/** 添加一个空的点组；S7 数据源下点ID 禁手输，新建后直接打开地址生成助手（取消则保留空组可删） */
 function addPointGroup() {
   bindingGroups.value.push({ pointId: '', name: '', transformSource: '', remark: '' })
+  if (isS7Source.value) openS7GenDialog(bindingGroups.value.length - 1)
 }
 
 /** 删除指定附加点组（主点组 idx=0 不允许删除）并立即同步绑定 */
@@ -1064,6 +1215,73 @@ function typeLabel(type: DataSourceType): string {
 const selectedDataSource = computed(() =>
   bindingSourceId.value ? dataSourceStore.getDataSource(bindingSourceId.value) ?? null : null
 )
+
+// ===================== S7 点组按 DB 块分 tab 展示（纯展示层，数据顺序与提交逻辑零变化） ====================
+/** 当前数据源是否 S7 协议（驱动点ID 只读化、地址生成助手与 DB 块 tab 分组） */
+const isS7Source = computed(() => selectedDataSource.value?.type === 's7')
+
+/** 非 DB 前缀点位（M/I/Q 区等）的归组键（「其他点位」tab，置尾） */
+const S7_OTHER_GROUP_KEY = '__other__'
+
+/** 点组的归组键：按点 ID 的 DB 前缀，非 DB 地址归「其他点位」 */
+function s7GroupKeyOf(pointId: string): string {
+  return extractDbPrefix(pointId) ?? S7_OTHER_GROUP_KEY
+}
+
+/** DB 块 tab：点组按 DB 前缀归组，主点（idx=0）所在 tab 固定第一，其余按首次出现顺序，「其他点位」置尾 */
+interface DbTab {
+  key: string
+  label: string
+  items: { g: BindingGroupDraft; idx: number }[]
+  hasPrimary: boolean
+}
+const dbTabs = computed<DbTab[]>(() => {
+  const order: string[] = []
+  const items = new Map<string, { g: BindingGroupDraft; idx: number }[]>()
+  bindingGroups.value.forEach((g, idx) => {
+    const key = s7GroupKeyOf(g.pointId)
+    if (!items.has(key)) {
+      items.set(key, [])
+      order.push(key)
+    }
+    items.get(key)!.push({ g, idx })
+  })
+  const primaryKey = s7GroupKeyOf(bindingGroups.value[0]?.pointId ?? '')
+  const sorted = [
+    primaryKey,
+    ...order.filter((k) => k !== primaryKey && k !== S7_OTHER_GROUP_KEY),
+    ...(items.has(S7_OTHER_GROUP_KEY) && primaryKey !== S7_OTHER_GROUP_KEY ? [S7_OTHER_GROUP_KEY] : []),
+  ]
+  const tabs: DbTab[] = []
+  for (const key of sorted) {
+    const list = items.get(key)
+    if (!list || list.length === 0) continue
+    tabs.push({
+      key,
+      label: key === S7_OTHER_GROUP_KEY ? '其他点位' : key,
+      items: list,
+      hasPrimary: list.some((it) => it.idx === 0),
+    })
+  }
+  return tabs
+})
+
+/** 当前激活的 DB 块 tab（点击切换；不存在时回退首个 tab，即主点所在组） */
+const activeDbTab = ref('')
+const currentDbTabKey = computed(() =>
+  dbTabs.value.some((t) => t.key === activeDbTab.value) ? activeDbTab.value : (dbTabs.value[0]?.key ?? '')
+)
+
+/**
+ * 当前可见的点组：S7 源取激活 tab 内的点组（同一对象引用，编辑仍原地生效），
+ * 非 S7 源为全部点组（扁平渲染）。卡片内编辑点名称/转换函数/备注不改变归组，无跨 tab 迁移。
+ */
+const visibleBindingItems = computed(() => {
+  const all = bindingGroups.value.map((g, idx) => ({ g, idx }))
+  if (!isS7Source.value) return all
+  const key = currentDbTabKey.value
+  return all.filter((it) => s7GroupKeyOf(it.g.pointId) === key)
+})
 
 // ===================== 事件规则（逻辑抽取至 useNodeEvents composable） =====================
 const { eventsDraft, addEventRule, removeEventRule } = useNodeEvents(getGraph, activeTab)
@@ -1112,6 +1330,8 @@ watch(
       // 切换选中节点时关闭编辑对话框（转换函数/导入点位），避免草稿写回错误的节点
       transformDialog.value = null
       importDialog.value = null
+      s7GenDialog.value = null
+      activeDbTab.value = ''
       if (!newId || !newElement || newElement.type !== 'node') {
         bindingSourceId.value = ''
         bindingGroups.value = [{ pointId: '', name: '', transformSource: '', remark: '' }]
@@ -2335,6 +2555,119 @@ onBeforeUnmount(() => {
   margin: 0;
   accent-color: var(--color-primary);
   cursor: pointer;
+}
+/* S7 点组按 DB 块分组的 tab 条（仅 S7 数据源渲染） */
+.db-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.db-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--statusbar-bg);
+  border: 1px solid var(--divider-color, var(--border-light));
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+.db-tab:hover {
+  border-color: var(--color-primary);
+}
+.db-tab.active {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--panel-bg);
+  font-weight: 600;
+}
+.db-tab-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.db-tab-primary {
+  font-size: 10px;
+  padding: 0 3px;
+  border-radius: 3px;
+  color: #fff;
+  background: var(--color-primary);
+}
+/* S7 点ID 只读展示框（仅能经地址生成助手填写，点击打开助手回填编辑） */
+.s7-pointid-view {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background: var(--statusbar-bg);
+  border: 1px dashed var(--input-border, var(--border-color));
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color 0.2s;
+}
+.s7-pointid-view:hover {
+  border-color: var(--color-primary);
+}
+.s7-pointid-view.empty {
+  font-family: inherit;
+  color: var(--text-muted);
+}
+/* S7 地址生成助手对话框表单 */
+.s7-gen-dialog {
+  width: min(420px, calc(100vw - 48px));
+}
+.s7-gen-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+.s7-gen-row {
+  display: flex;
+  gap: 10px;
+}
+.s7-gen-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.s7-gen-input {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 13px;
+  border: 1px solid var(--input-border, var(--border-color));
+  border-radius: var(--radius-sm);
+  background: var(--input-bg, var(--panel-bg));
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.s7-gen-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-ring);
+}
+.s7-gen-preview {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  background: var(--statusbar-bg);
+  border-radius: var(--radius-sm);
+}
+.s7-gen-addr {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-primary);
 }
 
 /* ===================== 画布属性区块样式 ===================== */
