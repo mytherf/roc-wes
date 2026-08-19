@@ -227,7 +227,7 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, s
       cell.setSize(iconModeSizeFor(data))
     }
   },
-  // 移除节点：释放点 ID（含绑定的全部点位：主点 + 附加点）并清理订阅与路线覆盖层
+  // 移除节点：释放点 ID（含绑定的全部点组）并清理订阅与路线覆盖层
   onNodeRemoved: (cell) => {
     const data = cell.getData()
     // 取消数据订阅（避免残留回调持续写入已删除节点）

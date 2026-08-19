@@ -38,6 +38,8 @@ export function useDataService() {
   const nodeServiceKeys = new Map<string, string>()
   // 存储节点 ID → 已订阅点 ID 列表的映射（多点绑定，用于清理）
   const nodeDataSubscriptions = new Map<string, string[]>()
+  // 存储节点 ID → 当前生效画面点 ID 的映射（rebindIfChanged 比对用）
+  const nodeDisplayKeys = new Map<string, string>()
 
   /**
    * 根据数据源配置获取或创建数据服务实例
@@ -75,7 +77,7 @@ export function useDataService() {
 
   /**
    * 归一化绑定点组列表：取 points（点 ID + 点名称 + 转换函数 + 备注成组，去重去空）。
-   * 返回列表首项即主点组（节点渲染值由它驱动）
+   * 点组地位平等；驱动节点渲染的画面点由 binding.display 指定（见 resolveDisplayPointId）。
    */
   function resolveBindingPoints(binding: DataBindingConfig): ResolvedBindingPoint[] {
     const seen = new Set<string>()
@@ -108,9 +110,19 @@ export function useDataService() {
   }
 
   /**
-   * 为节点绑定数据源（支持多点组：每组 = 点 ID + 点名称 + 转换函数 + 备注；points[0] 为主点组）
-   * - 主点更新写入 node.data.value（并附带 _timestamp / _quality），驱动节点渲染
-   * - 所有点（含主点）同步写入 node.data.values[pointId]，供详情/扩展使用
+   * 解析画面点 ID：binding.display.pointId 在点组中有效时用它，
+   * 否则回落首个点组（旧存档无 display 时行为与历史完全一致）
+   */
+  function resolveDisplayPointId(binding: DataBindingConfig, points: ResolvedBindingPoint[]): string {
+    const pid = binding.display?.pointId?.trim()
+    if (pid && points.some((p) => p.pointId === pid)) return pid
+    return points[0]?.pointId ?? ''
+  }
+
+  /**
+   * 为节点绑定数据源（支持多点组：每组 = 点 ID + 点名称 + 转换函数 + 备注；点组地位平等）
+   * - 画面点（display.pointId，缺省回落首个点组）更新写入 node.data.value（并附带 _timestamp / _quality），驱动节点渲染
+   * - 所有点（含画面点）同步写入 node.data.values[pointId]，供详情/扩展使用
    *   （rawValue 为转换函数应用前的原始值，供详情弹窗对照展示）
    * - 每个点使用自己组内的转换函数
    */
@@ -147,7 +159,7 @@ export function useDataService() {
     // 记录该节点使用的服务 key（类型 + 地址 + 配置）
     nodeServiceKeys.set(node.id, serviceKey(sourceType, sourceUrl, sourceConfig))
 
-    const primaryPointId = points[0].pointId
+    const primaryPointId = resolveDisplayPointId(binding, points)
     for (const p of points) {
       // 每个点编译自己组内的转换函数
       const transform = compileTransform(p.transformSource)
@@ -164,7 +176,7 @@ export function useDataService() {
             [p.pointId]: { value: converted, rawValue: point.value, timestamp: point.timestamp, quality: point.quality },
           },
         }
-        // 主点：转换后的值写入 data.value 驱动节点渲染（保持既有行为与事件评估）
+        // 画面点：转换后的值写入 data.value 驱动节点渲染（保持既有行为与事件评估）
         if (p.pointId === primaryPointId) {
           nextData.value = converted
           nextData._rawValue = point.value
@@ -178,17 +190,19 @@ export function useDataService() {
     }
 
     nodeDataSubscriptions.set(node.id, points.map((p) => p.pointId))
+    nodeDisplayKeys.set(node.id, primaryPointId)
   }
 
   /**
-   * 若节点的绑定点列表与当前已订阅的点 ID 列表不一致，则重新绑定
-   * 用于属性面板修改绑定配置后自动切换数据源（避免每次数据更新都重复订阅）
+   * 若节点的绑定点列表或画面点配置与当前已订阅状态不一致，则重新绑定
+   * 用于属性面板修改绑定配置后自动切换数据源/画面点（避免每次数据更新都重复订阅）
    */
   function rebindIfChanged(node: Node) {
     const data = node.getData()
-    const currentKey = (nodeDataSubscriptions.get(node.id) || []).join('|')
+    const currentKey = (nodeDataSubscriptions.get(node.id) || []).join('|') + '#' + nodeDisplayKeys.get(node.id)
     const binding = data?.binding as DataBindingConfig | undefined
-    const newKey = binding && Array.isArray(binding.points) ? resolveBindingPoints(binding).map((p) => p.pointId).join('|') : ''
+    const points = binding && Array.isArray(binding.points) ? resolveBindingPoints(binding) : []
+    const newKey = points.map((p) => p.pointId).join('|') + '#' + (points.length ? resolveDisplayPointId(binding!, points) : '')
     if (currentKey !== newKey) {
       bindNodeData(node)
     }
@@ -209,6 +223,7 @@ export function useDataService() {
       }
       nodeDataSubscriptions.delete(nodeId)
       nodeServiceKeys.delete(nodeId)
+      nodeDisplayKeys.delete(nodeId)
     }
   }
 
@@ -239,6 +254,7 @@ export function useDataService() {
     }
     nodeDataSubscriptions.clear()
     nodeServiceKeys.clear()
+    nodeDisplayKeys.clear()
   }
 
   /**

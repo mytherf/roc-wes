@@ -369,13 +369,29 @@
                 <span class="field-help-wrap">
                   <button type="button" class="field-help-btn" :aria-expanded="fieldHelpOpen === 'point'" title="点ID 说明" @click="toggleFieldHelp('point')">?</button>
                   <div v-if="fieldHelpOpen === 'point'" class="field-help-pop" role="note">
-                    点ID、点名称、转换函数与备注为一组，按组添加/删除。主点组（第一个）固定不可删，驱动节点画面；附加点组实时值见节点详情。
+                    点ID、点名称、转换函数与备注为一组，按组添加/删除；「画面点」单独指定（缺省首个点组），驱动节点画面，其余点实时值见节点详情。
                   </div>
                 </span>
               </label>
             </div>
-            <!-- 绑定点组列表：每组 = 点ID + 点名称 + 转换函数 + 备注；主点组（第一个）固定不可删；
+            <button type="button" class="add-extra-point-btn" @click="addPointGroup">＋ 添加点组（点ID + 点名称 + 转换函数 + 备注）</button>
+            <!-- 导入点位：批量粘贴或从 txt/csv 文件导入点组（对话框内确认后合并） -->
+            <button type="button" class="add-extra-point-btn import-points-btn" title="批量导入点组（粘贴文本或选择 txt/csv 文件）" @click="openImportDialog">⇪ 导入点位（批量）</button>
+
+            <!-- 绑定点组列表：点组从零开始（仅添加/导入产生），全部可删、地位平等；
+                 画面点由下方「画面驱动」单独指定（缺省首个点组）；
                  S7 数据源：点ID 一律经地址生成助手产生（只读展示、点击回填编辑），点组按 DB 块分 tab 展示 -->
+            <!-- 画面驱动：选择驱动节点画面（data.value）的点组；等于首个点组时不写入存档（运行期缺省即回落首点） -->
+            <div v-if="watchFieldOptions.length" class="display-point-section">
+              <div class="section-divider">画面驱动</div>
+              <div class="field">
+                <label>画面点</label>
+                <select v-model="displayPointId" @change="updateBinding">
+                  <option v-for="g in watchFieldOptions" :key="g.pointId" :value="g.pointId" :title="g.pointId">{{ g.label }}</option>
+                </select>
+              </div>
+            </div>
+            <div v-if="bindingGroups.length === 0" class="empty-hint">暂无点组，点击下方按钮添加或导入</div>
             <div v-if="isS7Source" class="db-tab-bar">
               <button
                 v-for="tab in dbTabs"
@@ -388,13 +404,14 @@
               >
                 <span>{{ tab.label }}</span>
                 <span class="db-tab-count">{{ tab.items.length }}</span>
-                <span v-if="tab.hasPrimary" class="db-tab-primary" title="主点在此组">主</span>
+                <span v-if="tab.hasDisplay" class="db-tab-primary" title="画面点在此组">画面</span>
               </button>
             </div>
             <div v-for="it in visibleBindingItems" :key="it.idx" class="binding-group-card">
               <div class="binding-group-head">
-                <span class="binding-group-tag" :class="{ primary: it.idx === 0 }">{{ it.idx === 0 ? '主点' : `附加点 ${it.idx}` }}</span>
-                <button v-if="it.idx > 0" type="button" class="extra-point-remove" title="删除该点组" @click="removePointGroup(it.idx)">×</button>
+                <span class="binding-group-tag">点组 {{ it.idx + 1 }}</span>
+                <span v-if="isDisplayPoint(it.g.pointId)" class="binding-group-tag display" title="该点组驱动节点画面">画面</span>
+                <button type="button" class="extra-point-remove" title="删除该点组" @click="removePointGroup(it.idx)">×</button>
               </div>
               <!-- 点ID 行：非 S7 自由输入；S7 只读展示，点击或 ⌗ 按钮打开地址生成助手（回填编辑） -->
               <div class="binding-group-row">
@@ -403,7 +420,7 @@
                   v-if="!isS7Source"
                   v-model="it.g.pointId"
                   @input="updateBinding"
-                  :placeholder="it.idx === 0 ? '例如: sensor.temp.001' : '例如: sensor.humi.001'"
+                  placeholder="例如: sensor.temp.001"
                 />
                 <div
                   v-else
@@ -454,13 +471,10 @@
                 />
               </div>
             </div>
-            <button type="button" class="add-extra-point-btn" @click="addPointGroup">＋ 添加点组（点ID + 点名称 + 转换函数 + 备注）</button>
-            <!-- 导入点位：批量粘贴或从 txt/csv 文件导入点组（对话框内确认后合并） -->
-            <button type="button" class="add-extra-point-btn import-points-btn" title="批量导入点组（粘贴文本或选择 txt/csv 文件）" @click="openImportDialog">⇪ 导入点位（批量）</button>
             <div class="binding-status">
-              <span v-if="hasPrimaryPoint && !bindingSourceId" class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
-              <span v-else-if="hasPrimaryPoint" class="status-active">✅ 已启用数据绑定</span>
-              <span v-else class="status-inactive">⏸ 未启用（请填写主点ID）</span>
+              <span v-if="hasAnyPoint && !bindingSourceId" class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
+              <span v-else-if="hasAnyPoint" class="status-active">✅ 已启用数据绑定</span>
+              <span v-else class="status-inactive">⏸ 未启用（请添加点组）</span>
             </div>
           </div>
 
@@ -575,8 +589,8 @@
           <div class="transform-dialog-head">
             <h4>
               编辑转换函数
-              <span class="binding-group-tag" :class="{ primary: transformDialog.groupIdx === 0 }">
-                {{ transformDialog.groupIdx === 0 ? '主点' : `附加点 ${transformDialog.groupIdx}` }}
+              <span class="binding-group-tag">
+                点组 {{ transformDialog.groupIdx + 1 }}
               </span>
             </h4>
             <button type="button" class="transform-dialog-close" title="关闭（不保存）" @click="cancelTransformDialog">×</button>
@@ -620,7 +634,7 @@
             <label class="import-mode-option" title="保留现有点位，与现有点ID 重复的导入点自动跳过">
               <input type="radio" v-model="importDialog.overwrite" :value="false" />追加
             </label>
-            <label class="import-mode-option" title="清空现有点组，以导入内容为准（首个导入点为主点）">
+            <label class="import-mode-option" title="清空现有点组，以导入内容为准">
               <input type="radio" v-model="importDialog.overwrite" :value="true" />覆盖现有点组
             </label>
           </div>
@@ -645,8 +659,8 @@
           <div class="transform-dialog-head">
             <h4>
               S7 地址生成助手
-              <span class="binding-group-tag" :class="{ primary: s7GenDialog.groupIdx === 0 }">
-                {{ s7GenDialog.groupIdx === 0 ? '主点' : `附加点 ${s7GenDialog.groupIdx}` }}
+              <span class="binding-group-tag">
+                点组 {{ s7GenDialog.groupIdx + 1 }}
               </span>
             </h4>
             <button type="button" class="transform-dialog-close" title="关闭（不写入）" @click="cancelS7GenDialog">×</button>
@@ -763,7 +777,7 @@ const element = computed(() => editorStore.selectedElement)
 // 展开态下拖动面板左缘手柄即可调整宽度；折叠态不适用（固定 32px 窄条）
 const PANEL_WIDTH_MIN = 200
 const PANEL_WIDTH_MAX = 600
-const PANEL_WIDTH_DEFAULT = 240
+const PANEL_WIDTH_DEFAULT = 300
 
 /** 当前面板宽度（像素） */
 const panelWidth = ref(PANEL_WIDTH_DEFAULT)
@@ -873,15 +887,27 @@ const activeTab = ref<PanelTab>('basic')
 // 数据源实例 ID（空字符串 = 未选择；必须选择数据源管理中维护的实例）
 const bindingSourceId = ref('')
 
-/** 绑定点组草稿：点 ID、点名称、转换函数与备注为一组（bindingGroups[0] 为主点组，固定不可删） */
+/** 绑定点组草稿：点 ID、点名称、转换函数与备注为一组（点组地位平等、全部可删） */
 interface BindingGroupDraft {
   pointId: string
   name: string
   transformSource: string
   remark: string
 }
-// 点组列表（按组添加/删除；数据写入 data.values[pointId]，主点额外驱动 data.value）
-const bindingGroups = ref<BindingGroupDraft[]>([{ pointId: '', name: '', transformSource: '', remark: '' }])
+// 点组列表（从零开始，仅添加/导入产生；数据写入 data.values[pointId]，画面点额外驱动 data.value）
+const bindingGroups = ref<BindingGroupDraft[]>([])
+// 画面点草稿：驱动节点画面的点ID（空 = 缺省回落首个点组，不写入存档）
+const displayPointId = ref('')
+/** 判断某点ID 是否为当前生效画面点（显式指定或缺省回落首个有效点组） */
+function isDisplayPoint(pointId: string): boolean {
+  const pid = pointId.trim()
+  if (!pid) return false
+  const first = watchFieldOptions.value[0]?.pointId ?? ''
+  const eff = displayPointId.value && watchFieldOptions.value.some((o) => o.pointId === displayPointId.value)
+    ? displayPointId.value
+    : first
+  return pid === eff
+}
 
 /** 转换函数编辑对话框状态（null = 未打开；draft 为编辑草稿，确定才写回点组） */
 const transformDialog = ref<{ groupIdx: number; draft: string } | null>(null)
@@ -1011,8 +1037,9 @@ const importPreview = computed(() => {
 /**
  * 确定：解析草稿并按所选方式写入点组列表后立即提交绑定。
  * - S7 源：非法地址行先过滤（与预览计数一致）；
- * - 追加（缺省）：与现有点ID 重复的导入点跳过；主点组为空时首个导入点占用主点组，其余追加；
- * - 覆盖：点组列表整体替换为导入内容（首个导入点即主点，原转换函数等一并清除）
+ * - 追加（缺省）：与现有点ID 重复的导入点跳过，其余追加；
+ * - 覆盖：点组列表整体替换为导入内容（原转换函数等一并清除）；
+ * - 导入后画面点无效/未设时由 updateBinding 回落首个点组
  */
 function confirmImportDialog() {
   const dlg = importDialog.value
@@ -1035,9 +1062,6 @@ function confirmImportDialog() {
   if (dlg.overwrite) {
     bindingGroups.value = drafts
   } else {
-    if (!bindingGroups.value[0]?.pointId.trim()) {
-      bindingGroups.value[0] = drafts.shift()!
-    }
     bindingGroups.value.push(...drafts)
   }
   updateBinding()
@@ -1184,8 +1208,8 @@ async function downloadImportTemplate() {
   }
 }
 
-/** 主点 ID 是否已填写（驱动绑定状态提示） */
-const hasPrimaryPoint = computed(() => !!bindingGroups.value[0]?.pointId.trim())
+/** 是否存在至少一个点ID 非空的点组（驱动绑定状态提示） */
+const hasAnyPoint = computed(() => bindingGroups.value.some((g) => !!g.pointId.trim()))
 
 /** 添加一个空的点组；S7 数据源下点ID 禁手输，新建后直接打开地址生成助手（取消则保留空组可删） */
 function addPointGroup() {
@@ -1193,9 +1217,8 @@ function addPointGroup() {
   if (isS7Source.value) openS7GenDialog(bindingGroups.value.length - 1)
 }
 
-/** 删除指定附加点组（主点组 idx=0 不允许删除）并立即同步绑定 */
+/** 删除指定点组（全部可删）并立即同步绑定；删除后画面点无效时自动顺延首个点组（由 updateBinding 回落实现） */
 function removePointGroup(idx: number) {
-  if (idx <= 0) return
   bindingGroups.value.splice(idx, 1)
   updateBinding()
 }
@@ -1228,12 +1251,12 @@ function s7GroupKeyOf(pointId: string): string {
   return extractDbPrefix(pointId) ?? S7_OTHER_GROUP_KEY
 }
 
-/** DB 块 tab：点组按 DB 前缀归组，主点（idx=0）所在 tab 固定第一，其余按首次出现顺序，「其他点位」置尾 */
+/** DB 块 tab：点组按 DB 前缀归组，按首次出现顺序排列，「其他点位」置尾；画面点所在 tab 带「画面」徽标 */
 interface DbTab {
   key: string
   label: string
   items: { g: BindingGroupDraft; idx: number }[]
-  hasPrimary: boolean
+  hasDisplay: boolean
 }
 const dbTabs = computed<DbTab[]>(() => {
   const order: string[] = []
@@ -1246,11 +1269,10 @@ const dbTabs = computed<DbTab[]>(() => {
     }
     items.get(key)!.push({ g, idx })
   })
-  const primaryKey = s7GroupKeyOf(bindingGroups.value[0]?.pointId ?? '')
+  // 首次出现顺序；「其他点位」置尾（点组已无从属语义，画面 tab 不强制置前）
   const sorted = [
-    primaryKey,
-    ...order.filter((k) => k !== primaryKey && k !== S7_OTHER_GROUP_KEY),
-    ...(items.has(S7_OTHER_GROUP_KEY) && primaryKey !== S7_OTHER_GROUP_KEY ? [S7_OTHER_GROUP_KEY] : []),
+    ...order.filter((k) => k !== S7_OTHER_GROUP_KEY),
+    ...(items.has(S7_OTHER_GROUP_KEY) ? [S7_OTHER_GROUP_KEY] : []),
   ]
   const tabs: DbTab[] = []
   for (const key of sorted) {
@@ -1260,13 +1282,13 @@ const dbTabs = computed<DbTab[]>(() => {
       key,
       label: key === S7_OTHER_GROUP_KEY ? '其他点位' : key,
       items: list,
-      hasPrimary: list.some((it) => it.idx === 0),
+      hasDisplay: list.some((it) => isDisplayPoint(it.g.pointId)),
     })
   }
   return tabs
 })
 
-/** 当前激活的 DB 块 tab（点击切换；不存在时回退首个 tab，即主点所在组） */
+/** 当前激活的 DB 块 tab（点击切换；不存在时回退首个 tab） */
 const activeDbTab = ref('')
 const currentDbTabKey = computed(() =>
   dbTabs.value.some((t) => t.key === activeDbTab.value) ? activeDbTab.value : (dbTabs.value[0]?.key ?? '')
@@ -1332,9 +1354,10 @@ watch(
       importDialog.value = null
       s7GenDialog.value = null
       activeDbTab.value = ''
+      displayPointId.value = ''
       if (!newId || !newElement || newElement.type !== 'node') {
         bindingSourceId.value = ''
-        bindingGroups.value = [{ pointId: '', name: '', transformSource: '', remark: '' }]
+        bindingGroups.value = []
         return
       }
       const data = newElement.data
@@ -1355,7 +1378,7 @@ watch(
       }
 
       bindingSourceId.value = binding.sourceId || ''
-      // 点组回填：每组 = 点ID + 点名称 + 转换函数 + 备注；无点组时给一个空主点草稿
+      // 点组回填：每组 = 点ID + 点名称 + 转换函数 + 备注；无点组时列表为空（点组从零）
       if (Array.isArray(binding.points) && binding.points.length > 0) {
         bindingGroups.value = binding.points.map((p: any) => ({
           pointId: p?.pointId ?? '',
@@ -1364,8 +1387,11 @@ watch(
           remark: p?.remark ?? '',
         }))
       } else {
-        bindingGroups.value = [{ pointId: '', name: '', transformSource: '', remark: '' }]
+        bindingGroups.value = []
       }
+      // 画面点回填：仅存档显式指定且仍在点组中时生效，否则空（缺省回落首个点组）
+      const dispId = binding.display?.pointId ?? ''
+      displayPointId.value = bindingGroups.value.some((g) => g.pointId.trim() === dispId.trim()) ? dispId : ''
     },
     { immediate: true }
 )
@@ -1406,18 +1432,23 @@ function updateBinding() {
     seen.add(pid)
     validGroups.push({ pointId: pid, name: g.name.trim(), transformSource: g.transformSource.trim(), remark: g.remark.trim() })
   }
-  const primary = validGroups[0]
 
   let binding: any = null
 
-  // 有主点即提交绑定配置，sourceId 允许后补：
-  // 点位是用户录入的设计数据，若要求"主点 + 数据源同时具备才写入"，
+  // 有点组即提交绑定配置，sourceId 允许后补：
+  // 点位是用户录入的设计数据，若要求"点组 + 数据源同时具备才写入"，
   // ① 未选数据源时录入的点位只存在于面板草稿，切换选中节点即丢失；
   // ② 切换数据源（先置空再改选）会把已录入的点位整段清空。
   // 无 sourceId 的绑定运行期不会订阅——bindNodeData 解析不到数据源即静默返回，
   // 节点保持静态值，语义安全
-  if (primary) {
-    // 点组列表：主点组在前，points[0].pointId 即主点 ID
+  if (validGroups.length > 0) {
+    // 画面点：仅当显式指定且有效、且不等于首个点组时写入 display（缺省回落首点，保持存档精简）；
+    // 画面点所在组被删/失效时 display 不写入 → 运行期与面板徽标同步顺延首个点组
+    const dispId = displayPointId.value.trim()
+    const display =
+      dispId && validGroups.some((g) => g.pointId === dispId) && dispId !== validGroups[0].pointId
+        ? { pointId: dispId }
+        : undefined
     binding = {
       points: validGroups.map((g) => ({
         pointId: g.pointId,
@@ -1426,6 +1457,7 @@ function updateBinding() {
         remark: g.remark || undefined,
       })),
       sourceId: bindingSourceId.value || undefined,
+      display,
     }
   } else {
     binding = undefined
@@ -2303,7 +2335,10 @@ onBeforeUnmount(() => {
 .binding-group-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
+}
+.binding-group-head .extra-point-remove {
+  margin-left: auto;
 }
 .binding-group-tag {
   font-size: 11px;
@@ -2313,9 +2348,13 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm);
   background: var(--border-light);
 }
-.binding-group-tag.primary {
+.binding-group-tag.display {
   color: var(--color-primary);
   background: var(--color-primary-light);
+}
+/* 画面驱动设置区：与点组列表保持紧凑间距 */
+.display-point-section {
+  margin-bottom: 6px;
 }
 .binding-group-card input {
   width: 100%;

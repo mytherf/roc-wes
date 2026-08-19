@@ -52,19 +52,30 @@ export interface BindingPointEntry {
 }
 
 /**
+ * 画面驱动配置：指定驱动节点画面（data.value）的点组。
+ * 缺省或 pointId 不在 points 中时回落首个点组（旧存档完全兼容）；
+ * 后续可扩展多点组合驱动（表达式）等模式。
+ */
+export interface BindingDisplayConfig {
+    /** 驱动画面的点ID（必须是 points 中存在的点ID） */
+    pointId: string
+}
+
+/**
  * 数据绑定配置（存储在节点 data 中）
  * 画布上每个节点都可以配置“绑定哪个数据点”，字段如下：
  */
 export interface DataBindingConfig {
     /**
-     * 全部绑定点组列表：每组 = 点 ID + 转换函数；points[0] 为主点组（属性面板中固定不可删，
-     * 其 pointId 即主点 ID，节点渲染值 data.value 由它驱动），
-     * 其余为用户自由添加/删除的附加点组。
-     * 附加点数据写入 data.values[pointId]，主点同时写入 data.value。
+     * 全部绑定点组列表：每组 = 点 ID + 点名称 + 转换函数 + 备注；点组地位平等、可为空数组，
+     * 顺序无隐式语义。全部点数据写入 data.values[pointId]，
+     * 画面点（display.pointId，缺省回落首个点组）额外写入 data.value 驱动节点渲染。
      */
     points: BindingPointEntry[]
     /** 数据源实例 ID（引用「数据源管理」中创建的实例；为空则不订阅，节点保持静态值） */
     sourceId?: string
     /** 更新间隔（毫秒，仅 HTTP 轮询有效） */
     interval?: number
+    /** 画面驱动配置（可选；缺省回落首个点组） */
+    display?: BindingDisplayConfig
 }

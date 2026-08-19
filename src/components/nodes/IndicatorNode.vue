@@ -6,7 +6,7 @@
      CSS 类名（light-on / light-off / light-warning / light-error）。
      数据字段（useNodeData 声明）：
        - label: 标签文字（默认 指示灯）
-       - value: 灯状态（on/off/warning/error，默认 off；数据绑定主点
+       - value: 灯状态（on/off/warning/error，默认 off；数据绑定画面点
          转换后的值直接写入该字段，无需额外 status 字段）
      组件通过 defineExpose 暴露 setValue()，供外部（如事件脚本）
      动态切换灯的状态。
@@ -49,7 +49,7 @@ const { statusClass, statusText } = useNodeStatus(value, {
   labels: { on: '运行中', off: '已停止', warning: '告警', error: '故障' },
 })
 
-// 暴露更新方法（写入 data.value，与数据绑定主点驱动字段一致）
+// 暴露更新方法（写入 data.value，与数据绑定画面点驱动字段一致）
 defineExpose({ setValue: (s: string) => { value.value = s } })
 </script>
 

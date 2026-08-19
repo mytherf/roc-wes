@@ -6,7 +6,7 @@
        2. 运行数据：按点 ID 分组显示，每组仅展示该点的 value 字段
           （timestamp/quality/rawValue 等其它属性不展示）；
           value 支持点击手动修改，提交后写回节点数据（values[pointId].value，
-          主点同步写顶层 value），触发 change:data 刷新节点渲染
+          画面点同步写顶层 value），触发 change:data 刷新节点渲染
 
      运行数据实时跟随数据源刷新（监听 X6 change:data 事件，数据源推送即更新）。
      货架节点（rack-node）有专属正视图弹窗，不会走此通用弹窗。
@@ -206,7 +206,7 @@ interface PointGroup {
   pointId: string
   name?: string
   remark?: string
-  /** 是否主点（手动修改时同步写节点顶层 value） */
+  /** 是否画面点（手动修改时同步写节点顶层 value） */
   primary: boolean
   hasValue: boolean
   value: any
@@ -224,16 +224,19 @@ const groupedData = computed<PointGroup[]>(() => {
     const points = binding.points
       .map((p: any) => ({ pid: p?.pointId, name: p?.name, remark: p?.remark }))
       .filter((p: any) => !!p.pid)
+    // 画面点解析：binding.display.pointId 在点组中有效时用它，否则回落首个点组（与 useDataService 一致）
+    const dispId = typeof binding.display?.pointId === 'string' ? binding.display.pointId.trim() : ''
+    const displayPid = dispId && points.some((p: any) => p.pid === dispId) ? dispId : (points[0]?.pid ?? '')
     // 各点的实时值（由 useDataService 写入 data.values[pointId]）
     const values = (data.values || {}) as Record<string, { value?: any }>
-    return points.map((pt: { pid: string; name?: string; remark?: string }, idx: number) => {
+    return points.map((pt: { pid: string; name?: string; remark?: string }) => {
       const pv = values[pt.pid]
       return {
         key: pt.pid,
         pointId: pt.pid,
         name: pt.name,
         remark: pt.remark,
-        primary: idx === 0,
+        primary: pt.pid === displayPid,
         hasValue: pv !== undefined && pv.value !== undefined,
         value: pv?.value,
       }
@@ -267,7 +270,7 @@ function cancelEdit() {
   editingKey.value = null
 }
 
-/** 提交：写回 data.values[pointId].value（主点/未绑定组同步写顶层 value），
+/** 提交：写回 data.values[pointId].value（画面点/未绑定组同步写顶层 value），
  *  与 useDataService 推送写入路径一致（setData 深合并），触发 change:data 刷新 */
 function commitEdit(group: PointGroup) {
   if (editingKey.value !== group.key) return

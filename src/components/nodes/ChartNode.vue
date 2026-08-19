@@ -123,7 +123,7 @@ function pushData(value: number) {
 props.node?.on('change:data', ({ current }: { current: any }) => {
   const newData = current || props.node.getData()
   if (!newData) return
-  // 数据绑定推送：主点实时值（useDataService 写入 data.value）→ 追加到滑动窗口
+  // 数据绑定推送：画面点实时值（useDataService 写入 data.value）→ 追加到滑动窗口
   if (newData.value !== undefined) {
     pushData(newData.value)
   } else if (Array.isArray(newData.history)) {
