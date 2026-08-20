@@ -21,20 +21,22 @@ import { invoke } from '@tauri-apps/api/core' // Tauri IPC：调用 Rust 侧命�
 import { listen, type UnlistenFn } from '@tauri-apps/api/event' // Tauri IPC：监听 Rust 侧事件
 import type { IDataService, DataPoint, DataCallback } from './DataService'
 
-/** 演示波形档位，与 Rust `DemoProfile` 一一对应（值为 serde camelCase 串；以波形形状命名，与协议无关） */
-export type DemoProfile = 'sine' | 'randomWalk' | 'sawtooth' | 'steps'
+/** 演示波形档位，与 Rust `DemoProfile` 一一对应（值为 serde camelCase 串；以波形形状命名，与协议无关）
+ * custom：自定义数据（每轮原样返回 customData，所有点位同一份） */
+export type DemoProfile = 'sine' | 'randomWalk' | 'sawtooth' | 'steps' | 'custom'
 
 /** 设备配置判别联合，与 Rust gateway_core::config::DeviceConfig 一一对应。
  * protocol 为协议类型；isMock 标识演示模式（不连真实设备，
- * 由 Rust DemoAdapter 按 profile 生成波形，地址/设备参数可为占位空值） */
+ * 由 Rust DemoAdapter 按 profile 生成波形，地址/设备参数可为占位空值）；
+ * customData 仅 profile='custom' 时使用（用户填写的完整 JSON） */
 export type DeviceConfig =
-    | { protocol: 'modbus'; host: string; port: number; unitId: number; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // Modbus TCP 参数
-    | { protocol: 's7'; host: string; port: number; rack: number; slot: number; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // 西门子 S7 参数
-    | { protocol: 'opc'; endpoint: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // OPC UA 端点
-    | { protocol: 'websocket'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // WebSocket 推送服务（Rust 作为 WS 客户端）
-    | { protocol: 'http'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // HTTP 轮询服务（按点位 GET）
-    | { protocol: 'sse'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // SSE 推送流（按点位建流）
-    | { protocol: 'mqtt'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile } // MQTT broker（点ID 作为主题过滤器）
+    | { protocol: 'modbus'; host: string; port: number; unitId: number; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile; customData?: unknown } // Modbus TCP 参数
+    | { protocol: 's7'; host: string; port: number; rack: number; slot: number; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile; customData?: unknown } // 西门子 S7 参数
+    | { protocol: 'opc'; endpoint: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile; customData?: unknown } // OPC UA 端点
+    | { protocol: 'websocket'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile; customData?: unknown } // WebSocket 推送服务（Rust 作为 WS 客户端）
+    | { protocol: 'http'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile; customData?: unknown } // HTTP 轮询服务（按点位 GET）
+    | { protocol: 'sse'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile; customData?: unknown } // SSE 推送流（按点位建流）
+    | { protocol: 'mqtt'; url: string; pollIntervalMs: number; isMock?: boolean; profile?: DemoProfile; customData?: unknown } // MQTT broker（点ID 作为主题过滤器）
 
 /** gateway://status 事件载荷：设备连接状态变化 */
 interface StatusPayload {
@@ -47,7 +49,8 @@ interface StatusPayload {
  * Rust 每轮询一次就批量推送一批点值，减少 IPC 开销 */
 interface TelemetryPointPayload {
     pointId: string
-    value: number | string | boolean
+    /** 点值：标量或结构化文档（演示自定义数据 / 真实服务推送的整份 JSON） */
+    value: unknown
     timestamp: number
     quality: 'good' | 'bad' | 'uncertain'
 }
@@ -98,8 +101,8 @@ export class IpcGatewayService implements IDataService {
                     if (!cbs || cbs.length === 0) continue // 无人订阅则跳过
                     const point: DataPoint = {
                         id: p.pointId,
-                        // DataPoint.value 声明为 number|string；线圈布尔值按原样透传，
-                        // 由节点 transform / Number() 自行处理
+                        // 点值原样透传（标量或文档）；线圈布尔值与结构化 JSON
+                        // 均由节点 transform / 消费组件自行处理
                         value: p.value as DataPoint['value'],
                         timestamp: p.timestamp,
                         quality: p.quality,

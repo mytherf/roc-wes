@@ -10,6 +10,7 @@ fn cfg(endpoint: &str) -> OpcConfig {
         poll_interval_ms: 200,
         is_mock: false,
         profile: DemoProfile::default(),
+        custom_data: None,
     }
 }
 

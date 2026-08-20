@@ -1,0 +1,234 @@
+/* ══════════════════════════════════════════════════════════════════════
+   panelShared.css - 属性面板公共字段样式
+   由拆分后的各标签页组件（基础/绑定/路线/事件）与面板主体共同 @import，
+   保证字段、分节标题、复选框、帮助气泡等基础控件样式单一来源。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ===================== 字段样式 ===================== */
+.field {
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+}
+.field-row {
+  display: flex;
+  gap: 10px;
+}
+.field-row .field {
+  flex: 1;
+  min-width: 0;
+}
+/* 紧凑字段（ID/名称/类型/标签/X/Y/宽度/高度）：缩短标签列宽与间距 */
+.field.field-compact {
+  gap: 4px;
+}
+.field.field-compact label {
+  width: 30px;
+}
+.field label {
+  flex-shrink: 0;
+  width: 64px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+}
+/* 含帮助按钮（?）的标签：加宽标签列，保证文字与 ? 同行不换行（如「监听字段 ?」） */
+.field label:has(.field-help-wrap) {
+  width: 76px;
+}
+.field .hint {
+  font-weight: normal;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.field > span {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+/* ID 值：缩小字体并强制单行显示（标准 UUID 可完整单行展示，超长时省略号，完整值见 title 提示） */
+.field .id-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: -0.5px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.field input,
+.field select,
+.binding-group-card input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--input-border, var(--border-color));
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  box-sizing: border-box;
+  background: var(--input-bg, var(--panel-bg));
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm, none);
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+.field input:hover:not(:focus):not(:disabled),
+.field select:hover:not(:focus):not(:disabled),
+.binding-group-card input:hover:not(:focus):not(:disabled) {
+  border-color: var(--input-border-hover, var(--color-primary));
+}
+.field input:focus,
+.field select:focus,
+.binding-group-card input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  background: var(--panel-bg);
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
+}
+.field input:disabled,
+.field select:disabled {
+  background: var(--statusbar-bg);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+/* select 下拉选项背景跟随面板（部分浏览器 option 继承 body 色，深色主题下防白底黑字刺眼） */
+.field select option {
+  background: var(--panel-bg);
+  color: var(--text-primary);
+}
+
+/* 分节标题：左侧主题色短条 + 文字 + 右侧渐变分割线，三套主题下均有清晰层次 */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--divider-color, var(--border-light));
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+.section-divider::before {
+  content: '';
+  width: 3px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--color-primary);
+  flex-shrink: 0;
+}
+.section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--divider-color, var(--border-light)), transparent);
+}
+
+/* ===================== 复选框 ===================== */
+.field .color-input {
+  padding: 2px;
+  height: 32px;
+  cursor: pointer;
+}
+.checkbox-field {
+  gap: 0;
+}
+.checkbox-field label {
+  width: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.checkbox-field .checkbox-label input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+/* 复选框标签基础样式：框与文字同行且文字不换行（与 .checkbox-field label 对齐） */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.checkbox-label input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+/* ===================== 字段帮助气泡 ===================== */
+/* 字段说明帮助按钮（? 圆形小按钮，跟在字段标签文字后面） */
+.field-help-wrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+.field-help-btn {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--panel-bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.field-help-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.field-help-btn[aria-expanded='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+/* 字段帮助气泡（绝对定位悬浮在按钮下方，不占布局空间） */
+/* 按钮位于标签左侧，气泡左对齐并向右展开，避免溢出面板左边缘 */
+.field-help-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: 172px;
+  padding: 8px 10px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ===================== 空状态提示 ===================== */
+.empty-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 16px 0;
+}

@@ -57,6 +57,9 @@ pub struct WebsocketConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
+    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    #[serde(default)]
+    pub custom_data: Option<serde_json::Value>,
 }
 
 /// HTTP 轮询服务参数
@@ -74,6 +77,9 @@ pub struct HttpConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
+    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    #[serde(default)]
+    pub custom_data: Option<serde_json::Value>,
 }
 
 /// SSE 服务参数
@@ -91,6 +97,9 @@ pub struct SseConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
+    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    #[serde(default)]
+    pub custom_data: Option<serde_json::Value>,
 }
 
 /// MQTT broker 参数
@@ -108,6 +117,9 @@ pub struct MqttConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
+    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    #[serde(default)]
+    pub custom_data: Option<serde_json::Value>,
 }
 
 /// Modbus TCP 设备参数
@@ -131,6 +143,9 @@ pub struct ModbusConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
+    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    #[serde(default)]
+    pub custom_data: Option<serde_json::Value>,
 }
 
 /// 西门子 S7 设备参数（适配器实现待 S7 spike）
@@ -154,6 +169,9 @@ pub struct S7Config {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
+    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    #[serde(default)]
+    pub custom_data: Option<serde_json::Value>,
 }
 
 /// OPC UA 设备参数（适配器实现待引入 opcua crate）
@@ -170,9 +188,12 @@ pub struct OpcConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
+    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    #[serde(default)]
+    pub custom_data: Option<serde_json::Value>,
 }
 
-/// 演示波形档位：内置四种波形（以波形形状命名，与协议无关；
+/// 演示波形档位：内置四种波形 + 自定义数据（以波形形状命名，与协议无关；
 /// 未指定时缺省正弦）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -186,6 +207,8 @@ pub enum DemoProfile {
     Sawtooth,
     /// 离散档位（方波/阶梯）
     Steps,
+    /// 自定义数据：每轮原样返回配置中的 customData（所有点位拿到同一份完整 JSON）
+    Custom,
 }
 
 impl DeviceConfig {
@@ -226,6 +249,19 @@ impl DeviceConfig {
             DeviceConfig::Mqtt(c) => c.profile,
         }
     }
+
+    /// 自定义演示数据（仅 profile = custom 时由 DemoAdapter 使用）
+    pub fn demo_custom_data(&self) -> Option<serde_json::Value> {
+        match self {
+            DeviceConfig::Modbus(c) => c.custom_data.clone(),
+            DeviceConfig::S7(c) => c.custom_data.clone(),
+            DeviceConfig::Opc(c) => c.custom_data.clone(),
+            DeviceConfig::Websocket(c) => c.custom_data.clone(),
+            DeviceConfig::Http(c) => c.custom_data.clone(),
+            DeviceConfig::Sse(c) => c.custom_data.clone(),
+            DeviceConfig::Mqtt(c) => c.custom_data.clone(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -249,5 +285,29 @@ mod tests {
         .unwrap();
         assert!(!real.is_mock());
         assert_eq!(real.demo_profile(), DemoProfile::Sine); // 缺省档位
+        assert!(real.demo_custom_data().is_none());
+    }
+
+    /// custom 档位：profile + customData 反序列化与访问器
+    #[test]
+    fn parses_custom_profile_with_custom_data() {
+        let cfg: DeviceConfig = serde_json::from_value(serde_json::json!({
+            "protocol": "http", "url": "", "isMock": true, "profile": "custom",
+            "customData": { "floorGrids": [[[{ "status": "occupied" }]]] }
+        }))
+        .unwrap();
+        assert_eq!(cfg.demo_profile(), DemoProfile::Custom);
+        let data = cfg.demo_custom_data().expect("customData 应存在");
+        assert_eq!(
+            data["floorGrids"][0][0][0]["status"],
+            serde_json::json!("occupied")
+        );
+
+        // 非 custom 档位不带 customData 时访问器返回 None
+        let sine: DeviceConfig = serde_json::from_value(serde_json::json!({
+            "protocol": "http", "url": "", "isMock": true, "profile": "sine"
+        }))
+        .unwrap();
+        assert!(sine.demo_custom_data().is_none());
     }
 }

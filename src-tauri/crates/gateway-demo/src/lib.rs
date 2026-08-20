@@ -9,6 +9,7 @@
 //! - randomWalk：随机游走（缓慢漂移的测量值）
 //! - sawtooth  ：锯齿斜升（线性上升后归零）
 //! - steps     ：离散档位（方波/阶梯）
+//! - custom    ：自定义数据（按点ID 取 customData 中对应 key 的值；key 缺失返回 null）
 
 use async_trait::async_trait;
 use gateway_core::{DemoProfile, DeviceAdapter, GatewayError, Quality, Telemetry};
@@ -23,22 +24,25 @@ pub struct DemoAdapter {
     walk_state: HashMap<String, f64>,
     /// 手动写入覆盖值：点位 → 最近一次 write 的值（写入值保持，直到再次写入覆盖）
     overrides: HashMap<String, serde_json::Value>,
+    /// 自定义演示数据（仅 Custom 档位使用；顶层 key = 点位 ID，每点取对应 key 的值）
+    custom_data: serde_json::Value,
 }
 
 impl DemoAdapter {
-    pub fn new(profile: DemoProfile) -> Self {
+    pub fn new(profile: DemoProfile, custom_data: Option<serde_json::Value>) -> Self {
         Self {
             connected: false,
             profile,
             walk_state: HashMap::new(),
             overrides: HashMap::new(),
+            custom_data: custom_data.unwrap_or(serde_json::Value::Null),
         }
     }
 }
 
 impl Default for DemoAdapter {
     fn default() -> Self {
-        Self::new(DemoProfile::default())
+        Self::new(DemoProfile::default(), None)
     }
 }
 
@@ -103,6 +107,13 @@ impl DemoAdapter {
             }
             DemoProfile::Sawtooth => serde_json::json!(sawtooth_value(point_id, now_ms)),
             DemoProfile::Steps => serde_json::json!(steps_value(point_id, now_ms)),
+            // 自定义数据：不生成波形，以点ID 为 key 取 customData 中对应的值；
+            // customData 非对象或 key 缺失时返回 null（语义安全，前端不崩溃）
+            DemoProfile::Custom => self
+                .custom_data
+                .get(point_id)
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
         };
         Telemetry {
             point_id: point_id.to_string(),
@@ -213,7 +224,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_requires_connection_and_dispatches_profile() {
-        let mut adapter = DemoAdapter::new(DemoProfile::Sawtooth);
+        let mut adapter = DemoAdapter::new(DemoProfile::Sawtooth, None);
         // 未连接时读取应报错
         let err = adapter.read(&["a".to_string()]).await;
         assert!(matches!(err, Err(GatewayError::NotConnected)));
@@ -226,7 +237,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_overrides_simulated_value_until_next_write() {
-        let mut adapter = DemoAdapter::new(DemoProfile::Sine);
+        let mut adapter = DemoAdapter::new(DemoProfile::Sine, None);
         adapter.connect().await.unwrap();
 
         adapter
@@ -244,5 +255,45 @@ mod tests {
             .unwrap();
         assert_eq!(batch[0].value, serde_json::json!(true));
         assert_ne!(batch[1].value, serde_json::json!(true));
+    }
+
+    #[tokio::test]
+    async fn custom_profile_dispatches_value_by_point_key() {
+        let doc = serde_json::json!({
+            "a": 1,
+            "b": { "status": "occupied" }
+        });
+        let mut adapter = DemoAdapter::new(DemoProfile::Custom, Some(doc));
+        adapter.connect().await.unwrap();
+
+        // 每个点位拿到以自己点ID 为 key 的值；key 缺失 → null
+        let batch = adapter
+            .read(&["a".to_string(), "b".to_string(), "missing".to_string()])
+            .await
+            .unwrap();
+        assert_eq!(batch.len(), 3);
+        assert_eq!(batch[0].value, serde_json::json!(1));
+        assert_eq!(batch[1].value, serde_json::json!({ "status": "occupied" }));
+        assert_eq!(batch[2].value, serde_json::Value::Null);
+
+        // 手动写入覆盖仍优先于自定义数据
+        adapter.write("a", serde_json::json!(7)).await.unwrap();
+        let batch = adapter.read(&["a".to_string()]).await.unwrap();
+        assert_eq!(batch[0].value, serde_json::json!(7));
+    }
+
+    #[tokio::test]
+    async fn custom_profile_non_object_or_missing_data_returns_null() {
+        // 未提供 customData
+        let mut adapter = DemoAdapter::new(DemoProfile::Custom, None);
+        adapter.connect().await.unwrap();
+        let batch = adapter.read(&["a".to_string()]).await.unwrap();
+        assert_eq!(batch[0].value, serde_json::Value::Null);
+
+        // customData 为数组/标量（非对象）：无 key 可取，所有点位得 null
+        let mut adapter = DemoAdapter::new(DemoProfile::Custom, Some(serde_json::json!([1, 2, 3])));
+        adapter.connect().await.unwrap();
+        let batch = adapter.read(&["a".to_string()]).await.unwrap();
+        assert_eq!(batch[0].value, serde_json::Value::Null);
     }
 }

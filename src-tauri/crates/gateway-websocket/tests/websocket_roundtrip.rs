@@ -46,6 +46,7 @@ async fn ws_subscribe_and_receive_roundtrip() {
         poll_interval_ms: 100,
         is_mock: false,
         profile: DemoProfile::default(),
+        custom_data: None,
     });
     adapter.connect().await.unwrap();
 
@@ -84,6 +85,7 @@ async fn ws_connect_failure_returns_connect_error() {
         poll_interval_ms: 100,
         is_mock: false,
         profile: DemoProfile::default(),
+        custom_data: None,
     });
     assert!(adapter.connect().await.is_err());
 }

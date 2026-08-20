@@ -129,3 +129,47 @@ export function rowsToImportDraft(rows: unknown[][]): string {
     })
     return lines.join('\n')
 }
+
+/** 是否 txt 文件（按文本读取；csv/xlsx/xls 走 xlsx 库解析字节流） */
+export function isTxtPath(name: string): boolean {
+    return name.toLowerCase().endsWith('.txt')
+}
+
+/**
+ * CSV 字节流解码为文本：优先 UTF-8（含 BOM 自动剔除）；
+ * 解码出现替换符（U+FFFD）时回退 GBK——中文环境下 Excel「另存为 CSV」
+ * 默认 ANSI/GBK 编码，强制 UTF-8 会乱码。
+ */
+export function decodeCsvBytes(bytes: Uint8Array): string {
+    const utf8 = new TextDecoder('utf-8').decode(bytes)
+    if (!utf8.includes('\uFFFD')) return utf8
+    try {
+        return new TextDecoder('gbk').decode(bytes)
+    } catch {
+        return utf8 // 环境不支持 gbk 时兜底返回 UTF-8 结果
+    }
+}
+
+/**
+ * 解析 csv/xlsx/xls 字节流为 Tab 分隔草稿文本：xlsx 库统一处理
+ * CSV 引号转义与 Excel 二进制格式，行数据经 rowsToImportDraft
+ * 转草稿（首行表头自动跳过；含逗号的 S7 地址无需引号包裹）。
+ */
+export async function parseImportFileBytes(bytes: Uint8Array, isCsv: boolean): Promise<string> {
+    const XLSX = await import('xlsx')
+    // CSV 先自动探测编码（UTF-8 / GBK）再按文本解析；xlsx/xls 按二进制数组解析
+    const wb = isCsv
+        ? XLSX.read(decodeCsvBytes(bytes), { type: 'string' })
+        : XLSX.read(bytes, { type: 'array' })
+    const ws = wb.Sheets[wb.SheetNames[0]]
+    if (!ws) return ''
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+    return rowsToImportDraft(rows)
+}
+
+/** 点位导入模板（CSV 格式，Excel 可直接打开）：首行表头（导入时自动跳过）+ 示例点位；
+ * 带 UTF-8 BOM，避免 Excel 打开中文乱码 */
+export const IMPORT_TEMPLATE_TEXT = `\uFEFF点ID,点名称,备注
+sensor.temp.001,温度1号,锅炉房东侧
+sensor.humi.001,湿度1号,
+`

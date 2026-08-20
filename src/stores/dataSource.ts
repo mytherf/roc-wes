@@ -34,17 +34,6 @@ export interface DataSource {
     config?: Record<string, any>
 }
 
-/** 数据源类型显示名 */
-export const DATA_SOURCE_TYPE_LABELS: Record<DataSourceType, string> = {
-    websocket: 'WebSocket',
-    mqtt: 'MQTT',
-    http: 'HTTP 轮询',
-    sse: 'SSE',
-    s7: '西门子 S7',
-    opc: 'OPC UA',
-    modbus: 'Modbus',
-}
-
 /**
  * 数据源管理 Store
  * 负责数据源实例的 CRUD 与持久化（文件落盘：当前工程的 datasources.json）。

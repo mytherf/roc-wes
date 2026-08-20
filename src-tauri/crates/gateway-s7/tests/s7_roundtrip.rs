@@ -15,6 +15,7 @@ fn cfg(port: u16) -> S7Config {
         poll_interval_ms: 200,
         is_mock: false,
         profile: DemoProfile::default(),
+        custom_data: None,
     }
 }
 

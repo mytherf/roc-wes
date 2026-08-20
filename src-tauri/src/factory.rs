@@ -12,7 +12,7 @@ pub fn create_adapter(config: DeviceConfig) -> Result<(Box<dyn DeviceAdapter>, u
     // 波形档位取配置中的 profile（缺省正弦）
     if config.is_mock() {
         return Ok((
-            Box::new(gateway_demo::DemoAdapter::new(config.demo_profile())),
+            Box::new(gateway_demo::DemoAdapter::new(config.demo_profile(), config.demo_custom_data())),
             poll_interval_ms,
         ));
     }
