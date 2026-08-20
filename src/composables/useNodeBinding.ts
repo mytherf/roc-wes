@@ -92,10 +92,6 @@ export function useNodeBinding(
    * 填了点名称时展示为「点ID（名称）」，便于区分。
    */
   const watchFieldOptions = computed(() => {
-    // 演示波形档：点位固定 sample-point，选项唯一
-    if (demoKind.value === 'wave') {
-      return [{ pointId: DEMO_SAMPLE_POINT_ID, label: `${DEMO_SAMPLE_POINT_ID}（演示固定点位）` }]
-    }
     const opts: { pointId: string; label: string }[] = []
     const seen = new Set<string>()
     for (const g of bindingGroups.value) {
@@ -119,6 +115,24 @@ export function useNodeBinding(
     bindingGroups.value.splice(idx, 1)
     updateBinding()
   }
+
+  // ===================== 演示模式缺省点组保障 =====================
+  // 波形档：点组中无 sample-point 组时首位插入（pointId 只读，名称/转换/备注选填）；
+  // 自定义档：点组为空时插入一条空组，引导用户按 JSON 顶层 key 填点ID。
+  // 仅在档位切换且缺省时插入，不覆盖已有存档；插入后立即提交（选中数据源即生效）
+  watch(demoKind, (kind) => {
+    if (kind === 'wave') {
+      if (!bindingGroups.value.some((g) => g.pointId.trim() === DEMO_SAMPLE_POINT_ID)) {
+        bindingGroups.value.unshift({ pointId: DEMO_SAMPLE_POINT_ID, name: '', transformSource: '', remark: '' })
+        updateBinding()
+      }
+    } else if (kind === 'custom') {
+      if (bindingGroups.value.length === 0) {
+        addPointGroup()
+        updateBinding()
+      }
+    }
+  })
 
   // ===================== 监听选中节点切换，加载绑定配置 =====================
   // 只监听节点 ID（而非 element 深度监听）：updateBinding 会把 binding 写回 store，
@@ -179,19 +193,15 @@ export function useNodeBinding(
     }
 
     const nodeId = element.value.data.id
-    // 有效点组：演示波形档固定为 sample-point 单点（用户不录入点ID）；
-    // 其余场景点ID 非空且去重（保留首个），点名称、转换函数与备注随组携带
-    let validGroups: BindingGroupDraft[] = []
-    if (demoKind.value === 'wave') {
-      validGroups.push({ pointId: DEMO_SAMPLE_POINT_ID, name: '', transformSource: '', remark: '' })
-    } else {
-      const seen = new Set<string>()
-      for (const g of bindingGroups.value) {
-        const pid = g.pointId.trim()
-        if (!pid || seen.has(pid)) continue
-        seen.add(pid)
-        validGroups.push({ pointId: pid, name: g.name.trim(), transformSource: g.transformSource.trim(), remark: g.remark.trim() })
-      }
+    // 有效点组：点ID 非空且去重（保留首个）；点名称、转换函数与备注随组携带。
+    // 演示与真实模式统一走草稿提交：波形档额外点组照常存档（运行期无数据，由 Rust 侧返回 null）
+    const validGroups: BindingGroupDraft[] = []
+    const seen = new Set<string>()
+    for (const g of bindingGroups.value) {
+      const pid = g.pointId.trim()
+      if (!pid || seen.has(pid)) continue
+      seen.add(pid)
+      validGroups.push({ pointId: pid, name: g.name.trim(), transformSource: g.transformSource.trim(), remark: g.remark.trim() })
     }
 
     let binding: any = null

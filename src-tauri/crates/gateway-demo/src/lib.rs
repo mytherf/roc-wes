@@ -10,11 +10,17 @@
 //! - sawtooth  ：锯齿斜升（线性上升后归零）
 //! - steps     ：离散档位（方波/阶梯）
 //! - custom    ：自定义数据（按点ID 取 customData 中对应 key 的值；key 缺失返回 null）
+//!
+//! 波形档仅固定点位 [`DEMO_SAMPLE_POINT_ID`] 出数，其余点位返回 null
+//!（与前端绑定页约定一致：演示波形数据统一挂在 sample-point 下）。
 
 use async_trait::async_trait;
 use gateway_core::{DemoProfile, DeviceAdapter, GatewayError, Quality, Telemetry};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// 演示模式波形档的固定点位 ID：波形仅在此点出数，其余点位得 null（与前端 DEMO_SAMPLE_POINT_ID 一致）
+pub const DEMO_SAMPLE_POINT_ID: &str = "sample-point";
 
 pub struct DemoAdapter {
     connected: bool,
@@ -97,6 +103,31 @@ impl DemoAdapter {
                 quality: Quality::Good,
             };
         }
+        // 自定义数据：不生成波形，以点ID 为 key 取 customData 中对应的值；
+        // customData 非对象或 key 缺失时返回 null（语义安全，前端不崩溃）
+        if let DemoProfile::Custom = self.profile {
+            let value = self
+                .custom_data
+                .get(point_id)
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            return Telemetry {
+                point_id: point_id.to_string(),
+                value,
+                timestamp: now_ms,
+                quality: Quality::Good,
+            };
+        }
+        // 波形档：仅固定点位 sample-point 生成波形值，其余点位返回 null
+        //（额外绑定的点组照常存档，运行期无数据）
+        if point_id != DEMO_SAMPLE_POINT_ID {
+            return Telemetry {
+                point_id: point_id.to_string(),
+                value: serde_json::Value::Null,
+                timestamp: now_ms,
+                quality: Quality::Good,
+            };
+        }
         let value = match self.profile {
             DemoProfile::Sine => serde_json::json!(sine_value(point_id, now_ms)),
             DemoProfile::RandomWalk => {
@@ -107,13 +138,7 @@ impl DemoAdapter {
             }
             DemoProfile::Sawtooth => serde_json::json!(sawtooth_value(point_id, now_ms)),
             DemoProfile::Steps => serde_json::json!(steps_value(point_id, now_ms)),
-            // 自定义数据：不生成波形，以点ID 为 key 取 customData 中对应的值；
-            // customData 非对象或 key 缺失时返回 null（语义安全，前端不崩溃）
-            DemoProfile::Custom => self
-                .custom_data
-                .get(point_id)
-                .cloned()
-                .unwrap_or(serde_json::Value::Null),
+            DemoProfile::Custom => unreachable!("Custom 档已在上方提前返回"),
         };
         Telemetry {
             point_id: point_id.to_string(),
@@ -226,13 +251,33 @@ mod tests {
     async fn read_requires_connection_and_dispatches_profile() {
         let mut adapter = DemoAdapter::new(DemoProfile::Sawtooth, None);
         // 未连接时读取应报错
-        let err = adapter.read(&["a".to_string()]).await;
+        let err = adapter.read(&[DEMO_SAMPLE_POINT_ID.to_string()]).await;
         assert!(matches!(err, Err(GatewayError::NotConnected)));
 
         adapter.connect().await.unwrap();
-        let batch = adapter.read(&["a".to_string(), "b".to_string()]).await.unwrap();
-        assert_eq!(batch.len(), 2);
+        let batch = adapter
+            .read(&[DEMO_SAMPLE_POINT_ID.to_string()])
+            .await
+            .unwrap();
+        assert_eq!(batch.len(), 1);
         assert!(batch.iter().all(|t| t.quality == Quality::Good));
+        assert!(batch[0].value.is_number(), "固定点位应得到波形数值");
+    }
+
+    #[tokio::test]
+    async fn wave_profile_only_serves_sample_point() {
+        let mut adapter = DemoAdapter::new(DemoProfile::Sine, None);
+        adapter.connect().await.unwrap();
+        let batch = adapter
+            .read(&[
+                DEMO_SAMPLE_POINT_ID.to_string(),
+                "other".to_string(),
+            ])
+            .await
+            .unwrap();
+        // sample-point 得到波形数值；额外点位存档有效但运行期无数据（null）
+        assert!(batch[0].value.is_number());
+        assert_eq!(batch[1].value, serde_json::Value::Null);
     }
 
     #[tokio::test]
@@ -247,14 +292,14 @@ mod tests {
         let batch = adapter.read(&["a".to_string()]).await.unwrap();
         assert_eq!(batch[0].value, serde_json::json!(123.5), "写入值应覆盖波形值");
 
-        // 再次写入覆盖；未写入的点位仍走波形
+        // 再次写入覆盖；未写入的固定点位仍走波形
         adapter.write("a", serde_json::json!(true)).await.unwrap();
         let batch = adapter
-            .read(&["a".to_string(), "b".to_string()])
+            .read(&["a".to_string(), DEMO_SAMPLE_POINT_ID.to_string()])
             .await
             .unwrap();
         assert_eq!(batch[0].value, serde_json::json!(true));
-        assert_ne!(batch[1].value, serde_json::json!(true));
+        assert!(batch[1].value.is_number());
     }
 
     #[tokio::test]

@@ -101,7 +101,7 @@ beforeEach(() => {
 })
 
 describe('属性面板点ID输入（真实组件挂载）', () => {
-    it('未选数据源时逐字输入点ID：每个字符都保留，不被回填清空', async () => {
+    it('未选数据源：点ID 区整体隐藏（无添加按钮/点组卡片/提示行）', async () => {
         const editorStore = useEditorStore()
         editorStore.setGraphData({
             nodes: [{ id: 'node-1', data: { shape: 'gauge', label: '测试节点' } } as any],
@@ -113,29 +113,10 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         const canvasRef = makeFakeCanvas(cell)
         const wrapper = mount(PropertyPanel, { props: { canvasRef } })
 
-        // 点组从零开始：初始无卡片，显示空状态提示
+        // 绑定数据源为空：不显示任何点ID 信息，仅剩数据源下拉
+        expect(wrapper.find('.add-extra-point-btn').exists()).toBe(false)
         expect(wrapper.findAll('.binding-group-card').length).toBe(0)
-        expect(wrapper.find('.empty-hint').exists()).toBe(true)
-
-        // 点击「＋ 添加点组」产生首个点组卡片
-        const input = await addPointGroupAndGetInput(wrapper)
-        expect(input.exists()).toBe(true)
-
-        // 逐字符输入，模拟真实击键：每一步断言输入值未被清空
-        const target = 'sensor.temp.001'
-        for (let i = 1; i <= target.length; i++) {
-            const partial = target.slice(0, i)
-            await input.setValue(partial)
-            expect((input.element as HTMLInputElement).value).toBe(partial)
-        }
-
-        // 未选数据源：点位同样提交保存（sourceId 后补），切换节点/数据源不丢失
-        expect((input.element as HTMLInputElement).value).toBe(target)
-        const storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
-        expect(storeNode?.data?.binding).toMatchObject({
-            points: [{ pointId: target }],
-        })
-        expect(storeNode?.data?.binding?.sourceId).toBeUndefined()
+        expect(wrapper.find('.demo-hint').exists()).toBe(false)
         wrapper.unmount()
     })
 
@@ -243,7 +224,7 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         wrapper.unmount()
     })
 
-    it('切换选中节点：未选数据源时录入的点位不丢失（回来仍在）', async () => {
+    it('切换选中节点：已录入点组不丢失（回来仍在）', async () => {
         const editorStore = useEditorStore()
         editorStore.setGraphData({
             nodes: [
@@ -254,15 +235,28 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         })
         editorStore.setSelected('node-1')
 
+        const { useDataSourceStore } = await import('@/stores/dataSource')
+        const dsStore = useDataSourceStore()
+        const ds = dsStore.addDataSource({
+            name: 'real-ws',
+            type: 'websocket',
+            url: 'ws://127.0.0.1:12345',
+            config: {},
+        })
+
         const cell = makeFakeCell('node-1')
         const canvasRef = makeFakeCanvas(cell)
         const wrapper = mount(PropertyPanel, { props: { canvasRef } })
 
-        // 未选数据源：添加点组并录入点ID
+        // 选数据源：添加点组并录入点ID
+        const select = wrapper.findAll('select').find((s) =>
+            s.findAll('option').some((o) => o.text().includes('未选择数据源'))
+        )!
+        await select.setValue(ds.id)
         const input = await addPointGroupAndGetInput(wrapper)
         await input.setValue('sensor.temp.001')
 
-        // 切换到 node-2：草稿被 node-2 的空绑定回填（点组从零，无卡片）
+        // 切换到 node-2：无绑定 → 点ID 区隐藏（无卡片）
         editorStore.setSelected('node-2')
         await nextTick()
         expect(wrapper.findAll('.binding-group-card').length).toBe(0)
@@ -275,7 +269,7 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         wrapper.unmount()
     })
 
-    it('演示波形档：点位固定 sample-point，隐藏点组编辑区，选中数据源即生效', async () => {
+    it('演示波形档：默认 sample-point 点组（只读），额外点组照常存档', async () => {
         const editorStore = useEditorStore()
         editorStore.setGraphData({
             nodes: [{ id: 'node-1', data: { shape: 'gauge', label: '测试节点' } } as any],
@@ -302,17 +296,25 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         await select.setValue(ds.id)
         await nextTick()
 
-        // 点组卡片/添加按钮隐藏，以固定点位只读卡片替代
-        expect(wrapper.find('.demo-fixed-card').exists()).toBe(true)
-        expect(wrapper.find('.demo-fixed-point').text()).toBe('sample-point')
-        expect(wrapper.findAll('.binding-group-card').length).toBe(0)
-        expect(wrapper.find('.add-extra-point-btn').exists()).toBe(false)
+        // 完整编辑区展示：自动插入默认 sample-point 点组（点ID 只读，删除按钮保留）+ 提示行
+        expect(wrapper.findAll('.binding-group-card').length).toBe(1)
+        const idInput = wrapper.find('.binding-group-card input')
+        expect((idInput.element as HTMLInputElement).value).toBe('sample-point')
+        expect((idInput.element as HTMLInputElement).readOnly).toBe(true)
+        expect(wrapper.find('.extra-point-remove').exists()).toBe(true)
+        expect(wrapper.find('.demo-hint').exists()).toBe(true)
 
-        // 选中数据源即生效：binding.points 固定为 sample-point（不取用户录入）
+        // 额外点组可添加并照常存档（运行期无数据由 Rust 侧返回 null）
+        await wrapper.find('.add-extra-point-btn').trigger('click')
+        await nextTick()
+        const inputs = wrapper.findAll('.binding-group-card input')
+        // 输入框顺序：[点组1点ID(只读), 点名称, 转换, 备注, 点组2点ID, ...]
+        await inputs[4].setValue('extra')
+
         const storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
         expect(storeNode?.data?.binding).toMatchObject({
             sourceId: ds.id,
-            points: [{ pointId: 'sample-point' }],
+            points: [{ pointId: 'sample-point' }, { pointId: 'extra' }],
         })
         wrapper.unmount()
     })
@@ -344,12 +346,14 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         await select.setValue(ds.id)
         await nextTick()
 
-        // custom 档不显示固定点位卡片，点组编辑区与 key chips 均在
-        expect(wrapper.find('.demo-fixed-card').exists()).toBe(false)
-        expect(wrapper.find('.add-extra-point-btn').exists()).toBe(true)
+        // custom 档完整编辑区：默认空点组（引导填写）+ key chips + 提示行
+        expect(wrapper.find('.demo-hint').exists()).toBe(true)
+        expect(wrapper.findAll('.binding-group-card').length).toBe(1)
+        const idInput = wrapper.find('.binding-group-card input')
+        expect((idInput.element as HTMLInputElement).value).toBe('')
         expect(wrapper.findAll('.custom-key-chip').map((c) => c.text())).toEqual(['temp', 'status'])
 
-        // 点击 key chip 快捷添加点组（key 即点ID）并提交绑定
+        // 点击 key chip 快捷添加点组（key 即点ID）；默认空组不入存档
         await wrapper.findAll('.custom-key-chip')[0].trigger('click')
         const storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
         expect(storeNode?.data?.binding).toMatchObject({

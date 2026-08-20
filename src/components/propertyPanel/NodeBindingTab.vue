@@ -36,16 +36,11 @@
       <div class="source-url" :title="binding.selectedDataSource.url">{{ binding.selectedDataSource.url }}</div>
       <div v-if="binding.selectedDataSource.description" class="source-desc">{{ binding.selectedDataSource.description }}</div>
     </div>
-    <!-- 演示波形档：点位固定 sample-point（无需录入点ID），以只读卡片替代点组编辑区 -->
-    <div v-if="binding.demoKind === 'wave'" class="demo-fixed-card">
-      <div class="demo-fixed-head">
-        <span class="binding-group-tag display">演示固定点位</span>
-        <span class="demo-fixed-point">{{ DEMO_SAMPLE_POINT_ID }}</span>
-      </div>
-      <div class="demo-fixed-hint">波形数据统一挂在此点下，无需填写点位 ID；切换波形/协议不影响点位</div>
-    </div>
-    <!-- 演示自定义数据档 / 真实设备模式：正常点组编辑 -->
-    <template v-else>
+    <!-- 演示模式提示行（选中数据源后按档位展示） -->
+    <div v-if="binding.bindingSourceId && binding.demoKind === 'wave'" class="demo-hint">演示模式仅 <code>{{ DEMO_SAMPLE_POINT_ID }}</code> 运行期有数据，其余点组仅存档（运行期无数据）</div>
+    <div v-else-if="binding.bindingSourceId && binding.demoKind === 'custom'" class="demo-hint">点ID 请填写创建数据源时自定义 JSON 的顶层 key（可用 key 见下方 chips）</div>
+    <!-- 点ID 区：未选数据源时整体隐藏（仅剩数据源下拉） -->
+    <template v-if="binding.bindingSourceId">
     <div class="field">
       <label>点ID
         <!-- 帮助按钮：点组说明气泡（跟在标签文字后） -->
@@ -112,14 +107,17 @@
         <span v-if="binding.isDisplayPoint(it.g.pointId)" class="binding-group-tag display" title="该点组驱动节点画面">画面</span>
         <button type="button" class="extra-point-remove" title="删除该点组" @click="binding.removePointGroup(it.idx)">×</button>
       </div>
-      <!-- 点ID 行：缺省自由输入；助手协议（readOnly）只读展示，点击或 ⌗ 按钮打开助手对话框（回填编辑） -->
+      <!-- 点ID 行：缺省自由输入；助手协议（readOnly）只读展示，点击或 ⌗ 按钮打开助手对话框（回填编辑）；
+           演示波形档的 sample-point 组点ID 只读（删除按钮保留） -->
       <div class="binding-group-row">
         <label class="binding-row-label">点ID</label>
         <input
           v-if="!binding.assistantEntry?.readOnly"
           v-model="it.g.pointId"
+          :readonly="binding.demoKind === 'wave' && it.g.pointId.trim() === DEMO_SAMPLE_POINT_ID"
+          :title="binding.demoKind === 'wave' && it.g.pointId.trim() === DEMO_SAMPLE_POINT_ID ? '演示波形档固定点位，不可修改' : undefined"
           @input="binding.updateBinding()"
-          placeholder="例如: sensor.temp.001"
+          :placeholder="binding.demoKind === 'custom' ? '自定义 JSON 的顶层 key，如: temp' : '例如: sensor.temp.001'"
         />
         <div
           v-else
@@ -177,16 +175,9 @@
     </div>
     </template>
     <div class="binding-status">
-      <!-- 演示波形档：点位固定 sample-point，选中数据源即生效（无需点组） -->
-      <template v-if="binding.demoKind === 'wave'">
-        <span v-if="binding.bindingSourceId" class="status-active">✅ 已启用数据绑定（固定点位 {{ DEMO_SAMPLE_POINT_ID }}）</span>
-        <span v-else class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
-      </template>
-      <template v-else>
-        <span v-if="binding.hasAnyPoint && !binding.bindingSourceId" class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
-        <span v-else-if="binding.hasAnyPoint" class="status-active">✅ 已启用数据绑定</span>
-        <span v-else class="status-inactive">⏸ 未启用（请添加点组）</span>
-      </template>
+      <span v-if="binding.hasAnyPoint && !binding.bindingSourceId" class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
+      <span v-else-if="binding.hasAnyPoint" class="status-active">✅ 已启用数据绑定</span>
+      <span v-else class="status-inactive">⏸ 未启用（请添加点组）</span>
     </div>
 
     <!-- 转换函数编辑对话框：点组卡片内 ⤢ 按钮打开，大号多行编辑区便于查看/编辑长函数；
@@ -971,29 +962,21 @@ const visibleBindingItems = computed(() => {
   color: var(--text-muted);
 }
 
-/* ===================== 演示模式（波形档固定点位卡片 / 自定义数据档 key chips） ===================== */
-.demo-fixed-card {
+/* ===================== 演示模式（提示行 / 自定义数据档 key chips） ===================== */
+/* 演示模式提示行（波形档限点说明 / 自定义档 key 填写引导） */
+.demo-hint {
   margin-bottom: 8px;
-  padding: 8px 10px;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--color-primary-light);
   border: 1px solid var(--color-primary-ring);
   border-radius: var(--radius-md);
-  background: var(--color-primary-light);
 }
-.demo-fixed-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.demo-fixed-point {
-  font-size: 13px;
-  font-weight: 600;
+.demo-hint code {
   font-family: var(--font-mono);
   color: var(--color-primary);
-}
-.demo-fixed-hint {
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--text-muted);
 }
 /* 自定义数据 key chips 行：点击快捷添加点组 */
 .custom-keys-row {

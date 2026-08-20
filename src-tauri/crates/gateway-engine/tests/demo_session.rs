@@ -77,8 +77,11 @@ async fn demo_session_streams_telemetry_and_stops() {
     let dup = engine.connect("dev-demo".into(), Box::new(DemoAdapter::default()), 200);
     assert!(matches!(dup, Err(GatewayError::AlreadyExists(_))));
 
-    engine.subscribe("dev-demo", "temperature".into()).unwrap();
-    engine.subscribe("dev-demo", "holding:100".into()).unwrap();
+    // 波形档仅 sample-point 出数，故主订阅用固定点位；另订阅一个任意点位验证 null 语义
+    engine
+        .subscribe("dev-demo", gateway_demo::DEMO_SAMPLE_POINT_ID.into())
+        .unwrap();
+    engine.subscribe("dev-demo", "extra-point".into()).unwrap();
 
     // 收到连接成功状态 + 至少 3 批遥测（轮询下限 200ms，3 批约 0.6s）
     wait_until("连接状态上报", Duration::from_secs(2), || {
@@ -90,24 +93,32 @@ async fn demo_session_streams_telemetry_and_stops() {
     })
     .await;
 
-    // 每批都应包含两个订阅点，质量为 good，值为数值
+    // 每批都应包含两个订阅点：sample-point 质量为 good 且为数值；
+    // extra-point 非固定点位，运行期无数据 → 值为 null
     let batch = collector.last_batch().expect("应有遥测批次");
     assert_eq!(batch.device_id, "dev-demo");
     assert_eq!(batch.points.len(), 2);
     for p in &batch.points {
-        assert_eq!(p.quality, Quality::Good);
-        assert!(p.value.is_number(), "演示值应为数值: {:?}", p.value);
         assert!(p.timestamp > 0);
+        if p.point_id == gateway_demo::DEMO_SAMPLE_POINT_ID {
+            assert_eq!(p.quality, Quality::Good);
+            assert!(p.value.is_number(), "演示值应为数值: {:?}", p.value);
+        } else {
+            assert!(p.value.is_null(), "非固定点位应为 null: {:?}", p.value);
+        }
     }
 
-    // 取消订阅后，后续批次只剩一个点
-    engine.unsubscribe("dev-demo", "holding:100".into()).unwrap();
+    // 取消订阅后，后续批次只剩固定点位
+    engine.unsubscribe("dev-demo", "extra-point".into()).unwrap();
     let before = collector.batch_count();
     wait_until("取消订阅生效", Duration::from_secs(2), || {
         collector.batch_count() > before
             && collector
                 .last_batch()
-                .map(|b| b.points.len() == 1 && b.points[0].point_id == "temperature")
+                .map(|b| {
+                    b.points.len() == 1
+                        && b.points[0].point_id == gateway_demo::DEMO_SAMPLE_POINT_ID
+                })
                 .unwrap_or(false)
     })
     .await;
