@@ -107,7 +107,7 @@ export function getProtocolFormDefaults(): Record<string, number> {
 
 /**
  * 构建保存用的数据源 config：
- * 公共字段 demo/profile 由对话框统一写入，协议专属字段按注册项 buildConfig 提取。
+ * 公共字段 demo/profile/customData 由对话框统一写入，协议专属字段按注册项 buildConfig 提取。
  */
 export function buildDataSourceConfig(
     type: DataSourceType,
@@ -115,6 +115,10 @@ export function buildDataSourceConfig(
 ): Record<string, any> {
     const config: Record<string, any> = { demo: form.demo }
     if (form.profile) config.profile = form.profile
+    // 自定义数据档：写入解析后的 customData（顶层 key = 点位 ID）；非 custom 档不携带（剥除残留）
+    if (form.profile === 'custom' && form.customData !== undefined) {
+        config.customData = form.customData
+    }
     const entry = PROTOCOL_CONFIG_REGISTRY[type]
     if (entry?.buildConfig) Object.assign(config, entry.buildConfig(form))
     return config

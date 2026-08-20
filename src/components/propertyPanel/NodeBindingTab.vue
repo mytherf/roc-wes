@@ -36,6 +36,16 @@
       <div class="source-url" :title="binding.selectedDataSource.url">{{ binding.selectedDataSource.url }}</div>
       <div v-if="binding.selectedDataSource.description" class="source-desc">{{ binding.selectedDataSource.description }}</div>
     </div>
+    <!-- 演示波形档：点位固定 sample-point（无需录入点ID），以只读卡片替代点组编辑区 -->
+    <div v-if="binding.demoKind === 'wave'" class="demo-fixed-card">
+      <div class="demo-fixed-head">
+        <span class="binding-group-tag display">演示固定点位</span>
+        <span class="demo-fixed-point">{{ DEMO_SAMPLE_POINT_ID }}</span>
+      </div>
+      <div class="demo-fixed-hint">波形数据统一挂在此点下，无需填写点位 ID；切换波形/协议不影响点位</div>
+    </div>
+    <!-- 演示自定义数据档 / 真实设备模式：正常点组编辑 -->
+    <template v-else>
     <div class="field">
       <label>点ID
         <!-- 帮助按钮：点组说明气泡（跟在标签文字后） -->
@@ -50,6 +60,21 @@
     <button type="button" class="add-extra-point-btn" @click="handleAddPointGroup">＋ 添加点组（点ID + 点名称 + 转换函数 + 备注）</button>
     <!-- 导入点位：批量粘贴或从 txt/csv 文件导入点组（对话框内确认后合并） -->
     <button type="button" class="add-extra-point-btn import-points-btn" title="批量导入点组（粘贴文本或选择 txt/csv 文件）" @click="openImportDialog">⇪ 导入点位（批量）</button>
+    <!-- 演示自定义数据档：customData 顶层 key 即可用点ID，点击 chip 快捷添加点组（已添加的 key 置灰） -->
+    <div v-if="binding.demoKind === 'custom'" class="custom-keys-row">
+      <span class="custom-keys-label">可用 keys：</span>
+      <button
+        v-for="k in binding.customDataKeys"
+        :key="k"
+        type="button"
+        class="custom-key-chip"
+        :class="{ used: binding.bindingGroups.some((g: any) => g.pointId.trim() === k) }"
+        :disabled="binding.bindingGroups.some((g: any) => g.pointId.trim() === k)"
+        :title="binding.bindingGroups.some((g: any) => g.pointId.trim() === k) ? '该 key 已添加点组' : `点击添加「${k}」点组`"
+        @click="addCustomKeyGroup(k)"
+      >{{ k }}</button>
+      <span v-if="binding.customDataKeys.length === 0" class="custom-keys-empty">该数据源无自定义数据 key，请先到数据源管理配置自定义数据</span>
+    </div>
 
     <!-- 绑定点组列表：点组从零开始（仅添加/导入产生），全部可删、地位平等；
          画面点由下方「画面驱动」单独指定（缺省首个点组）；
@@ -111,6 +136,11 @@
           @click="openAssistantDialog(it.idx)"
         >⌗</button>
       </div>
+      <!-- 自定义数据档警告：点ID 不在 customData 顶层 keys 中（不拦截；运行期取值为 null） -->
+      <div
+        v-if="binding.demoKind === 'custom' && it.g.pointId.trim() && !binding.customDataKeys.includes(it.g.pointId.trim())"
+        class="custom-key-warn"
+      >⚠ 该 key 不在自定义数据中，运行期将取到 null 值</div>
       <!-- 点名称行：标签 + 输入框（可选，人类可读标识，不参与订阅） -->
       <div class="binding-group-row">
         <label class="binding-row-label">点名称</label>
@@ -145,10 +175,18 @@
         />
       </div>
     </div>
+    </template>
     <div class="binding-status">
-      <span v-if="binding.hasAnyPoint && !binding.bindingSourceId" class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
-      <span v-else-if="binding.hasAnyPoint" class="status-active">✅ 已启用数据绑定</span>
-      <span v-else class="status-inactive">⏸ 未启用（请添加点组）</span>
+      <!-- 演示波形档：点位固定 sample-point，选中数据源即生效（无需点组） -->
+      <template v-if="binding.demoKind === 'wave'">
+        <span v-if="binding.bindingSourceId" class="status-active">✅ 已启用数据绑定（固定点位 {{ DEMO_SAMPLE_POINT_ID }}）</span>
+        <span v-else class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
+      </template>
+      <template v-else>
+        <span v-if="binding.hasAnyPoint && !binding.bindingSourceId" class="status-warning">⚠ 请选择数据源，绑定方可生效</span>
+        <span v-else-if="binding.hasAnyPoint" class="status-active">✅ 已启用数据绑定</span>
+        <span v-else class="status-inactive">⏸ 未启用（请添加点组）</span>
+      </template>
     </div>
 
     <!-- 转换函数编辑对话框：点组卡片内 ⤢ 按钮打开，大号多行编辑区便于查看/编辑长函数；
@@ -250,6 +288,7 @@ import { useEditorStore } from '@/stores/editor'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { getProtocolLabel } from '@/components/dataSource/protocolConfigRegistry'
 import { POINT_GROUP_OTHER_KEY } from '@/components/dataSource/pointIdAssistantRegistry'
+import { DEMO_SAMPLE_POINT_ID } from '@/platform/deviceConfig'
 import {
   parsePointImportText,
   isTxtPath,
@@ -519,6 +558,13 @@ async function downloadImportTemplate() {
 function handleAddPointGroup() {
   binding.addPointGroup()
   if (binding.assistantEntry?.readOnly) openAssistantDialog(binding.bindingGroups.length - 1)
+}
+
+/** 自定义数据档：点击 key chip 快捷添加点组（key 即点ID；已有同名点组的 key 不重复添加） */
+function addCustomKeyGroup(key: string) {
+  if (binding.bindingGroups.some((g) => g.pointId.trim() === key)) return
+  binding.bindingGroups.push({ pointId: key, name: '', transformSource: '', remark: '' })
+  binding.updateBinding()
 }
 
 // ===================== 点组归组 tab（由助手注册项 groupKeyOf 驱动，纯展示层） =====================
@@ -923,6 +969,73 @@ const visibleBindingItems = computed(() => {
 .s7-pointid-view.empty {
   font-family: inherit;
   color: var(--text-muted);
+}
+
+/* ===================== 演示模式（波形档固定点位卡片 / 自定义数据档 key chips） ===================== */
+.demo-fixed-card {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-primary-ring);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-light);
+}
+.demo-fixed-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.demo-fixed-point {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--color-primary);
+}
+.demo-fixed-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+/* 自定义数据 key chips 行：点击快捷添加点组 */
+.custom-keys-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.custom-keys-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.custom-key-chip {
+  padding: 2px 8px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  background: var(--statusbar-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.custom-key-chip:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.custom-key-chip.used,
+.custom-key-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.custom-keys-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+/* 点ID 不在 customData keys 中的警告（不拦截提交） */
+.custom-key-warn {
+  margin-left: 52px;
+  font-size: 11px;
+  color: var(--color-warning);
 }
 
 /* ===================== 绑定状态与数据源信息 ===================== */

@@ -57,7 +57,7 @@ pub struct WebsocketConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
-    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    /// 自定义演示数据（仅 profile = custom 时生效；顶层 key = 点位 ID，每点取对应 key 的值）
     #[serde(default)]
     pub custom_data: Option<serde_json::Value>,
 }
@@ -77,7 +77,7 @@ pub struct HttpConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
-    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    /// 自定义演示数据（仅 profile = custom 时生效；顶层 key = 点位 ID，每点取对应 key 的值）
     #[serde(default)]
     pub custom_data: Option<serde_json::Value>,
 }
@@ -97,7 +97,7 @@ pub struct SseConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
-    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    /// 自定义演示数据（仅 profile = custom 时生效；顶层 key = 点位 ID，每点取对应 key 的值）
     #[serde(default)]
     pub custom_data: Option<serde_json::Value>,
 }
@@ -117,7 +117,7 @@ pub struct MqttConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
-    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    /// 自定义演示数据（仅 profile = custom 时生效；顶层 key = 点位 ID，每点取对应 key 的值）
     #[serde(default)]
     pub custom_data: Option<serde_json::Value>,
 }
@@ -143,7 +143,7 @@ pub struct ModbusConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
-    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    /// 自定义演示数据（仅 profile = custom 时生效；顶层 key = 点位 ID，每点取对应 key 的值）
     #[serde(default)]
     pub custom_data: Option<serde_json::Value>,
 }
@@ -169,7 +169,7 @@ pub struct S7Config {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
-    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    /// 自定义演示数据（仅 profile = custom 时生效；顶层 key = 点位 ID，每点取对应 key 的值）
     #[serde(default)]
     pub custom_data: Option<serde_json::Value>,
 }
@@ -188,7 +188,7 @@ pub struct OpcConfig {
     /// 演示波形档位（仅 is_mock 时生效，缺省正弦）
     #[serde(default)]
     pub profile: DemoProfile,
-    /// 自定义演示数据（仅 profile = custom 时生效；每轮原样返回给所有点位）
+    /// 自定义演示数据（仅 profile = custom 时生效；顶层 key = 点位 ID，每点取对应 key 的值）
     #[serde(default)]
     pub custom_data: Option<serde_json::Value>,
 }
@@ -207,7 +207,7 @@ pub enum DemoProfile {
     Sawtooth,
     /// 离散档位（方波/阶梯）
     Steps,
-    /// 自定义数据：每轮原样返回配置中的 customData（所有点位拿到同一份完整 JSON）
+    /// 自定义数据：以点ID 为 key 取配置中 customData 对应的值（key 缺失返回 null）
     Custom,
 }
 

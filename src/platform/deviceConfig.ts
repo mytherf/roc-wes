@@ -58,6 +58,12 @@ export function isDemoSource(sourceConfig?: Record<string, any>): boolean {
 /** 演示波形档位（与 Rust `DemoProfile` 一一对应，值为 serde camelCase 串；以波形形状命名，与协议无关） */
 export type DemoWave = 'sine' | 'randomWalk' | 'sawtooth' | 'steps'
 
+/** 演示数据档位：四种内置波形 + 自定义数据（custom 不是"波形"，不进 DEMO_WAVE_OPTIONS） */
+export type DemoDataMode = DemoWave | 'custom'
+
+/** 演示模式波形档的固定点位 ID：绑定时无需用户录入点ID，波形数据统一挂在此点下 */
+export const DEMO_SAMPLE_POINT_ID = 'sample-point'
+
 /** 演示模式可选波形（供数据源对话框下拉；不选则缺省正弦） */
 export const DEMO_WAVE_OPTIONS: { value: DemoWave; label: string }[] = [
     { value: 'sine', label: '正弦波（平滑遥测）' },
@@ -65,11 +71,11 @@ export const DEMO_WAVE_OPTIONS: { value: DemoWave; label: string }[] = [
     { value: 'sawtooth', label: '锯齿斜升（升满归零）' },
     { value: 'steps', label: '离散档位（阶梯切换）' },
 ]
-const DEMO_WAVES = new Set<string>(['sine', 'randomWalk', 'sawtooth', 'steps'])
+const DEMO_DATA_MODES = new Set<string>(['sine', 'randomWalk', 'sawtooth', 'steps', 'custom'])
 
-/** 校验波形档位值：合法波形名原样返回；其余（含旧版协议名）返回 undefined */
-export function normalizeDemoWave(v: unknown): DemoWave | undefined {
-    return typeof v === 'string' && DEMO_WAVES.has(v) ? (v as DemoWave) : undefined
+/** 校验演示数据档位值：合法波形名/custom 原样返回；其余（含旧版协议名）返回 undefined */
+export function normalizeDemoWave(v: unknown): DemoDataMode | undefined {
+    return typeof v === 'string' && DEMO_DATA_MODES.has(v) ? (v as DemoDataMode) : undefined
 }
 
 // ===================== 协议配置注册表 =====================
@@ -186,7 +192,13 @@ export function buildDeviceConfig(
         // 波形：仅当用户显式选择了合法档位才下发 profile；未选/非法一律省略，
         // 由 Rust 缺省正弦波兜底（全部协议一致）
         const profile = normalizeDemoWave(cfg.profile)
-        return { ...entry.mockPlaceholder, isMock: true, pollIntervalMs, ...(profile ? { profile } : {}) }
+        // 自定义数据档：原样下发用户配置的 customData（顶层 key = 点位 ID，
+        // Rust DemoAdapter 按点ID 取对应 key 的值；非 custom 档不携带）
+        const custom =
+            profile === 'custom' && cfg.customData !== undefined
+                ? { customData: cfg.customData }
+                : {}
+        return { ...entry.mockPlaceholder, isMock: true, pollIntervalMs, ...(profile ? { profile } : {}), ...custom }
     }
 
     // 兜底：未注册的类型按演示处理，避免误连

@@ -8,7 +8,7 @@
  * 3. 非法 profile 值（含旧版协议名）省略 profile；真实模式不带 isMock
  */
 import { describe, it, expect } from 'vitest'
-import { buildDeviceConfig, isDemoSource, DEMO_WAVE_OPTIONS } from '@/platform/deviceConfig'
+import { buildDeviceConfig, isDemoSource, DEMO_WAVE_OPTIONS, normalizeDemoWave, DEMO_SAMPLE_POINT_ID } from '@/platform/deviceConfig'
 
 describe('buildDeviceConfig 演示波形选择', () => {
     it('演示模式未选波形：protocol 保持原协议 + isMock，全部协议省略 profile（缺省正弦）', () => {
@@ -55,6 +55,40 @@ describe('buildDeviceConfig 演示波形选择', () => {
     it('波形选项覆盖全部四档且值唯一', () => {
         const values = DEMO_WAVE_OPTIONS.map((o) => o.value)
         expect(values).toEqual(['sine', 'randomWalk', 'sawtooth', 'steps'])
+    })
+})
+
+describe('buildDeviceConfig 自定义数据档', () => {
+    it('custom 档：下发 profile=custom 与 customData（任意协议均可，顶层 key = 点位 ID）', () => {
+        const doc = { temp: 25.3, status: 'running' }
+        const cfg = buildDeviceConfig('websocket', '', { demo: true, profile: 'custom', customData: doc })
+        expect(cfg).toMatchObject({ protocol: 'websocket', isMock: true, profile: 'custom', customData: doc })
+        const mb = buildDeviceConfig('modbus', '', { demo: true, profile: 'custom', customData: doc })
+        expect(mb).toMatchObject({ protocol: 'modbus', isMock: true, profile: 'custom', customData: doc })
+    })
+
+    it('custom 档缺 customData：仍下发 profile=custom，不携带 customData 字段', () => {
+        const cfg = buildDeviceConfig('modbus', '', { demo: true, profile: 'custom' })
+        expect((cfg as any).profile).toBe('custom')
+        expect((cfg as any).customData).toBeUndefined()
+    })
+
+    it('波形档/真实模式：不下发 customData（剥除残留）', () => {
+        const doc = { a: 1 }
+        const cfg = buildDeviceConfig('websocket', '', { demo: true, profile: 'sine', customData: doc })
+        expect((cfg as any).customData).toBeUndefined()
+        const real = buildDeviceConfig('websocket', 'ws://x', { demo: false, profile: 'custom', customData: doc })
+        expect((real as any).customData).toBeUndefined()
+    })
+
+    it('normalizeDemoWave 放行 custom（编辑回填不丢失），非法值仍归 undefined', () => {
+        expect(normalizeDemoWave('custom')).toBe('custom')
+        expect(normalizeDemoWave('sine')).toBe('sine')
+        expect(normalizeDemoWave('bad')).toBeUndefined()
+    })
+
+    it('演示波形档固定点位常量为 sample-point', () => {
+        expect(DEMO_SAMPLE_POINT_ID).toBe('sample-point')
     })
 })
 

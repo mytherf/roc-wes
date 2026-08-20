@@ -147,14 +147,14 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         })
         editorStore.setSelected('node-1')
 
-        // 注入一个演示模式数据源供下拉选择
+        // 注入一个真实模式数据源供下拉选择（非演示：点位由用户录入）
         const { useDataSourceStore } = await import('@/stores/dataSource')
         const dsStore = useDataSourceStore()
         const ds = dsStore.addDataSource({
-            name: 'demo-ws',
+            name: 'real-ws',
             type: 'websocket',
-            url: '',
-            config: { demo: true },
+            url: 'ws://127.0.0.1:12345',
+            config: {},
         })
 
         const cell = makeFakeCell('node-1')
@@ -192,10 +192,10 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         const { useDataSourceStore } = await import('@/stores/dataSource')
         const dsStore = useDataSourceStore()
         const ds = dsStore.addDataSource({
-            name: 'demo-ws',
+            name: 'real-ws',
             type: 'websocket',
-            url: '',
-            config: { demo: true },
+            url: 'ws://127.0.0.1:12345',
+            config: {},
         })
 
         // 节点已带两点绑定（两个点组）
@@ -275,7 +275,7 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
         wrapper.unmount()
     })
 
-    it('切换数据源：置空再改选不丢失已录入点组', async () => {
+    it('演示波形档：点位固定 sample-point，隐藏点组编辑区，选中数据源即生效', async () => {
         const editorStore = useEditorStore()
         editorStore.setGraphData({
             nodes: [{ id: 'node-1', data: { shape: 'gauge', label: '测试节点' } } as any],
@@ -290,6 +290,90 @@ describe('属性面板点ID输入（真实组件挂载）', () => {
             type: 'websocket',
             url: '',
             config: { demo: true },
+        })
+
+        const cell = makeFakeCell('node-1')
+        const canvasRef = makeFakeCanvas(cell)
+        const wrapper = mount(PropertyPanel, { props: { canvasRef } })
+
+        const select = wrapper.findAll('select').find((s) =>
+            s.findAll('option').some((o) => o.text().includes('未选择数据源'))
+        )!
+        await select.setValue(ds.id)
+        await nextTick()
+
+        // 点组卡片/添加按钮隐藏，以固定点位只读卡片替代
+        expect(wrapper.find('.demo-fixed-card').exists()).toBe(true)
+        expect(wrapper.find('.demo-fixed-point').text()).toBe('sample-point')
+        expect(wrapper.findAll('.binding-group-card').length).toBe(0)
+        expect(wrapper.find('.add-extra-point-btn').exists()).toBe(false)
+
+        // 选中数据源即生效：binding.points 固定为 sample-point（不取用户录入）
+        const storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
+        expect(storeNode?.data?.binding).toMatchObject({
+            sourceId: ds.id,
+            points: [{ pointId: 'sample-point' }],
+        })
+        wrapper.unmount()
+    })
+
+    it('演示自定义数据档：点组可编辑，点位取 JSON key', async () => {
+        const editorStore = useEditorStore()
+        editorStore.setGraphData({
+            nodes: [{ id: 'node-1', data: { shape: 'gauge', label: '测试节点' } } as any],
+            edges: [],
+        })
+        editorStore.setSelected('node-1')
+
+        const { useDataSourceStore } = await import('@/stores/dataSource')
+        const dsStore = useDataSourceStore()
+        const ds = dsStore.addDataSource({
+            name: 'demo-custom',
+            type: 'websocket',
+            url: '',
+            config: { demo: true, profile: 'custom', customData: { temp: 25.3, status: 'running' } },
+        })
+
+        const cell = makeFakeCell('node-1')
+        const canvasRef = makeFakeCanvas(cell)
+        const wrapper = mount(PropertyPanel, { props: { canvasRef } })
+
+        const select = wrapper.findAll('select').find((s) =>
+            s.findAll('option').some((o) => o.text().includes('未选择数据源'))
+        )!
+        await select.setValue(ds.id)
+        await nextTick()
+
+        // custom 档不显示固定点位卡片，点组编辑区与 key chips 均在
+        expect(wrapper.find('.demo-fixed-card').exists()).toBe(false)
+        expect(wrapper.find('.add-extra-point-btn').exists()).toBe(true)
+        expect(wrapper.findAll('.custom-key-chip').map((c) => c.text())).toEqual(['temp', 'status'])
+
+        // 点击 key chip 快捷添加点组（key 即点ID）并提交绑定
+        await wrapper.findAll('.custom-key-chip')[0].trigger('click')
+        const storeNode = editorStore.graphData.nodes.find((n) => n.id === 'node-1')
+        expect(storeNode?.data?.binding).toMatchObject({
+            sourceId: ds.id,
+            points: [{ pointId: 'temp' }],
+        })
+        wrapper.unmount()
+    })
+
+    it('切换数据源：置空再改选不丢失已录入点组', async () => {
+        const editorStore = useEditorStore()
+        editorStore.setGraphData({
+            nodes: [{ id: 'node-1', data: { shape: 'gauge', label: '测试节点' } } as any],
+            edges: [],
+        })
+        editorStore.setSelected('node-1')
+
+        const { useDataSourceStore } = await import('@/stores/dataSource')
+        const dsStore = useDataSourceStore()
+        const ds = dsStore.addDataSource({
+            name: 'real-ws',
+            type: 'websocket',
+            url: 'ws://127.0.0.1:12345',
+            config: {},
         })
 
         const cell = makeFakeCell('node-1')

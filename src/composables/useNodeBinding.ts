@@ -12,6 +12,7 @@ import { ref, reactive, computed, watch, type ComputedRef, type InjectionKey } f
 import { useEditorStore } from '@/stores/editor'
 import { useDataSourceStore } from '@/stores/dataSource'
 import { getPointIdAssistant, type PointIdAssistantEntry } from '@/components/dataSource/pointIdAssistantRegistry'
+import { DEMO_SAMPLE_POINT_ID } from '@/platform/deviceConfig'
 
 /** 绑定点组草稿：点 ID、点名称、转换函数与备注为一组（点组地位平等、全部可删） */
 export interface BindingGroupDraft {
@@ -50,9 +51,25 @@ export function useNodeBinding(
     bindingSourceId.value ? dataSourceStore.getDataSource(bindingSourceId.value) ?? null : null
   )
 
-  /** 当前数据源类型的点 ID 助手（未注册返回 null，点ID 自由输入、不校验、不分组） */
+  /**
+   * 演示模式两分：非演示 → null；演示波形档（缺省/四种波形）→ 'wave'（固定点位
+   * sample-point，用户不录入点ID）；演示自定义数据档 → 'custom'（点位 = JSON 顶层 key）
+   */
+  const demoKind = computed<null | 'wave' | 'custom'>(() => {
+    const cfg = selectedDataSource.value?.config
+    if (!cfg || cfg.demo !== true) return null
+    return cfg.profile === 'custom' ? 'custom' : 'wave'
+  })
+
+  /** custom 档 customData 顶层 key 列表（供绑定页 chips 快捷添加与点ID 校验提示） */
+  const customDataKeys = computed<string[]>(() => {
+    const cd = demoKind.value === 'custom' ? selectedDataSource.value?.config?.customData : undefined
+    return cd && typeof cd === 'object' && !Array.isArray(cd) ? Object.keys(cd) : []
+  })
+
+  /** 当前数据源类型的点 ID 助手（未注册返回 null）；演示模式一律不弹助手 */
   const assistantEntry = computed<PointIdAssistantEntry | null>(() =>
-    getPointIdAssistant(selectedDataSource.value?.type)
+    demoKind.value ? null : getPointIdAssistant(selectedDataSource.value?.type)
   )
 
   /** 判断某点ID 是否为当前生效画面点（显式指定或缺省回落首个有效点组） */
@@ -75,6 +92,10 @@ export function useNodeBinding(
    * 填了点名称时展示为「点ID（名称）」，便于区分。
    */
   const watchFieldOptions = computed(() => {
+    // 演示波形档：点位固定 sample-point，选项唯一
+    if (demoKind.value === 'wave') {
+      return [{ pointId: DEMO_SAMPLE_POINT_ID, label: `${DEMO_SAMPLE_POINT_ID}（演示固定点位）` }]
+    }
     const opts: { pointId: string; label: string }[] = []
     const seen = new Set<string>()
     for (const g of bindingGroups.value) {
@@ -158,14 +179,19 @@ export function useNodeBinding(
     }
 
     const nodeId = element.value.data.id
-    // 有效点组：点ID 非空且去重（保留首个）；点名称、转换函数与备注随组携带
-    const validGroups: BindingGroupDraft[] = []
-    const seen = new Set<string>()
-    for (const g of bindingGroups.value) {
-      const pid = g.pointId.trim()
-      if (!pid || seen.has(pid)) continue
-      seen.add(pid)
-      validGroups.push({ pointId: pid, name: g.name.trim(), transformSource: g.transformSource.trim(), remark: g.remark.trim() })
+    // 有效点组：演示波形档固定为 sample-point 单点（用户不录入点ID）；
+    // 其余场景点ID 非空且去重（保留首个），点名称、转换函数与备注随组携带
+    let validGroups: BindingGroupDraft[] = []
+    if (demoKind.value === 'wave') {
+      validGroups.push({ pointId: DEMO_SAMPLE_POINT_ID, name: '', transformSource: '', remark: '' })
+    } else {
+      const seen = new Set<string>()
+      for (const g of bindingGroups.value) {
+        const pid = g.pointId.trim()
+        if (!pid || seen.has(pid)) continue
+        seen.add(pid)
+        validGroups.push({ pointId: pid, name: g.name.trim(), transformSource: g.transformSource.trim(), remark: g.remark.trim() })
+      }
     }
 
     let binding: any = null
@@ -245,6 +271,8 @@ export function useNodeBinding(
     bindingGroups,
     displayPointId,
     selectedDataSource,
+    demoKind,
+    customDataKeys,
     assistantEntry,
     watchFieldOptions,
     hasAnyPoint,

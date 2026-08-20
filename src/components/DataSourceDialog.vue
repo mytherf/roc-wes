@@ -191,14 +191,27 @@
               <select v-model="form.profile" class="ds-input">
                 <option value="">跟随默认波形（正弦波）</option>
                 <option v-for="opt in DEMO_WAVE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                <option value="custom">自定义数据（JSON）</option>
               </select>
-              <!-- 当前生效波形的样例小图（随选择实时变化） -->
-              <div class="ds-wave-preview">
+              <!-- 当前生效波形的样例小图（随选择实时变化；自定义数据档无波形，隐藏） -->
+              <div v-if="currentWave !== 'custom'" class="ds-wave-preview">
                 <svg viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true">
                   <polyline :points="wavePoints(currentWave)" fill="none" stroke="currentColor" stroke-width="1.5" />
                 </svg>
                 <span>当前波形样例</span>
               </div>
+              <!-- 自定义数据编辑器（仅 custom 档）：顶层 key = 点位 ID，演示引擎按点ID 取对应 key 的值 -->
+              <template v-if="form.profile === 'custom'">
+                <textarea
+                  v-model="form.customDataText"
+                  class="ds-input ds-custom-editor"
+                  rows="8"
+                  spellcheck="false"
+                  placeholder='{ "temp": 25.3, "status": "running" }'
+                ></textarea>
+                <div v-if="customDataError" class="ds-custom-error" role="alert">{{ customDataError }}</div>
+                <div v-else class="ds-custom-hint">顶层 key 即点位 ID：绑定节点时填写对应 key 作为点ID，该点取对应 key 的值</div>
+              </template>
             </div>
 
             <!-- 协议接入配置（地址 + 专属参数）：注册表驱动（protocolConfigRegistry），
@@ -240,7 +253,7 @@
 import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useGatewayMonitor } from '@/composables/useGatewayMonitor'
 import type { MonitorState } from '@/services/GatewayMonitorService'
-import { DEMO_WAVE_OPTIONS, type DemoWave, normalizeDemoWave } from '@/platform/deviceConfig'
+import { DEMO_WAVE_OPTIONS, type DemoWave, type DemoDataMode, normalizeDemoWave } from '@/platform/deviceConfig'
 import {
   useDataSourceStore,
   type DataSource,
@@ -329,8 +342,12 @@ const form = reactive({
   url: '',
   description: '',
   demo: true,
-  // 演示波形档位：空串 = 跟随默认波形（正弦）；否则为 DEMO_WAVE_OPTIONS 的某个 value
-  profile: '' as '' | DemoWave,
+  // 演示数据档位：空串 = 跟随默认波形（正弦）；DEMO_WAVE_OPTIONS 的某个 value 或 'custom'
+  profile: '' as '' | DemoDataMode,
+  // 自定义数据原文（JSON 文本；保存时解析为 form.customData）
+  customDataText: '',
+  // 解析后的自定义数据对象（buildDataSourceConfig 写入 config.customData）
+  customData: undefined as unknown,
   // 协议专属参数（仅对应类型时生效；设备/服务地址一律存 url）
   ...getProtocolFormDefaults(),
 })
@@ -360,12 +377,12 @@ const WAVE_DESCS: Record<DemoWave, string> = {
  * 生成波形的 SVG 折线点串（viewBox 120×40，供帮助气泡与预览小图使用）。
  * 各形状与 Rust DemoAdapter 的数据特征一致，仅用于示意。
  */
-function wavePoints(kind: DemoWave): string {
+function wavePoints(kind: DemoDataMode): string {
   const N = 48 // 采样点数（档位波形靠密集采样画出陡变沿）
   const pts: string[] = []
   for (let i = 0; i <= N; i++) {
     const t = i / N
-    let v = 50 // 波形取值 0~100
+    let v = 50 // 波形取值 0~100（custom 档无波形，实际不会传入）
     switch (kind) {
       case 'sine': // 正弦：两个周期，20~80
         v = 50 + 30 * Math.sin(t * Math.PI * 4)
@@ -385,13 +402,29 @@ function wavePoints(kind: DemoWave): string {
   return pts.join(' ')
 }
 
-/** 当前生效的波形（预览小图）：用户选择优先；未选时缺省正弦 */
-const currentWave = computed<DemoWave>(() => form.profile || 'sine')
+/** 当前生效的演示数据档位（预览小图）：用户选择优先；未选时缺省正弦 */
+const currentWave = computed<DemoDataMode>(() => form.profile || 'sine')
+
+/** 自定义数据 JSON 实时校验：必须合法 JSON 且顶层为对象（key 为点位 ID）；空串也拦截 */
+const customDataError = computed(() => {
+  if (form.profile !== 'custom') return ''
+  const text = form.customDataText.trim()
+  if (!text) return '自定义数据必填：请填写 JSON'
+  try {
+    const parsed = JSON.parse(text)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return '顶层必须为 JSON 对象（key 为点位 ID）'
+    }
+    return ''
+  } catch {
+    return 'JSON 格式非法，请检查语法'
+  }
+})
 
 /** 连接模式提示文案（随类型与模式变化） */
 const modeHint = computed(() => {
   if (form.demo) {
-    return '演示模式：由桌面端内置模拟引擎生成数据（无需真实设备，无需填写地址）；波形缺省正弦，可在下方「演示波形」中更换'
+    return '演示模式：由桌面端内置模拟引擎生成数据（无需真实设备，无需填写地址）；波形缺省正弦，可在下方更换或选「自定义数据（JSON）」'
   }
   switch (form.type) {
     case 'modbus':
@@ -445,6 +478,8 @@ function resetForm() {
   form.description = ''
   form.demo = true
   form.profile = ''
+  form.customDataText = ''
+  form.customData = undefined
   // 协议专属字段重置为注册表默认值
   Object.assign(form, getProtocolFormDefaults())
   formError.value = ''
@@ -465,8 +500,10 @@ function openEdit(ds: DataSource) {
   // 演示模式判定：仅以 config.demo 为准
   const c = ds.config || {}
   form.demo = c.demo === true
-  // 波形回填：仅合法波形名生效；其余（含旧版协议名）归为「跟随默认波形」
+  // 波形/自定义数据回填：仅合法档位生效（normalizeDemoWave 已放行 custom）；其余归为「跟随默认波形」
   form.profile = normalizeDemoWave(c.profile) ?? ''
+  // 自定义数据原文回填：解析后的对象重新格式化展示
+  form.customDataText = c.customData !== undefined ? JSON.stringify(c.customData, null, 2) : ''
   // 协议专属参数回填（注册表默认值兜底）；存量兼容：旧数据源把设备地址存在 config.host / config.endpoint，url 为空时兜底回填
   const defaults = getProtocolFormDefaults()
   for (const [key, def] of Object.entries(defaults)) {
@@ -492,6 +529,14 @@ function handleSave() {
   if (!form.demo && !url) {
     formError.value = '请填写数据源地址'
     return
+  }
+  // 自定义数据档：校验通过后解析置入 form（buildDataSourceConfig 写入 config.customData）
+  if (form.demo && form.profile === 'custom') {
+    if (customDataError.value) {
+      formError.value = customDataError.value
+      return
+    }
+    form.customData = JSON.parse(form.customDataText.trim())
   }
 
   // 数据源 config：公共字段 demo/profile + 协议专属字段，
@@ -850,6 +895,22 @@ function handleClose() {
   gap: 8px;
   font-size: 12px;
   color: var(--text-muted);
+}
+/* 自定义数据编辑器（JSON）：等宽字体，高度随 rows 固定 */
+.ds-custom-editor {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.ds-custom-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ds-custom-error {
+  font-size: 12px;
+  color: var(--color-danger);
 }
 /* 协议专属参数已迁移至 dataSource/XxxProtocolConfig 子组件（注册表驱动） */
 
