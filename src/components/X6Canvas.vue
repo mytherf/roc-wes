@@ -72,7 +72,6 @@ import {useRouteStore} from '@/stores/route'
 
 import {AnimationService} from '@/services/AnimationService'
 import {RouteService, type RouteConfig, type RouteWaypoint} from '@/services/RouteService'
-import {PointIdGenerator} from '@/services/PointIdGenerator'
 
 import {useDataService} from '@/composables/useDataService'
 import {useGraphSync} from '@/composables/useGraphSync'
@@ -165,7 +164,7 @@ function onDocClick() {
   hideCtxMenu()
 }
 
-/** 删除右键菜单当前指向的节点（删除后由 cell:removed 事件链同步 Store、推历史并释放点 ID） */
+/** 删除右键菜单当前指向的节点（删除后由 cell:removed 事件链同步 Store、推历史并清理订阅） */
 function deleteCtxNode() {
   if (!graph || !ctxMenu.nodeId) return
   const node = graph.getCellById(ctxMenu.nodeId)
@@ -227,25 +226,12 @@ const {updateNodePosition, updateNodeSize, bindGraphEvents, bindStoreWatchers, s
       cell.setSize(iconModeSizeFor(data))
     }
   },
-  // 移除节点：释放点 ID（含绑定的全部点组）并清理订阅与路线覆盖层
+  // 移除节点：清理订阅与路线覆盖层
   onNodeRemoved: (cell) => {
-    const data = cell.getData()
     // 取消数据订阅（避免残留回调持续写入已删除节点）
     dataService.unbindNodeData(cell.id)
     // 清除该节点的路线覆盖层（虚线路径 + 航点标记）
     clearRouteOverlay(cell.id)
-    const generator = PointIdGenerator.getInstance()
-    if (data?.pointId) {
-      generator.release(data.pointId)
-    }
-    const binding = data?.binding
-    if (binding) {
-      for (const entry of binding.points ?? []) {
-        // 点组 = 点ID + 点名称 + 转换函数 + 备注
-        const pid = entry?.pointId
-        if (pid) generator.release(pid)
-      }
-    }
   },
 })
 
@@ -881,6 +867,25 @@ onMounted(() => {
   )
 
   // ---------- 快捷键绑定（编辑器的“键盘操作”） ----------
+  /**
+   * 剥离粘贴节点的数据绑定（v3：复制出的节点保持独立，不受源节点配置影响）。
+   * 清除 pointId/binding 与运行态字段，保留名称/尺寸/样式等外观配置；
+   * 粘贴时 node:added 可能已按继承的 binding 建立订阅，需一并退订。
+   * 注：X6 浅合并不会删除未传入的 key，须显式置 undefined（JSON 序列化时自然丢弃）。
+   */
+  const stripPastedBindings = (cells: any[]) => {
+    for (const cell of cells) {
+      if (!cell.isNode()) continue
+      const data = cell.getData() || {}
+      if (data.pointId === undefined && data.binding === undefined && data.values === undefined) continue
+      dataService.unbindNodeData(cell.id)
+      cell.setData(
+        { ...data, pointId: undefined, binding: undefined, values: undefined, _rawValue: undefined, _timestamp: undefined, _quality: undefined },
+        { deep: false }
+      )
+    }
+  }
+
   // Ctrl+C：复制选中的节点/连线到剪贴板
   graph.bindKey('ctrl+c', () => {
     const cells = graph!.getSelectedCells()
@@ -899,7 +904,11 @@ onMounted(() => {
 
   graph.bindKey('ctrl+v', () => {
     if (!graph!.isClipboardEmpty()) {
-      graph!.paste({offset: {dx: 20, dy: 20}})
+      // 粘贴 + 剥离绑定包在同一 batch：只产生一条撤销记录
+      graph!.batchUpdate('paste', () => {
+        const pasted = graph!.paste({offset: {dx: 20, dy: 20}})
+        stripPastedBindings(pasted)
+      })
     }
   })
 
@@ -908,7 +917,11 @@ onMounted(() => {
     const cells = graph!.getSelectedCells()
     if (!cells.length) return
     graph!.copy(cells)
-    const pasted = graph!.paste({offset: {dx: 20, dy: 20}})
+    let pasted: any[] = []
+    graph!.batchUpdate('paste', () => {
+      pasted = graph!.paste({offset: {dx: 20, dy: 20}})
+      stripPastedBindings(pasted)
+    })
     graph!.cleanSelection()
     if (pasted.length) graph!.select(pasted)
   })
@@ -1197,11 +1210,6 @@ function loadGraphData(data: GraphData) {
     g.clearCells()
     g.fromJSON(x6Data)
   })
-
-
-  // 从画布节点初始化已用点 ID
-  const generator = PointIdGenerator.getInstance()
-  generator.initFromNodes(g.getNodes())
 
   // 重新绑定数据源
   dataService.bindAllNodes(g)

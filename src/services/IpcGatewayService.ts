@@ -152,9 +152,22 @@ export class IpcGatewayService implements IDataService {
         }
     }
 
-    // 退订：移除回调并通知 Rust
-    unsubscribe(pointId: string): void {
-        this.callbacks.delete(pointId)
+    // 退订：传 callback 仅移除该回调；不传则移除该点全部回调。
+    // 仅当该点不再有任何订阅者时才通知 Rust 退订（配置相同的数据源
+    // 复用同一会话，如两个演示正弦源都绑 sample-point；无此保护会退订连坐，
+    // 一个节点解绑导致其他节点数据中断）
+    unsubscribe(pointId: string, callback?: DataCallback): void {
+        const cbs = this.callbacks.get(pointId)
+        if (cbs) {
+            if (callback) {
+                const idx = cbs.indexOf(callback)
+                if (idx >= 0) cbs.splice(idx, 1)
+            } else {
+                cbs.length = 0
+            }
+            if (cbs.length > 0) return // 仍有其他订阅者：不碰 Rust 会话
+            this.callbacks.delete(pointId)
+        }
         if (this.pendingSubscriptions.has(pointId)) {
             // 还没真正订阅过，直接从待办中删除即可
             this.pendingSubscriptions.delete(pointId)

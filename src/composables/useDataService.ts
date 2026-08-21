@@ -7,7 +7,7 @@
 // 什么是 Composable？Vue 3 中把可复用的逻辑抽成函数，名字以 use 开头。
 
 import type { Graph, Node } from '@antv/x6'
-import type { DataBindingConfig, IDataService } from '@/services/DataService'
+import type { DataBindingConfig, IDataService, DataCallback } from '@/services/DataService'
 import { IpcGatewayService } from '@/services/IpcGatewayService'
 import { buildDeviceConfig } from '@/platform/deviceConfig'
 import { useDataSourceStore } from '@/stores/dataSource'
@@ -38,6 +38,8 @@ export function useDataService() {
   const nodeServiceKeys = new Map<string, string>()
   // 存储节点 ID → 已订阅点 ID 列表的映射（多点绑定，用于清理）
   const nodeDataSubscriptions = new Map<string, string[]>()
+  // 存储节点 ID → 已登记订阅回调的映射（逐回调退订用，防止共享会话退订连坐）
+  const nodeDataCallbacks = new Map<string, { pointId: string; callback: DataCallback }[]>()
   // 存储节点 ID → 当前生效画面点 ID 的映射（rebindIfChanged 比对用）
   const nodeDisplayKeys = new Map<string, string>()
 
@@ -160,10 +162,11 @@ export function useDataService() {
     nodeServiceKeys.set(node.id, serviceKey(sourceType, sourceUrl, sourceConfig))
 
     const primaryPointId = resolveDisplayPointId(binding, points)
+    const entries: { pointId: string; callback: DataCallback }[] = []
     for (const p of points) {
       // 每个点编译自己组内的转换函数
       const transform = compileTransform(p.transformSource)
-      service.subscribe(p.pointId, (point) => {
+      const callback: DataCallback = (point) => {
         const currentData = node.getData()
         const prevValues = (currentData?.values || {}) as Record<string, any>
         // 每个点先应用自己组内的转换函数（每点独立转换），再写入 values
@@ -186,10 +189,13 @@ export function useDataService() {
         node.setData(nextData)
         // 评估节点数据变化事件（比较类条件上升沿触发，不会重复告警）
         evaluateNodeEvents(node.id, currentData, nextData)
-      })
+      }
+      service.subscribe(p.pointId, callback)
+      entries.push({ pointId: p.pointId, callback })
     }
 
     nodeDataSubscriptions.set(node.id, points.map((p) => p.pointId))
+    nodeDataCallbacks.set(node.id, entries)
     nodeDisplayKeys.set(node.id, primaryPointId)
   }
 
@@ -210,18 +216,21 @@ export function useDataService() {
 
   /**
    * 取消节点的数据订阅（退订全部绑定点）
+   * 逐回调退订：传 callback 给服务层，仅移除本节点的回调；点位上还有其他
+   * 订阅者（配置相同的数据源复用同一会话，如两个演示正弦源都绑 sample-point）
+   * 时不向 Rust 发退订，避免退订连坐导致其他节点数据中断。
    */
   function unbindNodeData(nodeId: string) {
     if (nodeDataSubscriptions.has(nodeId)) {
-      const pointIds = nodeDataSubscriptions.get(nodeId)!
       const serviceKey = nodeServiceKeys.get(nodeId)
       const service = serviceKey ? dataServiceMap.get(serviceKey) : undefined
       if (service) {
-        for (const pid of pointIds) {
-          service.unsubscribe(pid)
+        for (const { pointId, callback } of nodeDataCallbacks.get(nodeId) ?? []) {
+          service.unsubscribe(pointId, callback)
         }
       }
       nodeDataSubscriptions.delete(nodeId)
+      nodeDataCallbacks.delete(nodeId)
       nodeServiceKeys.delete(nodeId)
       nodeDisplayKeys.delete(nodeId)
     }
@@ -243,16 +252,17 @@ export function useDataService() {
    * 取消所有节点的订阅（不断开服务连接，可在重新加载后再次绑定）
    */
   function unbindAllNodes() {
-    for (const [nodeId, pointIds] of nodeDataSubscriptions) {
+    for (const [nodeId, entries] of nodeDataCallbacks) {
       const serviceKey = nodeServiceKeys.get(nodeId)
       const service = serviceKey ? dataServiceMap.get(serviceKey) : undefined
       if (service) {
-        for (const pid of pointIds) {
-          service.unsubscribe(pid)
+        for (const { pointId, callback } of entries) {
+          service.unsubscribe(pointId, callback)
         }
       }
     }
     nodeDataSubscriptions.clear()
+    nodeDataCallbacks.clear()
     nodeServiceKeys.clear()
     nodeDisplayKeys.clear()
   }

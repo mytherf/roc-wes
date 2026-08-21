@@ -180,7 +180,7 @@ const handleDragStart = (e: MouseEvent, item: NodeTemplate) => {
     return
   }
 
-  const nodeConfig = buildNodeConfig(item, props.graph)
+  const nodeConfig = buildNodeConfig(item)
   const node = props.graph.createNode(nodeConfig)
   props.dnd.start(node, e)
 }

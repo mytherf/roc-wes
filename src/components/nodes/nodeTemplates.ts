@@ -3,25 +3,26 @@
 //
 // 用途：
 //   1. 用配置驱动代替原 Sidebar.vue 中 484 行的 if-else 分支链，
-//      每种节点类型的「显示信息 + 尺寸 + 默认数据 + 数据绑定」集中在一条配置中
+//      每种节点类型的「显示信息 + 尺寸 + 默认数据」集中在一条配置中
 //   2. 新增节点类型只需在 nodeTemplates 数组中追加一项，无需改动任何分支逻辑
-//   3. buildNodeConfig() 负责把模板转换成 X6 可用的节点配置（含 pointId 生成
-//      与数据绑定注入），供组件库拖拽创建节点时调用
+//   3. buildNodeConfig() 负责把模板转换成 X6 可用的节点配置（形状/尺寸/样式/data），
+//      供组件库拖拽创建节点时调用
+//
+// 数据绑定约定（v3 起）：
+//   新建节点不注入 pointId/binding —— 旧演示时代的默认点ID（sensor.temp 等）已移除，
+//   点组一律由用户在属性面板「数据绑定」页录入（演示模式缺省点组由绑定模型保障）。
 //
 // 分组说明：
-//   - 基础节点：矩形 / 圆形 / 卡片（无数据绑定或简单绑定）
-//   - WCS 设备节点：堆垛机 / 输送机 / AGV / 穿梭车 / 分拣机 / 提升机 /
-//     机械手 / 货架（绑定 device.* 点位，transform 把数值映射为设备状态）
-//   - IoT 监控节点：仪表盘 / 折线图 / 指示灯（绑定 sensor.* 点位）
+//   - 基础节点：矩形 / 圆形 / 卡片
+//   - WCS 设备节点：堆垛机 / 输送机 / AGV / 穿梭车 / 分拣机 / 提升机 / 机械手 / 货架
+//   - IoT 监控节点：仪表盘 / 折线图 / 指示灯
 // ============================================================
-import type { Graph } from '@antv/x6'
-import { PointIdGenerator } from '@/services/PointIdGenerator'
 
 /**
  * 节点模板定义
  *
  * 将原 Sidebar.vue 中 484 行的 if-else 链重构为配置驱动：
- * 每个节点类型的「显示信息 + 尺寸 + 默认数据 + 数据绑定」集中在一条配置中，
+ * 每个节点类型的「显示信息 + 尺寸 + 默认数据」集中在一条配置中，
  * 新增节点类型只需在 nodeTemplates 数组中追加一项，无需改动任何分支逻辑。
  */
 export interface NodeTemplate {
@@ -33,8 +34,6 @@ export interface NodeTemplate {
   icon: string
   /** 所属分组（组件库分类展示，如 基础 / WCS 设备 / IoT 监控） */
   group: string
-  /** 预设点ID模板（null/undefined 表示不生成 pointId、不创建数据绑定） */
-  pointIdTemplate?: string | null
   /** 节点宽度 */
   width: number
   /** 节点高度 */
@@ -44,18 +43,16 @@ export interface NodeTemplate {
   /** 连接桩配置（仅 rect 使用） */
   ports?: Record<string, any>
   /**
-   * 默认数据（不含 pointId/binding，由工厂自动注入）。
+   * 默认数据（不含 pointId/binding，新建节点不注入数据绑定）。
    * 可为静态对象（工厂会深拷贝避免共享引用），
    * 或函数（每次拖拽返回全新对象，适用于含随机/动态数据的节点）。
    */
   data?: Record<string, any> | ((item: NodeTemplate) => Record<string, any>)
-  /** 数据绑定转换函数（原始值 → 业务状态），存在 pointIdTemplate 时生效 */
-  transform?: (raw: any) => any
   /**
-   * 复杂数据构建器（如货架：transform 需闭包引用随机货格）。
-   * 接收 pointId，返回完整 data（含 binding）。优先级高于 data/transform。
+   * 复杂数据构建器（如货架：初始货格需随机生成）。
+   * 返回完整 data（不含 binding）。优先级高于 data。
    */
-  buildData?: (pointId: string) => Record<string, any>
+  buildData?: () => Record<string, any>
 }
 
 /** 矩形连接桩（上下两个可吸附连接点） */
@@ -92,11 +89,9 @@ const RACK_COLS = 6
 const RACK_FLOORS = 4
 
 /**
- * 货架货位状态转换函数（无闭包、自包含）。
+ * 货架货位状态生成函数（无闭包、自包含，仅用于初始货格）。
  *
- * 注意：此函数刻意不引用任何外部模块变量（维度常量直接硬编码在函数体内），
- * 因此 `rackTransform.toString()` 得到的源码可被 `new Function` 在任意作用域
- * 重新编译——这是 transform 持久化（保存/加载工程）的前提。
+ * v3 起不再作为 binding 转换函数注入，仅供 buildData 生成初始 floorGrids。
  */
 const rackTransform = (_raw: any) => {
   const rows = 1
@@ -132,7 +127,6 @@ export const nodeTemplates: NodeTemplate[] = [
   {
     type: 'custom-card', label: '卡片节点', icon: '📋',
     group: '基础',
-    pointIdTemplate: 'device.card',
     width: 160, height: 80,
     data: (item) => ({ title: item.label, icon: item.icon, status: '正常' }),
   },
@@ -141,63 +135,30 @@ export const nodeTemplates: NodeTemplate[] = [
   {
     type: 'stacker-node', label: '堆垛机', icon: '🏗️',
     group: 'WCS 设备',
-    pointIdTemplate: 'device.stacker',
     width: 200, height: 130,
     data: { name: '堆垛机-01', lane: 'A01', position: '05-12-03', status: 'idle', isMoving: false, progress: 0 },
-    transform: (raw: any) => {
-      const v = Number(raw)
-      // 模拟堆垛机状态：0-20 idle, 20-60 running, 60-80 warning, 80-100 error
-      if (v < 20) return { status: 'idle', isMoving: false, progress: 0 }
-      if (v < 60) return { status: 'running', isMoving: true, progress: ((v - 20) / 40) * 100 }
-      if (v < 80) return { status: 'warning', isMoving: false, progress: 0 }
-      return { status: 'error', isMoving: false, progress: 0 }
-    },
   },
   {
     type: 'conveyor-node', label: '输送机', icon: '⚡',
     group: 'WCS 设备',
-    pointIdTemplate: 'device.conveyor',
     width: 220, height: 80,
     data: { name: '输送线-01', direction: 'left', isRunning: false, status: 'idle' },
-    transform: (raw: any) => {
-      const v = Number(raw)
-      if (v < 30) return { isRunning: false, status: 'idle' }
-      if (v < 70) return { isRunning: true, status: 'running' }
-      return { isRunning: false, status: 'error' }
-    },
   },
   {
     type: 'agv-node', label: 'AGV', icon: '🤖',
     group: 'WCS 设备',
-    pointIdTemplate: 'device.agv',
     width: 160, height: 120,
     data: { name: 'AGV-01', battery: 85, isMoving: false, status: 'idle' },
-    transform: (raw: any) => {
-      const v = Number(raw)
-      if (v < 20) return { battery: 20, isMoving: false, status: 'charging' }
-      if (v < 40) return { battery: v, isMoving: false, status: 'idle' }
-      if (v < 80) return { battery: v, isMoving: true, status: 'running' }
-      return { battery: v, isMoving: false, status: 'error' }
-    },
   },
   {
     type: 'shuttle-node', label: '穿梭车', icon: '🚗',
     group: 'WCS 设备',
-    pointIdTemplate: 'device.shuttle',
     width: 200, height: 100,
     data: { name: '穿梭车-01', position: 50, status: 'idle' },
-    transform: (raw: any) => {
-      const v = Number(raw)
-      const pos = v % 100
-      if (v < 30) return { position: pos, status: 'idle' }
-      if (v < 80) return { position: pos, status: 'running' }
-      return { position: pos, status: 'error' }
-    },
   },
   {
     type: 'sorter-node', label: '分拣机', icon: '📦',
     group: 'WCS 设备',
-    pointIdTemplate: 'device.sorter',
     width: 240, height: 160,
     // 函数形式：确保每个节点获得全新的 chutes 数组，避免共享引用
     data: () => ({
@@ -211,50 +172,22 @@ export const nodeTemplates: NodeTemplate[] = [
         { label: 'D区', count: 0, active: false },
       ],
     }),
-    transform: (raw: any) => {
-      const v = Number(raw)
-      const chutes = [
-        { label: 'A区', count: Math.floor(v * 0.1), active: v > 20 },
-        { label: 'B区', count: Math.floor(v * 0.2), active: v > 40 },
-        { label: 'C区', count: Math.floor(v * 0.3), active: v > 60 },
-        { label: 'D区', count: Math.floor(v * 0.4), active: v > 80 },
-      ]
-      return { speed: 30 + v * 0.7, status: v > 90 ? 'error' : v > 10 ? 'running' : 'idle', chutes }
-    },
   },
   {
     type: 'elevator-node', label: '提升机', icon: '🔼',
     group: 'WCS 设备',
-    pointIdTemplate: 'device.elevator',
     width: 120, height: 160,
     data: { name: '提升机-01', maxLevel: 6, currentLevel: 1, position: 0, status: 'idle' },
-    transform: (raw: any) => {
-      const v = Number(raw)
-      const level = Math.floor(((v % 100) / 100) * 6) + 1
-      if (v < 30) return { currentLevel: level, position: v, status: 'idle' }
-      if (v < 80) return { currentLevel: level, position: v, status: 'running' }
-      return { currentLevel: level, position: v, status: 'error' }
-    },
   },
   {
     type: 'robot-node', label: '机械手', icon: '🦾',
     group: 'WCS 设备',
-    pointIdTemplate: 'device.robot',
     width: 150, height: 130,
     data: { name: '机械手-01', jointAngle: 0, isOpen: false, status: 'idle' },
-    transform: (raw: any) => {
-      const v = Number(raw)
-      if (v < 20) return { jointAngle: 0, isOpen: false, status: 'idle' }
-      if (v < 40) return { jointAngle: 30, isOpen: false, status: 'idle' }
-      if (v < 60) return { jointAngle: 60, isOpen: true, status: 'running' }
-      if (v < 80) return { jointAngle: 90, isOpen: true, status: 'running' }
-      return { jointAngle: 0, isOpen: false, status: 'error' }
-    },
   },
   {
     type: 'rack-node', label: '货架', icon: '🏛️',
     group: 'WCS 设备',
-    pointIdTemplate: 'device.rack',
     width: 240, height: 150,
     /**
      * 货架三维模型：
@@ -263,11 +196,11 @@ export const nodeTemplates: NodeTemplate[] = [
      * - floors 层（高度方向）
      * 库位编号规则：排_列_层（如 1_3_2）。默认单深位。
      */
-    buildData: (pointId: string) => {
+    buildData: () => {
       const rows = RACK_ROWS
       const cols = RACK_COLS
       const floors = RACK_FLOORS
-      // 初始货位占用由 rackTransform 生成，保证与运行期更新形状一致
+      // 初始货位占用随机生成，保证与运行期更新形状一致
       const initial = rackTransform(0)
       return {
         name: '货架-A01',
@@ -275,11 +208,6 @@ export const nodeTemplates: NodeTemplate[] = [
         cols,
         floors,
         floorGrids: initial.floorGrids,
-        pointId,
-        binding: {
-          // 点组新格式：主点组携带转换函数源码；无 sourceId 时运行期不订阅（属性面板选数据源后生效）
-          points: [{ pointId, transformSource: rackTransform.toString() }],
-        },
       }
     },
   },
@@ -288,47 +216,36 @@ export const nodeTemplates: NodeTemplate[] = [
   {
     type: 'gauge-node', label: '仪表盘', icon: '📊',
     group: 'IoT 监控',
-    pointIdTemplate: 'sensor.temp',
     width: 200, height: 180,
     data: { title: '温度', unit: '°C', value: 50 },
-    transform: (raw: any) => Math.round(raw * 10) / 10,
   },
   {
     type: 'chart-node', label: '折线图', icon: '📈',
     group: 'IoT 监控',
-    pointIdTemplate: 'sensor.chart',
     width: 260, height: 160,
     // 函数形式：确保每个节点获得全新的 history 数组
     data: () => ({ title: '实时曲线', history: Array(20).fill(0) }),
-    transform: (raw: any) => Math.round(raw * 10) / 10,
   },
   {
     type: 'indicator-node', label: '指示灯', icon: '💡',
     group: 'IoT 监控',
-    pointIdTemplate: 'device.status',
     width: 130, height: 70,
     // 设备状态直接用主点转换后的 value 驱动（on/off/warning/error），不再单独存 status
     data: { label: '设备状态', value: 'off' },
-    transform: (raw: any) => {
-      // 将数值映射为状态字符串
-      if (raw > 80) return 'on'
-      if (raw > 50) return 'warning'
-      if (raw > 20) return 'off'
-      return 'error'
-    },
   },
 ]
 
 /**
  * 根据模板构建 X6 节点配置
  *
- * 统一处理：尺寸设置、原生形状样式、pointId 生成、data 构建、数据绑定注入。
+ * 统一处理：尺寸设置、原生形状样式、data 构建。
+ * 不注入 pointId/binding —— 数据绑定由用户在属性面板录入（v3 起，
+ * 旧演示时代的默认点ID 已移除）。
  *
  * @param item 节点模板
- * @param graph X6 Graph 实例（用于初始化 PointIdGenerator 的已用 ID 集合）
  * @returns 可直接传给 graph.createNode() 的配置对象
  */
-export function buildNodeConfig(item: NodeTemplate, graph: Graph): Record<string, any> {
+export function buildNodeConfig(item: NodeTemplate): Record<string, any> {
   const config: Record<string, any> = {
     shape: item.type,
     width: item.width,
@@ -339,41 +256,14 @@ export function buildNodeConfig(item: NodeTemplate, graph: Graph): Record<string
   if (item.attrs) config.attrs = item.attrs(item.label)
   if (item.ports) config.ports = item.ports
 
-  // 生成唯一数据点 ID（如模板配置了点ID）
-  let pointId: string | null = null
-  if (item.pointIdTemplate) {
-    const generator = PointIdGenerator.getInstance()
-    generator.initFromNodes(graph.getNodes())
-    pointId = generator.generate(item.pointIdTemplate)
-  }
-
-  // 构建节点数据
-  if (item.buildData && pointId) {
-    // 复杂节点：完整自定义构建（含 binding）
-    config.data = item.buildData(pointId)
-  } else if (item.data || pointId) {
-    // 常规节点：静态 data 深拷贝 / 函数 data 返回全新对象
-    const baseData =
+  // 构建节点数据：复杂构建器优先；否则静态 data 深拷贝 / 函数 data 返回全新对象
+  if (item.buildData) {
+    config.data = item.buildData()
+  } else if (item.data) {
+    config.data =
       typeof item.data === 'function'
         ? item.data(item)
-        : item.data
-          ? structuredClone(item.data)
-          : {}
-    config.data = { ...baseData }
-
-    // 自动注入 pointId 与数据绑定
-    if (pointId) {
-      config.data.pointId = pointId
-      // 点组新格式：主点组携带转换函数源码（自包含函数，toString 可安全序列化）；
-      // 无 sourceId 时运行期不订阅，属性面板选数据源后生效
-      config.data.binding = {
-        points: [
-          item.transform
-            ? { pointId, transformSource: item.transform.toString() }
-            : { pointId },
-        ],
-      }
-    }
+        : structuredClone(item.data)
   }
 
   return config

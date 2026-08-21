@@ -31,8 +31,14 @@ const { mockHolder, FakeIpcService } = vi.hoisted(() => {
         subscribe(pointId: string, cb: (point: any) => void) {
             this.callbacks.set(pointId, cb)
         }
-        unsubscribe(pointId: string) {
-            this.callbacks.delete(pointId)
+        unsubscribe(pointId: string, callback?: (point: any) => void) {
+            if (callback) {
+                const cur = this.callbacks.get(pointId)
+                if (cur !== callback) return
+                this.callbacks.delete(pointId)
+            } else {
+                this.callbacks.delete(pointId)
+            }
         }
         isConnected() {
             return true

@@ -29,8 +29,9 @@ export type DataCallback = (point: DataPoint) => void
 export interface IDataService {
     /** 订阅数据点：注册回调，之后每次收到新值都会调用 callback */
     subscribe(pointId: string, callback: DataCallback): void
-    /** 取消订阅：不再接收该点数据（节点删除/页面关闭时调用） */
-    unsubscribe(pointId: string): void
+    /** 取消订阅：传 callback 仅移除该回调（点位无订阅者时才真正退订，
+     * 防止共享会话退订连坐）；不传则移除该点全部回调（节点删除/页面关闭时调用） */
+    unsubscribe(pointId: string, callback?: DataCallback): void
     /** 连接状态：是否已与数据源建立连接 */
     isConnected(): boolean
     /** 向数据源写入单个点位值（可选能力：不支持写入的数据源可不实现，调用方需先判断） */
