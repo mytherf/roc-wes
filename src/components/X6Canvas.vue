@@ -726,10 +726,9 @@ onMounted(() => {
       eventTypes: ['rightMouseDown'],
     },
 
-    virtual: {
-      enabled: true,
-      margin: 150,
-    },
+    // 虚拟渲染已关闭：X6 3.1.7 的虚拟渲染与 vue-shape 自定义节点存在已知竞态，
+    // 节点视图被视口裁剪卸载后偶发无法恢复，表现为节点内容消失（仅剩选中框）。
+    // 编辑器场景节点规模有限，全量渲染开销可接受。
     mousewheel: {
       enabled: true,
       zoomAtMousePosition: true,
